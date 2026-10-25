@@ -670,12 +670,26 @@ local function nearest_object()
     end
     return best
 end
-local function aim_step(dt)
-    if not key_state.aimbot then return end
+local aim_conn = RunService:BindToRenderStep("BSSToolkitAim", Enum.RenderPriority.Camera.Value + 1, function(dt)
+    if state.fov_enabled then camera.FieldOfView = state.fov_value end
+    
+    if not key_state.aimbot then
+        if UserInputService.MouseBehavior ~= Enum.MouseBehavior.Default then
+            UserInputService.MouseBehavior = Enum.MouseBehavior.Default
+        end
+        return
+    end
+    
     local target
     if state.aimbot_enabled then target = nearest_target() end
     if not target and state.object_aimbot_enabled then target = nearest_object() end
-    if not target then return end
+    if not target then 
+        UserInputService.MouseBehavior = Enum.MouseBehavior.Default
+        return 
+    end
+
+    UserInputService.MouseBehavior = Enum.MouseBehavior.LockCenter
+    
     local aim_pos = target.Position
     if target.Parent and target.Parent:IsA("Model") then
         local hrp = target.Parent:FindFirstChild("HumanoidRootPart")
@@ -690,7 +704,7 @@ local function aim_step(dt)
         local alpha = 1 - (0.001 ^ (dt * 60))
         camera.CFrame = current:Lerp(target_cf, alpha * (1 - state.aimbot_smooth * 0.7))
     end
-end
+end)
 local function triggerbot_step()
     if not state.triggerbot then return end
     local mouse = player:GetMouse()
@@ -996,7 +1010,8 @@ local function start_fly(on_vehicle)
             if UserInputService:IsKeyDown(Enum.KeyCode.Space) then move = move + Vector3.new(0, 1, 0) end
             if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then move = move - Vector3.new(0, 1, 0) end
             local speed = state.fly_speed
-            if state.safe_fly then speed = math.min(speed, 50) end            if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then speed = speed * 2.5 end
+            if state.safe_fly then speed = math.min(speed, 50) end
+            if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then speed = speed * 2.5 end
             if move.Magnitude > 0 then
                 r.CFrame = r.CFrame + (move.Unit * speed * dt)
             end
@@ -1478,11 +1493,9 @@ UserInputService.InputEnded:Connect(function(io)
     if io.UserInputType == fling_bind.input and (io.KeyCode == fling_bind.key or fling_bind.input ~= Enum.UserInputType.Keyboard) then key_state.fling = false end
 end)
 RunService.RenderStepped:Connect(function(dt)
-    if state.fov_enabled then camera.FieldOfView = state.fov_value end
     update_esp()
     update_object_esp()
     update_fov_circle()
-    aim_step(dt)
     triggerbot_step()
     if state.hitbox_enabled then
         for _, p in ipairs(Players:GetPlayers()) do if p ~= player then apply_hitbox_to(p) end end
