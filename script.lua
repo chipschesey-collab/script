@@ -7,10 +7,8 @@ local HttpService = game:GetService("HttpService")
 local Lighting = game:GetService("Lighting")
 local VirtualUser = game:GetService("VirtualUser")
 local VirtualInputManager = game:GetService("VirtualInputManager")
-
 local player = Players.LocalPlayer
 local camera = Workspace.CurrentCamera
-
 local COL_BG        = Color3.fromRGB(24, 24, 28)
 local COL_PANEL     = Color3.fromRGB(34, 34, 40)
 local COL_PANEL_ALT = Color3.fromRGB(30, 30, 36)
@@ -21,7 +19,6 @@ local COL_ACCENT    = Color3.fromRGB(60, 130, 220)
 local COL_OK        = Color3.fromRGB(150, 200, 150)
 local COL_BAD       = Color3.fromRGB(220, 130, 130)
 local COL_DANGER    = Color3.fromRGB(150, 60, 60)
-
 local state = {
     esp_enabled = false, esp_box = true, esp_name = true, esp_distance = true, esp_tracers = false, esp_skeleton = false, esp_color = Color3.fromRGB(255, 80, 80), esp_team_color = false, esp_range = 500,
     fov_enabled = false, fov_value = 70, saved_spots = {}, aimbot_enabled = false, aimbot_fov = 150, aimbot_smooth = 0.35, aimbot_part = "Head", aimbot_teamcheck = true, aimbot_range = 500, aimbot_prediction = 0.05,
@@ -30,7 +27,6 @@ local state = {
     vehiclefly_enabled = false, vehicle_noclip = false, jb_fly_enabled = false, spinbot = false, spinbot_speed = 50, mask_enabled = false, mask_display = "", noclip = false, cf_speed = false, cf_speed_val = 50,
     anti_afk = false, fullbright = false, click_tp = false, anti_fling = false, float = false, swim = false, under_map = false, auto_farm = false, safe_fly = false, mm2_auto_shoot = false, mm2_auto_grab = false, grabbing_gun = false
 }
-
 local keybinds = {
     aimbot = {input = Enum.UserInputType.Keyboard, key = Enum.KeyCode.E},
     fling = {input = Enum.UserInputType.Keyboard, key = Enum.KeyCode.F},
@@ -38,16 +34,13 @@ local keybinds = {
     fly = {input = Enum.UserInputType.Keyboard, key = Enum.KeyCode.G},
 }
 local key_state = {aimbot = false, fling = false, fly = false}
-
 local fling_active = false
 local fling_target = nil
 local fling_return_cf = nil
 local fling_conn = nil
-
 local fly_conn = nil
 local fly_velocity = nil
 local fly_gyro = nil
-
 local hitbox_expanded = {}
 local obj_esp_objs = {}
 local troll_conn = nil
@@ -61,13 +54,10 @@ local swim_conn = nil
 local vehicle_noclip_conn = nil
 local under_map_conn = nil
 local auto_farm_conn = nil
-
 local orig_lighting = {
     Brightness = Lighting.Brightness, ClockTime = Lighting.ClockTime, GlobalShadows = Lighting.GlobalShadows, FogEnd = Lighting.FogEnd,
 }
-
 local is_mm2 = game.PlaceId == 142823291
-
 local old = CoreGui:FindFirstChild("BSSToolkit")
 if old then old:Destroy() end
 if _G._bss_fling_conn then _G._bss_fling_conn:Disconnect(); _G._bss_fling_conn = nil end
@@ -77,24 +67,20 @@ if _G._bss_inf_jump then _G._bss_inf_jump:Disconnect(); _G._bss_inf_jump = nil e
 if _G._bss_fly_conn then _G._bss_fly_conn:Disconnect(); _G._bss_fly_conn = nil end
 if _G._bss_fly_vel then pcall(function() _G._bss_fly_vel:Destroy() end); _G._bss_fly_vel = nil end
 if _G._bss_fly_gyro then pcall(function() _G._bss_fly_gyro:Destroy() end); _G._bss_fly_gyro = nil end
-
 local function make(class, props, parent)
     local inst = Instance.new(class)
     for k, v in pairs(props or {}) do inst[k] = v end
     if parent then inst.Parent = parent end
     return inst
 end
-
 local function corner(inst, radius) make("UICorner", {CornerRadius = UDim.new(0, radius or 6)}, inst) return inst end
 local function stroke(inst, color, thickness) make("UIStroke", {Color = color or COL_STROKE, Thickness = thickness or 1}, inst) return inst end
-
 local function get_root(p)
     p = p or player
     local char = p.Character
     if not char then return nil end
     return char:FindFirstChild("HumanoidRootPart")
 end
-
 local function parse_cframe(text)
     text = text:gsub("^%s+", ""):gsub("%s+$", "")
     local inner = text:match("CFrame%.new%s*%((.*)%)%s*$") or text
@@ -107,12 +93,10 @@ local function parse_cframe(text)
     if #nums == 12 then return CFrame.new(table.unpack(nums)) end
     return nil
 end
-
 local function same_team(a, b)
     if not a.Team or not b.Team then return false end
     return a.Team == b.Team
 end
-
 local function player_in_game(p)
     local char = p.Character
     if not char then return false end
@@ -122,20 +106,16 @@ local function player_in_game(p)
     if hum.Health <= 0 then return false end
     return true
 end
-
 local gui = make("ScreenGui", {Name = "BSSToolkit", ResetOnSpawn = false, ZIndexBehavior = Enum.ZIndexBehavior.Sibling, IgnoreGuiInset = true}, CoreGui)
 local main = make("Frame", {Size = UDim2.new(0, 660, 0, 560), Position = UDim2.new(0.5, -330, 0.5, -280), BackgroundColor3 = COL_BG, BorderSizePixel = 0, Active = false}, gui)
 corner(main, 10) stroke(main)
-
 local titleBar = make("Frame", {Size = UDim2.new(1, 0, 0, 36), BackgroundColor3 = COL_PANEL, BorderSizePixel = 0}, main)
 corner(titleBar, 10)
 make("TextLabel", {Size = UDim2.new(1, -140, 1, 0), Position = UDim2.new(0, 14, 0, 0), BackgroundTransparency = 1, Text = "BSSToolkit", TextColor3 = COL_TEXT, TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.GothamBold, TextSize = 15}, titleBar)
 local keybindLabel = make("TextLabel", {Size = UDim2.new(0, 130, 1, 0), Position = UDim2.new(1, -170, 0, 0), BackgroundTransparency = 1, Text = "", TextColor3 = COL_TEXT_DIM, TextXAlignment = Enum.TextXAlignment.Right, Font = Enum.Font.Code, TextSize = 10}, titleBar)
-
 local closeBtn = make("TextButton", {Size = UDim2.new(0, 28, 0, 22), Position = UDim2.new(1, -36, 0, 7), BackgroundColor3 = COL_DANGER, BorderSizePixel = 0, Text = "x", TextColor3 = Color3.fromRGB(240, 200, 200), Font = Enum.Font.GothamBold, TextSize = 13}, titleBar)
 corner(closeBtn, 5)
 closeBtn.MouseButton1Click:Connect(function() if state.fov_enabled then camera.FieldOfView = 70 end gui:Destroy() end)
-
 local dragging = false
 local drag_start = nil
 local drag_start_pos = nil
@@ -157,12 +137,10 @@ end)
 UserInputService.InputEnded:Connect(function(io)
     if io.UserInputType == Enum.UserInputType.MouseButton1 or io.UserInputType == Enum.UserInputType.Touch then dragging = false end
 end)
-
 local tabs = {"ESP", "Teleport", "Aimbot", "Fling", "Hitbox", "Fun", "Utility"}
 if is_mm2 then table.insert(tabs, "MM2") end
 local tabBar = make("Frame", {Size = UDim2.new(1, 0, 0, 34), Position = UDim2.new(0, 0, 0, 36), BackgroundColor3 = COL_BG, BorderSizePixel = 0}, main)
 make("UIListLayout", {FillDirection = Enum.FillDirection.Horizontal, SortOrder = Enum.SortOrder.LayoutOrder}, tabBar)
-
 local tabButtons = {}
 local tabPages = {}
 for i, name in ipairs(tabs) do
@@ -171,7 +149,6 @@ for i, name in ipairs(tabs) do
     local page = make("Frame", {Size = UDim2.new(1, -24, 1, -96), Position = UDim2.new(0, 12, 0, 82), BackgroundTransparency = 1, Visible = false}, main)
     tabPages[name] = page
 end
-
 local function switch_tab(name)
     for n, btn in pairs(tabButtons) do
         if n == name then
@@ -187,9 +164,7 @@ local function switch_tab(name)
 end
 for n, btn in pairs(tabButtons) do btn.MouseButton1Click:Connect(function() switch_tab(n) end) end
 switch_tab("ESP")
-
 local function section(parent, text, order) return make("TextLabel", {Size = UDim2.new(1, 0, 0, 22), BackgroundTransparency = 1, Text = text, TextColor3 = COL_TEXT, TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.GothamBold, TextSize = 12, LayoutOrder = order or 0}, parent) end
-
 local function toggle(parent, text, initial, callback, order)
     local row = make("Frame", {Size = UDim2.new(1, 0, 0, 30), BackgroundColor3 = COL_PANEL_ALT, BorderSizePixel = 0, LayoutOrder = order or 0}, parent)
     corner(row, 5)
@@ -213,7 +188,6 @@ local function toggle(parent, text, initial, callback, order)
     end
     return row
 end
-
 local function slider(parent, text, minv, maxv, initial, callback, order)
     local row = make("Frame", {Size = UDim2.new(1, 0, 0, 44), BackgroundColor3 = COL_PANEL_ALT, BorderSizePixel = 0, LayoutOrder = order or 0}, parent)
     corner(row, 5)
@@ -248,26 +222,22 @@ local function slider(parent, text, minv, maxv, initial, callback, order)
     end)
     return row
 end
-
 local function button(parent, text, color, callback, order)
     local b = make("TextButton", {Size = UDim2.new(1, 0, 0, 30), BackgroundColor3 = color or COL_PANEL_ALT, BorderSizePixel = 0, Text = text, TextColor3 = COL_TEXT, Font = Enum.Font.GothamBold, TextSize = 12, LayoutOrder = order or 0}, parent)
     corner(b, 5)
     b.MouseButton1Click:Connect(callback)
     return b
 end
-
 local function textbox(parent, placeholder, order, initial)
     local t = make("TextBox", {Size = UDim2.new(1, 0, 0, 32), BackgroundColor3 = COL_PANEL, BorderSizePixel = 0, TextColor3 = COL_TEXT, PlaceholderText = placeholder, PlaceholderColor3 = COL_TEXT_DIM, Text = initial or "", Font = Enum.Font.Gotham, TextSize = 12, ClearTextOnFocus = false, LayoutOrder = order or 0}, parent)
     corner(t, 6)
     return t
 end
-
 local function scroll_col(parent)
     local s = make("ScrollingFrame", {Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1, BorderSizePixel = 0, ScrollBarThickness = 4, CanvasSize = UDim2.new(0, 0, 0, 0), AutomaticCanvasSize = Enum.AutomaticSize.Y}, parent)
     make("UIListLayout", {Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder}, s)
     return s
 end
-
 local function split_two(parent)
     local left = make("Frame", {Size = UDim2.new(0.5, -6, 1, 0), BackgroundTransparency = 1}, parent)
     local ls = scroll_col(left)
@@ -275,22 +245,17 @@ local function split_two(parent)
     local rs = scroll_col(right)
     return ls, rs
 end
-
 local draw_holder = make("Frame", {Size = UDim2.new(1, 0, 1, 0), Position = UDim2.new(0, 0, 0, 0), BackgroundTransparency = 1, Active = false, ClipsDescendants = false}, gui)
-
 local fovCircle = make("Frame", {Size = UDim2.new(0, state.aimbot_fov * 2, 0, state.aimbot_fov * 2), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0.5, 0), BackgroundTransparency = 1, BorderSizePixel = 0, Visible = false, ZIndex = 5}, draw_holder)
 make("UICorner", {CornerRadius = UDim.new(1, 0)}, fovCircle)
 make("UIStroke", {Color = COL_ACCENT, Thickness = 1.5, Transparency = 0.3}, fovCircle)
-
 local function update_fov_circle()
     local d = state.aimbot_fov * 2
     fovCircle.Size = UDim2.new(0, d, 0, d)
     fovCircle.Visible = state.aimbot_enabled or state.object_aimbot_enabled
 end
 update_fov_circle()
-
 local esp_objects = {}
-
 local function make_esp_for(p)
     local frame = make("Frame", {BackgroundTransparency = 1, Visible = false}, draw_holder)
     local box = make("Frame", {BackgroundTransparency = 1, Visible = false}, frame)
@@ -304,19 +269,16 @@ local function make_esp_for(p)
     end
     esp_objects[p] = {root = frame, box = box, box_stroke = box_stroke, name = nameLbl, dist = distLbl, tracer = tracer, skel = skel}
 end
-
 local function remove_esp_for(p)
     local o = esp_objects[p]
     if o and o.root then o.root:Destroy() end
     esp_objects[p] = nil
 end
-
 local function world_to_screen(pos)
     local sp, on = camera:WorldToViewportPoint(pos)
     if not on then return nil end
     return Vector2.new(sp.X, sp.Y), sp.Z
 end
-
 local function char_bounds(char)
     local hrp = char:FindFirstChild("HumanoidRootPart")
     local head = char:FindFirstChild("Head")
@@ -331,7 +293,6 @@ local function char_bounds(char)
     local cx = pos_hrp.X
     return Vector2.new(cx, (top + bottom) / 2), w, h, dist
 end
-
 local SKEL_R6 = {
     {"Head", "Torso"}, {"Torso", "Left Arm"}, {"Torso", "Right Arm"}, {"Torso", "Left Leg"}, {"Torso", "Right Leg"},
 }
@@ -340,7 +301,6 @@ local SKEL_R15 = {
     {"UpperTorso", "RightUpperArm"}, {"RightUpperArm", "RightLowerArm"}, {"RightLowerArm", "RightHand"}, {"LowerTorso", "LeftUpperLeg"}, {"LeftUpperLeg", "LeftLowerLeg"},
     {"LeftLowerLeg", "LeftFoot"}, {"LowerTorso", "RightUpperLeg"}, {"RightUpperLeg", "RightLowerLeg"}, {"RightLowerLeg", "RightFoot"},
 }
-
 local function draw_skeleton(o, char)
     local pairs_list = char:FindFirstChild("UpperTorso") and SKEL_R15 or SKEL_R6
     local idx = 0
@@ -366,7 +326,6 @@ local function draw_skeleton(o, char)
     end
     for i = idx + 1, #o.skel do o.skel[i].Visible = false end
 end
-
 local function update_esp()
     for p, _ in pairs(esp_objects) do
         if not p.Parent or not p.Character then remove_esp_for(p) end
@@ -420,12 +379,10 @@ local function update_esp()
         end
     end
 end
-
 local function clear_object_esp()
     for inst, o in pairs(obj_esp_objs) do if o.frame then o.frame:Destroy() end end
     obj_esp_objs = {}
 end
-
 local function update_object_esp()
     if not state.object_esp_enabled or state.object_name == "" then clear_object_esp(); return end
     local name = state.object_name
@@ -465,7 +422,6 @@ local function update_object_esp()
         if not seen[inst] then if o.frame then o.frame:Destroy() end obj_esp_objs[inst] = nil end
     end
 end
-
 local espLeft, espRight = split_two(tabPages["ESP"])
 section(espLeft, "Player ESP", 1)
 toggle(espLeft, "Enable ESP", false, function(on) state.esp_enabled = on end, 2)
@@ -483,7 +439,6 @@ slider(espLeft, "Blue", 0, 255, 80, function(v) state.esp_color = Color3.fromRGB
 section(espLeft, "Camera", 20)
 toggle(espLeft, "Enable FOV override", false, function(on) state.fov_enabled = on end, 21)
 slider(espLeft, "FOV", 30, 120, 70, function(v) state.fov_value = v end, 22)
-
 section(espRight, "Object ESP", 1)
 toggle(espRight, "Enable object ESP", false, function(on)
     state.object_esp_enabled = on
@@ -494,7 +449,6 @@ obj_name_box:GetPropertyChangedSignal("Text"):Connect(function() state.object_na
 slider(espRight, "Object range", 50, 2000, 500, function(v) state.object_range = v end, 4)
 toggle(espRight, "Object box", true, function(on) state.object_box = on end, 5)
 toggle(espRight, "Object name label", true, function(on) state.object_name_lbl = on end, 6)
-
 local tpLeft, tpRight = split_two(tabPages["Teleport"])
 section(tpLeft, "Players", 1)
 local playerListFrame = make("Frame", {Size = UDim2.new(1, 0, 0, 0), BackgroundTransparency = 1, AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = 2}, tpLeft)
@@ -513,7 +467,6 @@ end
 Players.PlayerAdded:Connect(refresh_player_list)
 Players.PlayerRemoving:Connect(refresh_player_list)
 refresh_player_list()
-
 section(tpRight, "CFrame warp", 1)
 local cfBox = make("TextBox", {Size = UDim2.new(1, 0, 0, 80), BackgroundColor3 = COL_PANEL, BorderSizePixel = 0, TextColor3 = COL_TEXT, PlaceholderText = "CFrame.new(...) or 3/12 numbers", PlaceholderColor3 = COL_TEXT_DIM, Text = "", TextWrapped = true, TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top, Font = Enum.Font.Code, TextSize = 12, ClearTextOnFocus = false, LayoutOrder = 2}, tpRight)
 corner(cfBox, 6)
@@ -532,7 +485,6 @@ button(tpRight, "Teleport to CFrame", COL_ACCENT, function()
     root.CFrame = cf
     set_status("teleported", true)
 end, 4)
-
 local saveBox = textbox(tpRight, "name this spot...", 5, "")
 local savedFrame = make("Frame", {Size = UDim2.new(1, 0, 0, 0), BackgroundTransparency = 1, AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = 7}, tpRight)
 make("UIListLayout", {Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder}, savedFrame)
@@ -561,7 +513,6 @@ button(tpRight, "Save spot (Named)", COL_PANEL_ALT, function()
     rebuild_saved()
     set_status("saved: " .. name, true)
 end, 6)
-
 section(tpRight, "Auto-Waypoints", 8)
 button(tpRight, "Save Current Position", COL_ACCENT, function()
     local root = get_root()
@@ -578,7 +529,6 @@ button(tpRight, "Clear All Waypoints", COL_DANGER, function()
     set_status("cleared all waypoints", true)
 end, 10)
 rebuild_saved()
-
 local aimLeft, aimRight = split_two(tabPages["Aimbot"])
 section(aimLeft, "Player aimbot", 1)
 toggle(aimLeft, "Enable aimbot", false, function(on) state.aimbot_enabled = on; update_fov_circle() end, 2)
@@ -591,7 +541,6 @@ toggle(aimLeft, "Triggerbot", false, function(on) state.triggerbot = on end, 8)
 section(aimLeft, "Target part", 10)
 toggle(aimLeft, "Head", true, function(on) state.aimbot_part = "Head" end, 11)
 toggle(aimLeft, "HumanoidRootPart", false, function(on) state.aimbot_part = "HumanoidRootPart" end, 12)
-
 section(aimRight, "Keybinds", 1)
 local keybindButtons = {}
 local function bind_label(b) local bind = keybinds[b] return bind.key.Name or bind.input.Name end
@@ -622,12 +571,10 @@ keybind_button(aimRight, "Aimbot hold", "aimbot", 2)
 keybind_button(aimRight, "Fling hold", "fling", 3)
 keybind_button(aimRight, "Fly toggle", "fly", 4)
 update_keybind_label()
-
 section(aimRight, "Object aimbot", 10)
 toggle(aimRight, "Enable object aimbot", false, function(on) state.object_aimbot_enabled = on; update_fov_circle() end, 11)
 local obj_aim_name = textbox(aimRight, "object name (exact match)", 12, "")
 obj_aim_name:GetPropertyChangedSignal("Text"):Connect(function() state.object_name = obj_aim_name.Text end)
-
 local function nearest_target()
     local best, best_dist = nil, state.aimbot_fov
     local my_pos = get_root() and get_root().Position or Vector3.zero
@@ -653,7 +600,6 @@ local function nearest_target()
     end
     return best
 end
-
 local function nearest_object()
     if state.object_name == "" then return nil end
     local best, best_dist = nil, state.aimbot_fov
@@ -674,7 +620,6 @@ local function nearest_object()
     end
     return best
 end
-
 local function aim_step(dt)
     if not key_state.aimbot then return end
     local target
@@ -696,7 +641,6 @@ local function aim_step(dt)
         camera.CFrame = current:Lerp(target_cf, alpha * (1 - state.aimbot_smooth * 0.7))
     end
 end
-
 local function triggerbot_step()
     if not state.triggerbot then return end
     local mouse = player:GetMouse()
@@ -716,7 +660,6 @@ local function triggerbot_step()
         end
     end
 end
-
 local flLeft, flRight = split_two(tabPages["Fling"])
 section(flLeft, "Fling target", 1)
 local flingListFrame = make("Frame", {Size = UDim2.new(1, 0, 0, 0), BackgroundTransparency = 1, AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = 2}, flLeft)
@@ -781,7 +724,6 @@ section(flRight, "Options", 1)
 toggle(flRight, "Return to start after fling", true, function(on) state.fling_return = on end, 2)
 toggle(flRight, "Walkfling method", false, function(on) state.use_walkfling = on end, 3)
 button(flRight, "Stop fling", COL_DANGER, function() stop_fling() end, 4)
-
 local hbLeft, hbRight = split_two(tabPages["Hitbox"])
 section(hbLeft, "Hitbox Expander", 1)
 local function remove_hitbox(p)
@@ -820,7 +762,6 @@ wireBtn.MouseButton1Click:Connect(function() state.hitbox_look = "Wireframe"; bo
 invBtn.MouseButton1Click:Connect(function() state.hitbox_look = "Invisible"; boxBtn.BackgroundColor3 = COL_PANEL; wireBtn.BackgroundColor3 = COL_PANEL; invBtn.BackgroundColor3 = COL_ACCENT end)
 slider(hbLeft, "Size", 1, 50, 6, function(v) state.hitbox_size = v end, 5)
 slider(hbLeft, "Transparency", 0, 1, 0.7, function(v) state.hitbox_transparency = v end, 6)
-
 local function apply_hitbox_to(p)
     if not state.hitbox_enabled then return end
     local char = p.Character
@@ -846,7 +787,8 @@ local function apply_hitbox_to(p)
         hitbox.CFrame = hrp.CFrame
         if state.hitbox_look == "Box" then
             hitbox.Transparency = 0.5
-            hitbox:FindFirstChildOfClass("SelectionBox") and hitbox:FindFirstChildOfClass("SelectionBox"):Destroy()
+            local sel = hitbox:FindFirstChildOfClass("SelectionBox")
+            if sel then sel:Destroy() end
         elseif state.hitbox_look == "Wireframe" then
             hitbox.Transparency = 1
             if not hitbox:FindFirstChildOfClass("SelectionBox") then
@@ -854,11 +796,11 @@ local function apply_hitbox_to(p)
             end
         else
             hitbox.Transparency = 1
-            hitbox:FindFirstChildOfClass("SelectionBox") and hitbox:FindFirstChildOfClass("SelectionBox"):Destroy()
+            local sel = hitbox:FindFirstChildOfClass("SelectionBox")
+            if sel then sel:Destroy() end
         end
     end
 end
-
 local funLeft, funRight = split_two(tabPages["Fun"])
 section(funLeft, "Troll", 1)
 local bangTarget = textbox(funLeft, "target player name...", 2, "")
@@ -903,7 +845,6 @@ button(funLeft, "Bang Target (Back n Forth)", COL_PANEL_ALT, function()
         end
     end
 end, 3)
-
 section(funRight, "Dance", 1)
 button(funRight, "Force Dance", COL_ACCENT, function()
     local char = player.Character
@@ -919,7 +860,6 @@ button(funRight, "Force Dance", COL_ACCENT, function()
         end
     end
 end, 2)
-
 section(funRight, "Mask (Display Name)", 10)
 local dispBox = textbox(funRight, "fake display name...", 11, "")
 toggle(funRight, "Enable Mask", false, function(on)
@@ -954,13 +894,11 @@ toggle(funRight, "Enable Mask", false, function(on)
         end
     end
 end, 12)
-
 local function stop_fly()
     if fly_conn then fly_conn:Disconnect(); fly_conn = nil end
     if fly_velocity then fly_velocity:Destroy(); fly_velocity = nil end
     if fly_gyro then fly_gyro:Destroy(); fly_gyro = nil end
 end
-
 local function start_fly(on_vehicle)
     stop_fly()
     local root
@@ -985,7 +923,6 @@ local function start_fly(on_vehicle)
     end
     if not root then root = get_root() end
     if not root then return end
-
     if state.fly_mode == "CFrame" then
         fly_conn = RunService.RenderStepped:Connect(function(dt)
             local r = root
@@ -996,10 +933,10 @@ local function start_fly(on_vehicle)
                 if not seat then stop_fly(); return end
                 local vehicle = seat.Parent
                 r = vehicle.PrimaryPart or vehicle:FindFirstChild("HumanoidRootPart") or vehicle:FindFirstChild("Base") or seat
-            else                r = get_root()
+            else
+                r = get_root()
             end
             if not r then stop_fly(); return end
-            
             local move = Vector3.zero
             local cam = camera.CFrame
             if UserInputService:IsKeyDown(Enum.KeyCode.W) then move = move + cam.LookVector end
@@ -1008,11 +945,9 @@ local function start_fly(on_vehicle)
             if UserInputService:IsKeyDown(Enum.KeyCode.D) then move = move + cam.RightVector end
             if UserInputService:IsKeyDown(Enum.KeyCode.Space) then move = move + Vector3.new(0, 1, 0) end
             if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then move = move - Vector3.new(0, 1, 0) end
-            
             local speed = state.fly_speed
             if state.safe_fly then speed = math.min(speed, 50) end
             if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then speed = speed * 2.5 end
-            
             if move.Magnitude > 0 then
                 r.CFrame = r.CFrame + (move.Unit * speed * dt)
             end
@@ -1040,7 +975,6 @@ local function start_fly(on_vehicle)
                 r = get_root()
             end
             if not r then stop_fly(); return end
-            
             fly_gyro.CFrame = camera.CFrame
             local move = Vector3.zero
             local cam = camera.CFrame
@@ -1057,7 +991,6 @@ local function start_fly(on_vehicle)
         end)
     end
 end
-
 local function start_jb_fly()
     stop_fly()
     local char = player.Character
@@ -1093,7 +1026,6 @@ local function start_jb_fly()
         fly_velocity.Velocity = move.Magnitude > 0 and move.Unit * speed or Vector3.zero
     end)
 end
-
 local function export_config()
     local data = {}
     for k, v in pairs(state) do
@@ -1107,7 +1039,6 @@ local function export_config()
     end
     return HttpService:JSONEncode(data)
 end
-
 local function import_config(code)
     local ok, data = pcall(function() return HttpService:JSONDecode(code) end)
     if not ok then return false end
@@ -1120,7 +1051,6 @@ local function import_config(code)
     end
     return true
 end
-
 local uScroll = scroll_col(tabPages["Utility"])
 section(uScroll, "Movement", 1)
 slider(uScroll, "WalkSpeed", 16, 200, 16, function(v)
@@ -1261,7 +1191,6 @@ toggle(uScroll, "Swim in Air", false, function(on)
         if hum then hum.PlatformStand = false end
     end
 end, 10)
-
 section(uScroll, "Fly", 20)
 toggle(uScroll, "Enable fly", false, function(on)
     state.fly_enabled = on
@@ -1312,7 +1241,6 @@ toggle(uScroll, "Vehicle Noclip", false, function(on)
         if vehicle_noclip_conn then vehicle_noclip_conn:Disconnect(); vehicle_noclip_conn = nil end
     end
 end, 26)
-
 section(uScroll, "Farm & Bypass", 30)
 toggle(uScroll, "Under Map (Immortal)", false, function(on)
     state.under_map = on
@@ -1368,7 +1296,6 @@ toggle(uScroll, "Auto Farm Coins", false, function(on)
         if auto_farm_conn then task.cancel(auto_farm_conn); auto_farm_conn = nil end
     end
 end, 33)
-
 section(uScroll, "Misc", 40)
 toggle(uScroll, "Hit Sounds", false, function(on) state.hit_sound = on end, 41)
 toggle(uScroll, "Anti-AFK", false, function(on)
@@ -1415,7 +1342,6 @@ toggle(uScroll, "Anti-Fling", false, function(on)
         if anti_fling_conn then anti_fling_conn:Disconnect(); anti_fling_conn = nil end
     end
 end, 45)
-
 section(uScroll, "Config", 50)
 local configOut = make("TextBox", {Size = UDim2.new(1, 0, 0, 60), BackgroundColor3 = COL_PANEL, BorderSizePixel = 0, TextColor3 = COL_TEXT, PlaceholderText = "config code appears here...", PlaceholderColor3 = COL_TEXT_DIM, Text = "", TextWrapped = true, TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top, Font = Enum.Font.Code, TextSize = 10, ClearTextOnFocus = false, LayoutOrder = 51}, uScroll)
 corner(configOut, 6)
@@ -1429,7 +1355,6 @@ button(uScroll, "Import config", COL_PANEL_ALT, function()
     local ok = import_config(configIn.Text)
     if ok then configOut.Text = "imported. re-execute to apply." else configOut.Text = "import failed" end
 end, 54)
-
 section(uScroll, "Character", 60)
 button(uScroll, "Reset character", COL_PANEL_ALT, function()
     local char = player.Character
@@ -1439,7 +1364,6 @@ end, 61)
 button(uScroll, "Rejoin server", COL_DANGER, function()
     game:GetService("TeleportService"):Teleport(game.PlaceId, player)
 end, 62)
-
 if is_mm2 then
     local mm2Left, mm2Right = split_two(tabPages["MM2"])
     section(mm2Left, "Info", 1)
@@ -1465,7 +1389,6 @@ if is_mm2 then
     toggle(mm2Left, "Auto Shoot Murderer (Sheriff)", false, function(on) state.mm2_auto_shoot = on end, 3)
     toggle(mm2Left, "Auto Grab Gun (Innocent)", false, function(on) state.mm2_auto_grab = on end, 4)
 end
-
 UserInputService.InputBegan:Connect(function(io, gp)
     if gp then return end
     if state.click_tp and io.KeyCode == Enum.KeyCode.LeftAlt and io.UserInputType == Enum.UserInputType.Keyboard then
@@ -1500,13 +1423,11 @@ UserInputService.InputBegan:Connect(function(io, gp)
         main.Visible = not main.Visible
     end
 end)
-
 UserInputService.InputEnded:Connect(function(io)
     local aim_bind = keybinds.aimbot; local fling_bind = keybinds.fling
     if io.UserInputType == aim_bind.input and (io.KeyCode == aim_bind.key or aim_bind.input ~= Enum.UserInputType.Keyboard) then key_state.aimbot = false end
     if io.UserInputType == fling_bind.input and (io.KeyCode == fling_bind.key or fling_bind.input ~= Enum.UserInputType.Keyboard) then key_state.fling = false end
 end)
-
 RunService.RenderStepped:Connect(function(dt)
     if state.fov_enabled then camera.FieldOfView = state.fov_value end
     update_esp()
