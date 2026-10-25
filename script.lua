@@ -651,7 +651,11 @@ section(aimRight, "Keybinds", 1)
 local keybindButtons = {}
 local function bind_label(b)
     local bind = keybinds[b]
-    return bind.key.Name or bind.input.Name
+    if bind.input == Enum.UserInputType.Keyboard then
+        return bind.key.Name
+    else
+        return bind.input.Name
+    end
 end
 local function keybind_button(parent, label, slot, order)
     local b = make("TextButton", {Size = UDim2.new(1, 0, 0, 30), BackgroundColor3 = COL_PANEL_ALT, BorderSizePixel = 0, Text = label .. ":  " .. bind_label(slot), TextColor3 = COL_TEXT, Font = Enum.Font.Gotham, TextSize = 12, LayoutOrder = order or 0}, parent)
@@ -666,7 +670,7 @@ local function keybind_button(parent, label, slot, order)
                 keybinds[slot] = {input = Enum.UserInputType.Keyboard, key = io.KeyCode}
                 b.Text = label .. ":  " .. io.KeyCode.Name
                 conn:Disconnect(); update_keybind_label()
-            elseif io.UserInputType == Enum.UserInputType.MouseButton1 or io.UserInputType == Enum.UserInputType.MouseButton2 then
+            elseif io.UserInputType.Name:find("MouseButton") then
                 keybinds[slot] = {input = io.UserInputType, key = io.KeyCode}
                 b.Text = label .. ":  " .. io.UserInputType.Name
                 conn:Disconnect(); update_keybind_label()
