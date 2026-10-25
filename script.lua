@@ -672,37 +672,28 @@ local function nearest_object()
 end
 local aim_conn = RunService:BindToRenderStep("BSSToolkitAim", Enum.RenderPriority.Camera.Value + 1, function(dt)
     if state.fov_enabled then camera.FieldOfView = state.fov_value end
-    
-    if not key_state.aimbot then
-        if UserInputService.MouseBehavior ~= Enum.MouseBehavior.Default then
-            UserInputService.MouseBehavior = Enum.MouseBehavior.Default
-        end
-        return
-    end
-    
+
+    if not key_state.aimbot then return end
+
     local target
     if state.aimbot_enabled then target = nearest_target() end
     if not target and state.object_aimbot_enabled then target = nearest_object() end
-    if not target then 
-        UserInputService.MouseBehavior = Enum.MouseBehavior.Default
-        return 
-    end
+    if not target then return end
 
-    UserInputService.MouseBehavior = Enum.MouseBehavior.LockCenter
-    
     local aim_pos = target.Position
     if target.Parent and target.Parent:IsA("Model") then
         local hrp = target.Parent:FindFirstChild("HumanoidRootPart")
         if hrp then aim_pos = aim_pos + hrp.AssemblyLinearVelocity * state.aimbot_prediction end
     end
+
     local cam_pos = camera.CFrame.Position
     local target_cf = CFrame.lookAt(cam_pos, aim_pos)
-    local current = camera.CFrame
+
     if state.aimbot_smooth <= 0.01 then
         camera.CFrame = target_cf
     else
         local alpha = 1 - (0.001 ^ (dt * 60))
-        camera.CFrame = current:Lerp(target_cf, alpha * (1 - state.aimbot_smooth * 0.7))
+        camera.CFrame = camera.CFrame:Lerp(target_cf, alpha * (1 - state.aimbot_smooth * 0.7))
     end
 end)
 local function triggerbot_step()
@@ -1491,6 +1482,11 @@ UserInputService.InputEnded:Connect(function(io)
     local aim_bind = keybinds.aimbot; local fling_bind = keybinds.fling
     if io.UserInputType == aim_bind.input and (io.KeyCode == aim_bind.key or aim_bind.input ~= Enum.UserInputType.Keyboard) then key_state.aimbot = false end
     if io.UserInputType == fling_bind.input and (io.KeyCode == fling_bind.key or fling_bind.input ~= Enum.UserInputType.Keyboard) then key_state.fling = false end
+end)
+UserInputService.WindowFocusReleased:Connect(function()
+    key_state.aimbot = false
+    key_state.fling = false
+    key_state.fly = false
 end)
 RunService.RenderStepped:Connect(function(dt)
     update_esp()
