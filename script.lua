@@ -9,6 +9,7 @@ local VirtualUser = game:GetService("VirtualUser")
 local VirtualInputManager = game:GetService("VirtualInputManager")
 local player = Players.LocalPlayer
 local camera = Workspace.CurrentCamera
+local orig_fov = camera.FieldOfView
 local COL_BG = Color3.fromRGB(24, 24, 28)
 local COL_PANEL = Color3.fromRGB(34, 34, 40)
 local COL_PANEL_ALT = Color3.fromRGB(30, 30, 36)
@@ -19,6 +20,11 @@ local COL_ACCENT = Color3.fromRGB(60, 130, 220)
 local COL_OK = Color3.fromRGB(150, 200, 150)
 local COL_BAD = Color3.fromRGB(220, 130, 130)
 local COL_DANGER = Color3.fromRGB(150, 60, 60)
+local top_conns = {}
+local function track(c)
+    table.insert(top_conns, c)
+    return c
+end
 local state = {
     esp_enabled = false, esp_box = true, esp_name = true, esp_distance = true, esp_tracers = false, esp_skeleton = false, esp_color = Color3.fromRGB(255, 80, 80), esp_team_color = false, esp_range = 500,
     fov_enabled = false, fov_value = 70, saved_spots = {}, aimbot_enabled = false, aimbot_fov = 150, aimbot_smooth = 0.35, aimbot_part = "Head", aimbot_teamcheck = true, aimbot_range = 500, aimbot_prediction = 0.05,
@@ -54,12 +60,18 @@ local swim_conn = nil
 local vehicle_noclip_conn = nil
 local under_map_conn = nil
 local auto_farm_conn = nil
+local main_render_conn = nil
 local orig_lighting = {
     Brightness = Lighting.Brightness, ClockTime = Lighting.ClockTime, GlobalShadows = Lighting.GlobalShadows, FogEnd = Lighting.FogEnd,
 }
 local is_mm2 = game.PlaceId == 142823291
 local old = CoreGui:FindFirstChild("BSSToolkit")
 if old then old:Destroy() end
+for _, obj in ipairs(Workspace:GetDescendants()) do
+    if obj.Name == "BSS_Hitbox" and obj:IsA("BasePart") then
+        obj:Destroy()
+    end
+end
 if _G._bss_fling_conn then _G._bss_fling_conn:Disconnect(); _G._bss_fling_conn = nil end
 if _G._bss_fling_weld then pcall(function() _G._bss_fling_weld:Destroy() end); _G._bss_fling_weld = nil end
 if _G._bss_fling_bav then pcall(function() _G._bss_fling_bav:Destroy() end); _G._bss_fling_bav = nil end
@@ -67,6 +79,7 @@ if _G._bss_inf_jump then _G._bss_inf_jump:Disconnect(); _G._bss_inf_jump = nil e
 if _G._bss_fly_conn then _G._bss_fly_conn:Disconnect(); _G._bss_fly_conn = nil end
 if _G._bss_fly_vel then pcall(function() _G._bss_fly_vel:Destroy() end); _G._bss_fly_vel = nil end
 if _G._bss_fly_gyro then pcall(function() _G._bss_fly_gyro:Destroy() end); _G._bss_fly_gyro = nil end
+if _G._bss_aim_debug_lbl then pcall(function() _G._bss_aim_debug_lbl:Destroy() end); _G._bss_aim_debug_lbl = nil end
 local function make(class, props, parent)
     local inst = Instance.new(class)
     for k, v in pairs(props or {}) do inst[k] = v end
@@ -112,6 +125,58 @@ local function player_in_game(p)
     if hum.Health <= 0 then return false end
     return true
 end
+local function full_cleanup()
+    pcall(function() RunService:UnbindFromRenderStep("BSSToolkitAim") end)
+    if main_render_conn then main_render_conn:Disconnect(); main_render_conn = nil end
+    if fling_conn then fling_conn:Disconnect(); fling_conn = nil end
+    if fly_conn then fly_conn:Disconnect(); fly_conn = nil end
+    if troll_conn then troll_conn:Disconnect(); troll_conn = nil end
+    if noclip_conn then noclip_conn:Disconnect(); noclip_conn = nil end
+    if cf_speed_conn then cf_speed_conn:Disconnect(); cf_speed_conn = nil end
+    if anti_afk_conn then anti_afk_conn:Disconnect(); anti_afk_conn = nil end
+    if anti_fling_conn then anti_fling_conn:Disconnect(); anti_fling_conn = nil end
+    if float_conn then float_conn:Disconnect(); float_conn = nil end
+    if swim_conn then swim_conn:Disconnect(); swim_conn = nil end
+    if vehicle_noclip_conn then vehicle_noclip_conn:Disconnect(); vehicle_noclip_conn = nil end
+    if under_map_conn then under_map_conn:Disconnect(); under_map_conn = nil end
+    if auto_farm_conn then pcall(function() task.cancel(auto_farm_conn) end); auto_farm_conn = nil end
+    if spin_vel then spin_vel:Destroy(); spin_vel = nil end
+    if fly_velocity then fly_velocity:Destroy(); fly_velocity = nil end
+    if fly_gyro then fly_gyro:Destroy(); fly_gyro = nil end
+    if _G._bss_fling_weld then pcall(function() _G._bss_fling_weld:Destroy() end); _G._bss_fling_weld = nil end
+    if _G._bss_inf_jump then _G._bss_inf_jump:Disconnect(); _G._bss_inf_jump = nil end
+    camera.FieldOfView = orig_fov
+    Lighting.Brightness = orig_lighting.Brightness
+    Lighting.ClockTime = orig_lighting.ClockTime
+    Lighting.GlobalShadows = orig_lighting.GlobalShadows
+    Lighting.FogEnd = orig_lighting.FogEnd
+    local char = player.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    if hum then
+        hum.AutoRotate = true
+        hum.PlatformStand = false
+        hum.WalkSpeed = 16
+    end
+    local root = get_root()
+    if root then
+        root.AssemblyLinearVelocity = Vector3.zero
+        root.AssemblyAngularVelocity = Vector3.zero
+        local bv = root:FindFirstChild("FloatBV")
+        if bv then bv:Destroy() end
+    end
+    for _, hb in pairs(hitbox_expanded) do if hb then hb:Destroy() end end
+    hitbox_expanded = {}
+    for _, o in pairs(esp_objects or {}) do if o and o.root then o.root:Destroy() end end
+    for _, o in pairs(obj_esp_objs) do if o.frame then o.frame:Destroy() end end
+    obj_esp_objs = {}
+    if _G._bss_aim_debug_lbl then pcall(function() _G._bss_aim_debug_lbl:Destroy() end); _G._bss_aim_debug_lbl = nil end
+    for _, c in ipairs(top_conns) do pcall(function() c:Disconnect() end) end
+    top_conns = {}
+    key_state.aimbot = false
+    key_state.fling = false
+    key_state.fly = false
+    fling_active = false
+end
 local gui = make("ScreenGui", {Name = "BSSToolkit", ResetOnSpawn = false, ZIndexBehavior = Enum.ZIndexBehavior.Sibling, IgnoreGuiInset = true}, CoreGui)
 local main = make("Frame", {Size = UDim2.new(0, 660, 0, 560), Position = UDim2.new(0.5, -330, 0.5, -280), BackgroundColor3 = COL_BG, BorderSizePixel = 0, Active = false}, gui)
 corner(main, 10)
@@ -122,7 +187,10 @@ make("TextLabel", {Size = UDim2.new(1, -140, 1, 0), Position = UDim2.new(0, 14, 
 local keybindLabel = make("TextLabel", {Size = UDim2.new(0, 130, 1, 0), Position = UDim2.new(1, -170, 0, 0), BackgroundTransparency = 1, Text = "", TextColor3 = COL_TEXT_DIM, TextXAlignment = Enum.TextXAlignment.Right, Font = Enum.Font.Code, TextSize = 10}, titleBar)
 local closeBtn = make("TextButton", {Size = UDim2.new(0, 28, 0, 22), Position = UDim2.new(1, -36, 0, 7), BackgroundColor3 = COL_DANGER, BorderSizePixel = 0, Text = "x", TextColor3 = Color3.fromRGB(240, 200, 200), Font = Enum.Font.GothamBold, TextSize = 13}, titleBar)
 corner(closeBtn, 5)
-closeBtn.MouseButton1Click:Connect(function() if state.fov_enabled then camera.FieldOfView = 70 end gui:Destroy() end)
+closeBtn.MouseButton1Click:Connect(function()
+    full_cleanup()
+    gui:Destroy()
+end)
 local dragging = false
 local drag_start = nil
 local drag_start_pos = nil
@@ -134,16 +202,16 @@ titleBar.InputBegan:Connect(function(io)
         io:CaptureFocus()
     end
 end)
-UserInputService.InputChanged:Connect(function(io)
+track(UserInputService.InputChanged:Connect(function(io)
     if not dragging then return end
     if io.UserInputType == Enum.UserInputType.MouseMovement or io.UserInputType == Enum.UserInputType.Touch then
         local delta = io.Position - drag_start
         main.Position = UDim2.new(drag_start_pos.X.Scale, drag_start_pos.X.Offset + delta.X, drag_start_pos.Y.Scale, drag_start_pos.Y.Offset + delta.Y)
     end
-end)
-UserInputService.InputEnded:Connect(function(io)
+end))
+track(UserInputService.InputEnded:Connect(function(io)
     if io.UserInputType == Enum.UserInputType.MouseButton1 or io.UserInputType == Enum.UserInputType.Touch then dragging = false end
-end)
+end))
 local tabs = {"ESP", "Teleport", "Aimbot", "Fling", "Hitbox", "Fun", "Utility"}
 if is_mm2 then table.insert(tabs, "MM2") end
 local tabBar = make("Frame", {Size = UDim2.new(1, 0, 0, 34), Position = UDim2.new(0, 0, 0, 36), BackgroundColor3 = COL_BG, BorderSizePixel = 0}, main)
@@ -178,16 +246,16 @@ local function toggle(parent, text, initial, callback, order)
     local row = make("Frame", {Size = UDim2.new(1, 0, 0, 30), BackgroundColor3 = COL_PANEL_ALT, BorderSizePixel = 0, LayoutOrder = order or 0}, parent)
     corner(row, 5)
     make("TextLabel", {Size = UDim2.new(1, -60, 1, 0), Position = UDim2.new(0, 10, 0, 0), BackgroundTransparency = 1, Text = text, TextColor3 = COL_TEXT, TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.Gotham, TextSize = 12}, row)
-    local track = make("Frame", {Size = UDim2.new(0, 36, 0, 18), Position = UDim2.new(1, -46, 0.5, -9), BackgroundColor3 = initial and COL_ACCENT or COL_PANEL, BorderSizePixel = 0}, row)
-    corner(track, 9)
-    stroke(track)
-    local knob = make("Frame", {Size = UDim2.new(0, 14, 0, 14), Position = initial and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7), BackgroundColor3 = COL_TEXT, BorderSizePixel = 0}, track)
+    local track_ui = make("Frame", {Size = UDim2.new(0, 36, 0, 18), Position = UDim2.new(1, -46, 0.5, -9), BackgroundColor3 = initial and COL_ACCENT or COL_PANEL, BorderSizePixel = 0}, row)
+    corner(track_ui, 9)
+    stroke(track_ui)
+    local knob = make("Frame", {Size = UDim2.new(0, 14, 0, 14), Position = initial and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7), BackgroundColor3 = COL_TEXT, BorderSizePixel = 0}, track_ui)
     corner(knob, 7)
     local state_on = initial
     local hit = make("TextButton", {Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1, Text = ""}, row)
     hit.MouseButton1Click:Connect(function()
         state_on = not state_on
-        track.BackgroundColor3 = state_on and COL_ACCENT or COL_PANEL
+        track_ui.BackgroundColor3 = state_on and COL_ACCENT or COL_PANEL
         knob.Position = state_on and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7)
         callback(state_on)
     end)
@@ -197,15 +265,15 @@ local function slider(parent, text, minv, maxv, initial, callback, order)
     local row = make("Frame", {Size = UDim2.new(1, 0, 0, 44), BackgroundColor3 = COL_PANEL_ALT, BorderSizePixel = 0, LayoutOrder = order or 0}, parent)
     corner(row, 5)
     local label = make("TextLabel", {Size = UDim2.new(1, -20, 0, 18), Position = UDim2.new(0, 10, 0, 4), BackgroundTransparency = 1, Text = text .. "  (" .. string.format("%.2f", initial) .. ")", TextColor3 = COL_TEXT, TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.Gotham, TextSize = 12}, row)
-    local track = make("Frame", {Size = UDim2.new(1, -20, 0, 4), Position = UDim2.new(0, 10, 0, 30), BackgroundColor3 = COL_PANEL, BorderSizePixel = 0}, row)
-    corner(track, 2)
-    local fill = make("Frame", {Size = UDim2.new((initial - minv) / (maxv - minv), 0, 1, 0), BackgroundColor3 = COL_ACCENT, BorderSizePixel = 0}, track)
+    local track_ui = make("Frame", {Size = UDim2.new(1, -20, 0, 4), Position = UDim2.new(0, 10, 0, 30), BackgroundColor3 = COL_PANEL, BorderSizePixel = 0}, row)
+    corner(track_ui, 2)
+    local fill = make("Frame", {Size = UDim2.new((initial - minv) / (maxv - minv), 0, 1, 0), BackgroundColor3 = COL_ACCENT, BorderSizePixel = 0}, track_ui)
     corner(fill, 2)
-    local thumb = make("Frame", {Size = UDim2.new(0, 12, 0, 12), Position = UDim2.new((initial - minv) / (maxv - minv), -6, 0.5, -6), BackgroundColor3 = COL_TEXT, BorderSizePixel = 0}, track)
+    local thumb = make("Frame", {Size = UDim2.new(0, 12, 0, 12), Position = UDim2.new((initial - minv) / (maxv - minv), -6, 0.5, -6), BackgroundColor3 = COL_TEXT, BorderSizePixel = 0}, track_ui)
     corner(thumb, 6)
     local grabbing = false
     local function set_from_x(px)
-        local rel = math.clamp((px - track.AbsolutePosition.X) / track.AbsoluteSize.X, 0, 1)
+        local rel = math.clamp((px - track_ui.AbsolutePosition.X) / track_ui.AbsoluteSize.X, 0, 1)
         local val = minv + rel * (maxv - minv)
         fill.Size = UDim2.new(rel, 0, 1, 0)
         thumb.Position = UDim2.new(rel, -6, 0.5, -6)
@@ -218,14 +286,14 @@ local function slider(parent, text, minv, maxv, initial, callback, order)
             io:CaptureFocus()
         end
     end)
-    UserInputService.InputChanged:Connect(function(io)
+    track(UserInputService.InputChanged:Connect(function(io)
         if grabbing and io.UserInputType == Enum.UserInputType.MouseMovement then
             set_from_x(io.Position.X)
         end
-    end)
-    UserInputService.InputEnded:Connect(function(io)
+    end))
+    track(UserInputService.InputEnded:Connect(function(io)
         if io.UserInputType == Enum.UserInputType.MouseButton1 then grabbing = false end
-    end)
+    end))
     return row
 end
 local function button(parent, text, color, callback, order)
@@ -290,12 +358,10 @@ local function char_bounds(char)
     if not hrp then return nil end
     local pos, dist = world_to_screen(hrp.Position)
     if not pos then return nil end
-    
     local scale = 1200 / math.max(dist, 1)
     local h = math.clamp(scale, 10, 400)
     local w = h * 0.5
     local cy = pos.Y - (h * 0.15)
-    
     return Vector2.new(pos.X, cy), w, h, dist
 end
 local SKEL_R6 = {
@@ -493,8 +559,8 @@ local function refresh_player_list()
         end
     end
 end
-Players.PlayerAdded:Connect(refresh_player_list)
-Players.PlayerRemoving:Connect(refresh_player_list)
+track(Players.PlayerAdded:Connect(refresh_player_list))
+track(Players.PlayerRemoving:Connect(refresh_player_list))
 refresh_player_list()
 section(tpRight, "CFrame warp", 1)
 local cfBox = make("TextBox", {Size = UDim2.new(1, 0, 0, 80), BackgroundColor3 = COL_PANEL, BorderSizePixel = 0, TextColor3 = COL_TEXT, PlaceholderText = "CFrame.new(...) or 3/12 numbers", PlaceholderColor3 = COL_TEXT_DIM, Text = "", TextWrapped = true, TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top, Font = Enum.Font.Code, TextSize = 12, ClearTextOnFocus = false, LayoutOrder = 2}, tpRight)
@@ -670,30 +736,74 @@ local function nearest_object()
     end
     return best
 end
-local aim_conn = RunService:BindToRenderStep("BSSToolkitAim", Enum.RenderPriority.Camera.Value + 1, function(dt)
+local dbg_lbl = _G._bss_aim_debug_lbl
+local function dbg(msg)
+    if not dbg_lbl or not dbg_lbl.Parent then
+        local pg = player:FindFirstChild("PlayerGui") or player:WaitForChild("PlayerGui")
+        dbg_lbl = Instance.new("TextLabel")
+        dbg_lbl.Name = "BSSToolkitAimDebug"
+        dbg_lbl.Size = UDim2.new(0, 540, 0, 22)
+        dbg_lbl.Position = UDim2.new(0, 10, 0, 10)
+        dbg_lbl.BackgroundColor3 = Color3.new(0, 0, 0)
+        dbg_lbl.BackgroundTransparency = 0.35
+        dbg_lbl.TextColor3 = Color3.new(0, 1, 0)
+        dbg_lbl.Font = Enum.Font.Code
+        dbg_lbl.TextSize = 13
+        dbg_lbl.TextXAlignment = Enum.TextXAlignment.Left
+        dbg_lbl.BorderSizePixel = 0
+        dbg_lbl.ZIndex = 999
+        dbg_lbl.Parent = pg
+        _G._bss_aim_debug_lbl = dbg_lbl
+    end
+    dbg_lbl.Text = msg
+end
+RunService:BindToRenderStep("BSSToolkitAim", Enum.RenderPriority.Camera.Value + 1, function(dt)
+    if not gui.Parent then return end
     if state.fov_enabled then camera.FieldOfView = state.fov_value end
-
-    if not key_state.aimbot then return end
-
+    if not key_state.aimbot then
+        if dbg_lbl and dbg_lbl.Parent and dbg_lbl.Text ~= "" then dbg_lbl.Text = "" end
+        return
+    end
     local target
     if state.aimbot_enabled then target = nearest_target() end
     if not target and state.object_aimbot_enabled then target = nearest_object() end
-    if not target then return end
-
+    if not target then
+        dbg("[aim] no target")
+        return
+    end
     local aim_pos = target.Position
     if target.Parent and target.Parent:IsA("Model") then
         local hrp = target.Parent:FindFirstChild("HumanoidRootPart")
         if hrp then aim_pos = aim_pos + hrp.AssemblyLinearVelocity * state.aimbot_prediction end
     end
-
-    local cam_pos = camera.CFrame.Position
-    local target_cf = CFrame.lookAt(cam_pos, aim_pos)
-
-    if state.aimbot_smooth <= 0.01 then
-        camera.CFrame = target_cf
+    local sp, onscreen = camera:WorldToViewportPoint(aim_pos)
+    if not onscreen or sp.Z <= 0 then
+        dbg("[aim] target offscreen Z=" .. string.format("%.1f", sp.Z))
+        return
+    end
+    local vp = camera.ViewportSize
+    local dx = sp.X - vp.X * 0.5
+    local dy = sp.Y - vp.Y * 0.5
+    local strength = 1 - state.aimbot_smooth * 0.9
+    if type(mousemoverel) == "function" then
+        dbg("[aim] mousemoverel dx=" .. math.floor(dx) .. " dy=" .. math.floor(dy))
+        mousemoverel(dx * strength, dy * strength)
     else
-        local alpha = 1 - (0.001 ^ (dt * 60))
-        camera.CFrame = camera.CFrame:Lerp(target_cf, alpha * (1 - state.aimbot_smooth * 0.7))
+        dbg("[aim] fallback -- no mousemoverel global")
+        local cam_pos = camera.CFrame.Position
+        local target_cf = CFrame.lookAt(cam_pos, aim_pos)
+        if state.aimbot_smooth <= 0.01 then
+            camera.CFrame = target_cf
+        else
+            local alpha = 1 - (0.001 ^ (dt * 60))
+            camera.CFrame = camera.CFrame:Lerp(target_cf, alpha * (1 - state.aimbot_smooth * 0.7))
+        end
+        local char = player.Character
+        local hrp = char and char:FindFirstChild("HumanoidRootPart")
+        if hrp then
+            local look = Vector3.new(aim_pos.X, hrp.Position.Y, aim_pos.Z)
+            hrp.CFrame = CFrame.lookAt(hrp.Position, look)
+        end
     end
 end)
 local function triggerbot_step()
@@ -772,8 +882,8 @@ local function refresh_fling_list()
         end
     end
 end
-Players.PlayerAdded:Connect(refresh_fling_list)
-Players.PlayerRemoving:Connect(refresh_fling_list)
+track(Players.PlayerAdded:Connect(refresh_fling_list))
+track(Players.PlayerRemoving:Connect(refresh_fling_list))
 refresh_fling_list()
 section(flRight, "Options", 1)
 toggle(flRight, "Return to start after fling", true, function(on) state.fling_return = on end, 2)
@@ -818,11 +928,16 @@ invBtn.MouseButton1Click:Connect(function() state.hitbox_look = "Invisible"; box
 slider(hbLeft, "Size", 1, 50, 6, function(v) state.hitbox_size = v end, 5)
 slider(hbLeft, "Transparency", 0, 1, 0.7, function(v) state.hitbox_transparency = v end, 6)
 local function apply_hitbox_to(p)
-    if not state.hitbox_enabled then return end
+    if not state.hitbox_enabled then
+        if hitbox_expanded[p] then remove_hitbox(p) end
+        return
+    end
     local char = p.Character
-    if not char then return end
-    local hrp = char:FindFirstChild(state.hitbox_part)
-    if not hrp then return end
+    local hrp = char and char:FindFirstChild(state.hitbox_part)
+    if not hrp then
+        if hitbox_expanded[p] then remove_hitbox(p) end
+        return
+    end
     if not hitbox_expanded[p] then
         local hitbox = Instance.new("Part")
         hitbox.Name = "BSS_Hitbox"
@@ -856,6 +971,7 @@ local function apply_hitbox_to(p)
         end
     end
 end
+track(Players.PlayerRemoving:Connect(function(p) remove_hitbox(p) end))
 local funLeft, funRight = split_two(tabPages["Fun"])
 section(funLeft, "Troll", 1)
 local bangTarget = textbox(funLeft, "target player name...", 2, "")
@@ -883,10 +999,10 @@ button(funLeft, "Bang Target (Back n Forth)", COL_PANEL_ALT, function()
             troll_conn = RunService.RenderStepped:Connect(function()
                 local r = get_root()
                 local tr = get_root(target)
-                if not r or not tr then 
+                if not r or not tr then
                     if troll_conn then troll_conn:Disconnect(); troll_conn = nil end
                     if get_root() then get_root().CFrame = start_cf end
-                    return 
+                    return
                 end
                 local t = tick()
                 local bang = math.sin(t * 20) * 3
@@ -909,9 +1025,9 @@ button(funRight, "Force Dance", COL_ACCENT, function()
         if animator then
             local anim = Instance.new("Animation")
             anim.AnimationId = "rbxassetid://507770818"
-            local track = animator:LoadAnimation(anim)
-            track:Play()
-            task.delay(5, function() track:Stop() end)
+            local track_anim = animator:LoadAnimation(anim)
+            track_anim:Play()
+            task.delay(5, function() track_anim:Stop() end)
         end
     end
 end, 2)
@@ -1426,7 +1542,7 @@ if is_mm2 then
     task.spawn(function()
         while true do
             task.wait(1)
-            if tabPages["MM2"].Visible then
+            if tabPages["MM2"] and tabPages["MM2"].Visible and tabPages["MM2"].Parent then
                 local murderer = "None"; local sheriff = "None"
                 for _, p in ipairs(Players:GetPlayers()) do
                     local backpack = p:FindFirstChild("Backpack")
@@ -1444,7 +1560,7 @@ if is_mm2 then
     toggle(mm2Left, "Auto Shoot Murderer (Sheriff)", false, function(on) state.mm2_auto_shoot = on end, 3)
     toggle(mm2Left, "Auto Grab Gun (Innocent)", false, function(on) state.mm2_auto_grab = on end, 4)
 end
-UserInputService.InputBegan:Connect(function(io, gp)
+track(UserInputService.InputBegan:Connect(function(io, gp)
     if gp then return end
     if state.click_tp and io.KeyCode == Enum.KeyCode.LeftAlt and io.UserInputType == Enum.UserInputType.Keyboard then
         local mouse = player:GetMouse()
@@ -1477,18 +1593,19 @@ UserInputService.InputBegan:Connect(function(io, gp)
     elseif io.UserInputType == hide_bind.input and (io.KeyCode == hide_bind.key or hide_bind.input ~= Enum.UserInputType.Keyboard) then
         main.Visible = not main.Visible
     end
-end)
-UserInputService.InputEnded:Connect(function(io)
+end))
+track(UserInputService.InputEnded:Connect(function(io)
     local aim_bind = keybinds.aimbot; local fling_bind = keybinds.fling
     if io.UserInputType == aim_bind.input and (io.KeyCode == aim_bind.key or aim_bind.input ~= Enum.UserInputType.Keyboard) then key_state.aimbot = false end
     if io.UserInputType == fling_bind.input and (io.KeyCode == fling_bind.key or fling_bind.input ~= Enum.UserInputType.Keyboard) then key_state.fling = false end
-end)
-UserInputService.WindowFocusReleased:Connect(function()
+end))
+track(UserInputService.WindowFocusReleased:Connect(function()
     key_state.aimbot = false
     key_state.fling = false
     key_state.fly = false
-end)
-RunService.RenderStepped:Connect(function(dt)
+end))
+main_render_conn = RunService.RenderStepped:Connect(function(dt)
+    if not gui.Parent then return end
     update_esp()
     update_object_esp()
     update_fov_circle()
