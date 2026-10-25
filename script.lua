@@ -287,17 +287,16 @@ local function world_to_screen(pos)
 end
 local function char_bounds(char)
     local hrp = char:FindFirstChild("HumanoidRootPart")
-    local head = char:FindFirstChild("Head")
-    if not hrp or not head then return nil end
-    local pos_hrp, dist = world_to_screen(hrp.Position)
-    local pos_head = world_to_screen(head.Position)
-    if not pos_hrp or not pos_head then return nil end
-    local top = pos_head.Y
-    local bottom = pos_hrp.Y + (pos_hrp.Y - top) * 0.4
-    local h = bottom - top
+    if not hrp then return nil end
+    local pos, dist = world_to_screen(hrp.Position)
+    if not pos then return nil end
+    
+    local scale = 1200 / math.max(dist, 1)
+    local h = math.clamp(scale, 10, 400)
     local w = h * 0.5
-    local cx = pos_hrp.X
-    return Vector2.new(cx, (top + bottom) / 2), w, h, dist
+    local cy = pos.Y - (h * 0.15)
+    
+    return Vector2.new(pos.X, cy), w, h, dist
 end
 local SKEL_R6 = {
     {"Head", "Torso"}, {"Torso", "Left Arm"}, {"Torso", "Right Arm"}, {"Torso", "Left Leg"}, {"Torso", "Right Leg"},
@@ -997,8 +996,7 @@ local function start_fly(on_vehicle)
             if UserInputService:IsKeyDown(Enum.KeyCode.Space) then move = move + Vector3.new(0, 1, 0) end
             if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then move = move - Vector3.new(0, 1, 0) end
             local speed = state.fly_speed
-            if state.safe_fly then speed = math.min(speed, 50) end
-            if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then speed = speed * 2.5 end
+            if state.safe_fly then speed = math.min(speed, 50) end            if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then speed = speed * 2.5 end
             if move.Magnitude > 0 then
                 r.CFrame = r.CFrame + (move.Unit * speed * dt)
             end
