@@ -745,31 +745,31 @@ update_loading("Building ESP UI", 60)
 
 local espLeft, espRight = split_two(tabPages["ESP"])
 section(espLeft, "Player ESP", 1)
-toggle(espLeft, "Enable ESP", state.esp_enabled, function(on) state.esp_enabled = on end, 2)
-toggle(espLeft, "Box", state.esp_box, function(on) state.esp_box = on end, 3)
-toggle(espLeft, "Name", state.esp_name, function(on) state.esp_name = on end, 4)
-toggle(espLeft, "Distance", state.esp_distance, function(on) state.esp_distance = on end, 5)
-toggle(espLeft, "Tracers", state.esp_tracers, function(on) state.esp_tracers = on end, 6)
-toggle(espLeft, "Skeleton", state.esp_skeleton, function(on) state.esp_skeleton = on end, 7)
-slider(espLeft, "Max range", 50, 2000, state.esp_range, function(v) state.esp_range = v end, 8)
-toggle(espLeft, "Team color", state.esp_team_color, function(on) state.esp_team_color = on end, 9)
+toggle(espLeft, "Enable ESP", false, function(on) state.esp_enabled = on end, 2)
+toggle(espLeft, "Box", true, function(on) state.esp_box = on end, 3)
+toggle(espLeft, "Name", true, function(on) state.esp_name = on end, 4)
+toggle(espLeft, "Distance", true, function(on) state.esp_distance = on end, 5)
+toggle(espLeft, "Tracers", false, function(on) state.esp_tracers = on end, 6)
+toggle(espLeft, "Skeleton", false, function(on) state.esp_skeleton = on end, 7)
+slider(espLeft, "Max range", 50, 2000, 500, function(v) state.esp_range = v end, 8)
+toggle(espLeft, "Team color", false, function(on) state.esp_team_color = on end, 9)
 section(espLeft, "Color", 10)
-slider(espLeft, "Red", 0, 255, state.esp_color.R * 255, function(v) state.esp_color = Color3.fromRGB(v, state.esp_color.G * 255, state.esp_color.B * 255) end, 11)
-slider(espLeft, "Green", 0, 255, state.esp_color.G * 255, function(v) state.esp_color = Color3.fromRGB(state.esp_color.R * 255, v, state.esp_color.B * 255) end, 12)
-slider(espLeft, "Blue", 0, 255, state.esp_color.B * 255, function(v) state.esp_color = Color3.fromRGB(state.esp_color.R * 255, state.esp_color.G * 255, v) end, 13)
+slider(espLeft, "Red", 0, 255, 255, function(v) state.esp_color = Color3.fromRGB(v, state.esp_color.G * 255, state.esp_color.B * 255) end, 11)
+slider(espLeft, "Green", 0, 255, 80, function(v) state.esp_color = Color3.fromRGB(state.esp_color.R * 255, v, state.esp_color.B * 255) end, 12)
+slider(espLeft, "Blue", 0, 255, 80, function(v) state.esp_color = Color3.fromRGB(state.esp_color.R * 255, state.esp_color.G * 255, v) end, 13)
 section(espLeft, "Camera", 20)
-toggle(espLeft, "Enable FOV override", state.fov_enabled, function(on) state.fov_enabled = on end, 21)
-slider(espLeft, "FOV", 30, 120, state.fov_value, function(v) state.fov_value = v end, 22)
+toggle(espLeft, "Enable FOV override", false, function(on) state.fov_enabled = on end, 21)
+slider(espLeft, "FOV", 30, 120, 70, function(v) state.fov_value = v end, 22)
 section(espRight, "Object ESP", 1)
-toggle(espRight, "Enable object ESP", state.object_esp_enabled, function(on)
+toggle(espRight, "Enable object ESP", false, function(on)
     state.object_esp_enabled = on
     if not on then clear_object_esp() end
 end, 2)
-local obj_name_box = textbox(espRight, "object name (exact match)", 3, state.object_name)
+local obj_name_box = textbox(espRight, "object name (exact match)", 3, "")
 obj_name_box:GetPropertyChangedSignal("Text"):Connect(function() state.object_name = obj_name_box.Text end)
-slider(espRight, "Object range", 50, 2000, state.object_range, function(v) state.object_range = v end, 4)
-toggle(espRight, "Object box", state.object_box, function(on) state.object_box = on end, 5)
-toggle(espRight, "Object name label", state.object_name_lbl, function(on) state.object_name_lbl = on end, 6)
+slider(espRight, "Object range", 50, 2000, 500, function(v) state.object_range = v end, 4)
+toggle(espRight, "Object box", true, function(on) state.object_box = on end, 5)
+toggle(espRight, "Object name label", true, function(on) state.object_name_lbl = on end, 6)
 
 local tpLeft, tpRight = split_two(tabPages["Teleport"])
 section(tpLeft, "Players", 1)
@@ -864,24 +864,24 @@ update_loading("Building Aimbot", 70)
 
 local aimLeft, aimRight = split_two(tabPages["Aimbot"])
 section(aimLeft, "Player aimbot", 1)
-toggle(aimLeft, "Enable aimbot", state.aimbot_enabled, function(on)
+toggle(aimLeft, "Enable aimbot", false, function(on)
     state.aimbot_enabled = on
     update_fov_circle()
 end, 2)
-slider(aimLeft, "FOV (px)", 20, 500, state.aimbot_fov, function(v) state.aimbot_fov = v; update_fov_circle() end, 3)
-slider(aimLeft, "Max range", 50, 2000, state.aimbot_range, function(v) state.aimbot_range = v end, 4)
-slider(aimLeft, "Smoothness", 0, 1, state.aimbot_smooth, function(v) state.aimbot_smooth = v end, 5)
-slider(aimLeft, "Prediction", 0, 0.3, state.aimbot_prediction, function(v) state.aimbot_prediction = v end, 6)
-toggle(aimLeft, "Team check", state.aimbot_teamcheck, function(on) state.aimbot_teamcheck = on end, 7)
-toggle(aimLeft, "Triggerbot", state.triggerbot, function(on) state.triggerbot = on end, 8)
-toggle(aimLeft, "Instant Snap (Lock-on)", state.aimbot_snap, function(on) state.aimbot_snap = on end, 9)
+slider(aimLeft, "FOV (px)", 20, 500, 150, function(v) state.aimbot_fov = v; update_fov_circle() end, 3)
+slider(aimLeft, "Max range", 50, 2000, 500, function(v) state.aimbot_range = v end, 4)
+slider(aimLeft, "Smoothness", 0, 1, 0.35, function(v) state.aimbot_smooth = v end, 5)
+slider(aimLeft, "Prediction", 0, 0.3, 0.05, function(v) state.aimbot_prediction = v end, 6)
+toggle(aimLeft, "Team check", true, function(on) state.aimbot_teamcheck = on end, 7)
+toggle(aimLeft, "Triggerbot", false, function(on) state.triggerbot = on end, 8)
+toggle(aimLeft, "Instant Snap (Lock-on)", false, function(on) state.aimbot_snap = on end, 9)
 
 section(aimLeft, "Target part", 10)
-toggle(aimLeft, "Head", state.aimbot_part == "Head", function(on) state.aimbot_part = "Head" end, 11)
-toggle(aimLeft, "HumanoidRootPart", state.aimbot_part == "HumanoidRootPart", function(on) state.aimbot_part = "HumanoidRootPart" end, 12)
+toggle(aimLeft, "Head", true, function(on) state.aimbot_part = "Head" end, 11)
+toggle(aimLeft, "HumanoidRootPart", false, function(on) state.aimbot_part = "HumanoidRootPart" end, 12)
 
 section(aimLeft, "Exploits", 20)
-toggle(aimLeft, "Rapid Fire (Remote)", state.rapid_fire, function(on)
+toggle(aimLeft, "Rapid Fire (Remote)", false, function(on)
     state.rapid_fire = on
     if on and not rapid_fire_task then
         rapid_fire_task = task.spawn(function()
@@ -900,7 +900,7 @@ toggle(aimLeft, "Rapid Fire (Remote)", state.rapid_fire, function(on)
         end)
     end
 end, 21)
-slider(aimLeft, "Rapid Fire Delay", 0.01, 0.5, state.rapid_fire_delay, function(v) state.rapid_fire_delay = v end, 22)
+slider(aimLeft, "Rapid Fire Delay", 0.01, 0.5, 0.1, function(v) state.rapid_fire_delay = v end, 22)
 
 section(aimRight, "Keybinds", 1)
 local keybindButtons = {}
@@ -945,8 +945,8 @@ keybind_button(aimRight, "Fling hold", "fling", 3)
 keybind_button(aimRight, "Fly toggle", "fly", 4)
 update_keybind_label()
 section(aimRight, "Object aimbot", 10)
-toggle(aimRight, "Enable object aimbot", state.object_aimbot_enabled, function(on) state.object_aimbot_enabled = on; update_fov_circle() end, 11)
-local obj_aim_name = textbox(aimRight, "object name (exact match)", 12, state.object_name)
+toggle(aimRight, "Enable object aimbot", false, function(on) state.object_aimbot_enabled = on; update_fov_circle() end, 11)
+local obj_aim_name = textbox(aimRight, "object name (exact match)", 12, "")
 obj_aim_name:GetPropertyChangedSignal("Text"):Connect(function() state.object_name = obj_aim_name.Text end)
 
 local function nearest_target()
@@ -1065,8 +1065,8 @@ track(Players.PlayerAdded:Connect(refresh_fling_list))
 track(Players.PlayerRemoving:Connect(refresh_fling_list))
 refresh_fling_list()
 section(flRight, "Options", 1)
-toggle(flRight, "Return to start after fling", state.fling_return, function(on) state.fling_return = on end, 2)
-toggle(flRight, "Walkfling method", state.use_walkfling, function(on) state.use_walkfling = on end, 3)
+toggle(flRight, "Return to start after fling", true, function(on) state.fling_return = on end, 2)
+toggle(flRight, "Walkfling method", false, function(on) state.use_walkfling = on end, 3)
 button(flRight, "Stop fling", COL_DANGER, function() stop_fling() end, 4)
 
 local hbLeft, hbRight = split_two(tabPages["Hitbox"])
@@ -1074,7 +1074,7 @@ section(hbLeft, "Hitbox Expander", 1)
 local function remove_hitbox(p)
     if hitbox_expanded[p] then hitbox_expanded[p]:Destroy(); hitbox_expanded[p] = nil end
 end
-toggle(hbLeft, "Enabled", state.hitbox_enabled, function(on)
+toggle(hbLeft, "Enabled", false, function(on)
     state.hitbox_enabled = on
     if not on then for p, _ in pairs(hitbox_expanded) do remove_hitbox(p) end end
 end, 2)
@@ -1105,8 +1105,8 @@ corner(invBtn, 4)
 boxBtn.MouseButton1Click:Connect(function() state.hitbox_look = "Box"; tween(boxBtn, {BackgroundColor3 = COL_ACCENT}, 0.15); tween(wireBtn, {BackgroundColor3 = COL_PANEL}, 0.15); tween(invBtn, {BackgroundColor3 = COL_PANEL}, 0.15) end)
 wireBtn.MouseButton1Click:Connect(function() state.hitbox_look = "Wireframe"; tween(boxBtn, {BackgroundColor3 = COL_PANEL}, 0.15); tween(wireBtn, {BackgroundColor3 = COL_ACCENT}, 0.15); tween(invBtn, {BackgroundColor3 = COL_PANEL}, 0.15) end)
 invBtn.MouseButton1Click:Connect(function() state.hitbox_look = "Invisible"; tween(boxBtn, {BackgroundColor3 = COL_PANEL}, 0.15); tween(wireBtn, {BackgroundColor3 = COL_PANEL}, 0.15); tween(invBtn, {BackgroundColor3 = COL_ACCENT}, 0.15) end)
-slider(hbLeft, "Size", 1, 50, state.hitbox_size, function(v) state.hitbox_size = v end, 5)
-slider(hbLeft, "Transparency", 0, 1, state.hitbox_transparency, function(v) state.hitbox_transparency = v end, 6)
+slider(hbLeft, "Size", 1, 50, 6, function(v) state.hitbox_size = v end, 5)
+slider(hbLeft, "Transparency", 0, 1, 0.7, function(v) state.hitbox_transparency = v end, 6)
 local function apply_hitbox_to(p)
     if not state.hitbox_enabled then
         if hitbox_expanded[p] then remove_hitbox(p) end
@@ -1162,34 +1162,44 @@ local exLeft, exRight = split_two(tabPages["Exploits"])
 section(exLeft, "Targeted Exploits", 1)
 local exTargetBox = textbox(exLeft, "target player name...", 2, "")
 
+-- Helper function for Velocity Flying
 local function fly_to_position(target_pos, speed)
     local hrp = get_root()
     if not hrp then return end
+    
     local bv = Instance.new("BodyVelocity")
     bv.Name = "BSS_AutoMove"
     bv.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
     bv.Parent = hrp
+    
     local timeout = tick() + 10
     while (hrp.Position - target_pos).Magnitude > 8 and tick() < timeout do
-        if not hrp or not hrp.Parent then bv:Destroy(); return end
+        if not hrp or not hrp.Parent then 
+            bv:Destroy() 
+            return 
+        end
         local dir = (target_pos - hrp.Position).Unit
         bv.Velocity = dir * speed
         task.wait(0.05)
     end
+    
     if bv then bv.Velocity = Vector3.zero; task.wait(0.1); bv:Destroy() end
 end
 
+-- JAILBREAK AUTO ROB (HARDCODED COORDINATES)
 local DIAMOND_CFRAME = CFrame.new(111.998154, 17.5156422, 1294.89917, 0.173624337, -0, -0.984811902, 0, 1, -0, 0.984811902, 0, 0.173624337)
 local DROPOFF_CFRAME = CFrame.new(-300.185577, 20.6801224, 1594.45862, -0.29079634, 6.13783641e-06, -0.956784964, 0.00014125774, 1, -3.65175038e-05, 0.956784964, -0.000145772443, -0.29079634)
 
-toggle(exLeft, "Auto Rob Jewelry (Speed 300)", state.jb_auto_rob, function(on)
+toggle(exLeft, "Auto Rob Jewelry (Speed 300)", false, function(on)
     state.jb_auto_rob = on
     if on then
         task.spawn(function()
             while state.jb_auto_rob do
                 local hrp = get_root()
                 if not hrp then break end
+                
                 fly_to_position(DIAMOND_CFRAME.Position, 300)
+                
                 local vim = game:GetService("VirtualInputManager")
                 for i = 1, 20 do
                     if not state.jb_auto_rob then break end
@@ -1197,6 +1207,7 @@ toggle(exLeft, "Auto Rob Jewelry (Speed 300)", state.jb_auto_rob, function(on)
                     vim:SendMouseButtonEvent(camera.ViewportSize.X/2, camera.ViewportSize.Y/2, 0, false, game, 0)
                     task.wait(0.05)
                 end
+                
                 fly_to_position(DROPOFF_CFRAME.Position, 300)
                 task.wait(2)
             end
@@ -1204,7 +1215,8 @@ toggle(exLeft, "Auto Rob Jewelry (Speed 300)", state.jb_auto_rob, function(on)
     end
 end, 3)
 
-toggle(exLeft, "Auto Arrest (Speed 300)", state.jb_auto_arrest, function(on)
+-- JAILBREAK AUTO ARREST
+toggle(exLeft, "Auto Arrest (Speed 300)", false, function(on)
     state.jb_auto_arrest = on
     if on then
         task.spawn(function()
@@ -1212,6 +1224,7 @@ toggle(exLeft, "Auto Arrest (Speed 300)", state.jb_auto_arrest, function(on)
                 local hrp = get_root()
                 local char = player.Character
                 if not hrp or not char then break end
+                
                 local target = nil
                 for _, p in ipairs(Players:GetPlayers()) do
                     if p ~= player and p.Character then
@@ -1222,10 +1235,12 @@ toggle(exLeft, "Auto Arrest (Speed 300)", state.jb_auto_arrest, function(on)
                         end
                     end
                 end
+                
                 if target and target.Character then
                     local t_hrp = target.Character:FindFirstChild("HumanoidRootPart")
                     if t_hrp then
                         fly_to_position(t_hrp.Position, 300)
+                        
                         local backpack = player:FindFirstChild("Backpack")
                         local cuffs = backpack and (backpack:FindFirstChild("Handcuffs") or backpack:FindFirstChild("Arrest"))
                         if cuffs then
@@ -1258,7 +1273,9 @@ toggle(exLeft, "Loop Teleport to Target", false, function(on)
             loop_tp_conn = RunService.Heartbeat:Connect(function()
                 local hrp = get_root()
                 local t_hrp = get_root(loop_tp_target)
-                if hrp and t_hrp then hrp.CFrame = t_hrp.CFrame * CFrame.new(0, 0, 2) end
+                if hrp and t_hrp then
+                    hrp.CFrame = t_hrp.CFrame * CFrame.new(0, 0, 2)
+                end
             end)
         end
     else
@@ -1267,6 +1284,7 @@ toggle(exLeft, "Loop Teleport to Target", false, function(on)
     end
 end, 4)
 
+-- THE REST OF THE EXPLOITS TAB
 button(exLeft, "Invalid Avatar Rig Break", COL_DANGER, function()
     local targetName = exTargetBox.Text
     if targetName == "" then return end
@@ -1301,7 +1319,7 @@ button(exLeft, "Invalid Avatar Rig Break", COL_DANGER, function()
 end, 6)
 
 section(exLeft, "Rage Visuals", 10)
-toggle(exLeft, "Wall Transparency (X-Ray)", state.xray_enabled, function(on)
+toggle(exLeft, "Wall Transparency (X-Ray)", false, function(on)
     state.xray_enabled = on
     if on then
         local char_parts = {}
@@ -1342,7 +1360,8 @@ local function apply_chams(p)
     hl.Parent = char
     chams_highlights[p] = hl
 end
-toggle(exLeft, "Enemy Chams (Through Walls)", state.chams_enabled, function(on)
+
+toggle(exLeft, "Enemy Chams (Through Walls)", false, function(on)
     state.chams_enabled = on
     if on then
         for _, p in ipairs(Players:GetPlayers()) do if p ~= player then apply_chams(p) end end
@@ -1352,7 +1371,7 @@ toggle(exLeft, "Enemy Chams (Through Walls)", state.chams_enabled, function(on)
     end
 end, 12)
 
-toggle(exLeft, "Rainbow Character", state.rainbow_enabled, function(on)
+toggle(exLeft, "Rainbow Character", false, function(on)
     state.rainbow_enabled = on
     if on then
         local char = player.Character
@@ -1388,7 +1407,7 @@ toggle(exLeft, "Rainbow Character", state.rainbow_enabled, function(on)
     end
 end, 13)
 
-toggle(exLeft, "Forcefield Aura (Enemies)", state.forcefield_enabled, function(on)
+toggle(exLeft, "Forcefield Aura (Enemies)", false, function(on)
     state.forcefield_enabled = on
     if on then
         for _, p in ipairs(Players:GetPlayers()) do
@@ -1672,7 +1691,7 @@ toggle(uScroll, "Infinite Jump", false, function(on)
         if _G._bss_inf_jump then _G._bss_inf_jump:Disconnect(); _G._bss_inf_jump = nil end
     end
 end, 3)
-toggle(uScroll, "Spinbot", state.spinbot, function(on)
+toggle(uScroll, "Spinbot", false, function(on)
     state.spinbot = on
     if on then
         local char = player.Character
@@ -1693,19 +1712,21 @@ toggle(uScroll, "Spinbot", state.spinbot, function(on)
         if hum then hum.AutoRotate = true end
     end
 end, 4)
-slider(uScroll, "Spinbot Speed", 10, 500, state.spinbot_speed, function(v)
+slider(uScroll, "Spinbot Speed", 10, 500, 50, function(v)
     state.spinbot_speed = v
     if spin_vel then spin_vel.AngularVelocity = Vector3.new(0, state.spinbot_speed, 0) end
 end, 5)
-toggle(uScroll, "Noclip", state.noclip, function(on)
+toggle(uScroll, "Noclip", false, function(on)
     state.noclip = on
     if on then
         if noclip_conn then noclip_conn:Disconnect() end
         noclip_conn = RunService.Stepped:Connect(function()
             local char = player.Character
             if char then
+                -- Force Network Ownership
                 local hrp = char:FindFirstChild("HumanoidRootPart")
                 if hrp then pcall(function() hrp:SetNetworkOwner(player) end) end
+                
                 for _, part in ipairs(char:GetDescendants()) do
                     if part:IsA("BasePart") then
                         part.CanCollide = false
@@ -1718,7 +1739,7 @@ toggle(uScroll, "Noclip", state.noclip, function(on)
         if noclip_conn then noclip_conn:Disconnect(); noclip_conn = nil end
     end
 end, 6)
-toggle(uScroll, "CFrame Speed", state.cf_speed, function(on)
+toggle(uScroll, "CFrame Speed", false, function(on)
     state.cf_speed = on
     if on then
         if cf_speed_conn then cf_speed_conn:Disconnect() end
@@ -1739,8 +1760,8 @@ toggle(uScroll, "CFrame Speed", state.cf_speed, function(on)
         if cf_speed_conn then cf_speed_conn:Disconnect(); cf_speed_conn = nil end
     end
 end, 7)
-slider(uScroll, "CFrame Speed Value", 10, 300, state.cf_speed_val, function(v) state.cf_speed_val = v end, 8)
-toggle(uScroll, "Float (Q/E to move)", state.float, function(on)
+slider(uScroll, "CFrame Speed Value", 10, 300, 50, function(v) state.cf_speed_val = v end, 8)
+toggle(uScroll, "Float (Q/E to move)", false, function(on)
     state.float = on
     local char = player.Character
     local hum = char and char:FindFirstChildOfClass("Humanoid")
@@ -1771,7 +1792,7 @@ toggle(uScroll, "Float (Q/E to move)", state.float, function(on)
         end
     end
 end, 9)
-toggle(uScroll, "Swim in Air", state.swim, function(on)
+toggle(uScroll, "Swim in Air", false, function(on)
     state.swim = on
     local char = player.Character
     local hum = char and char:FindFirstChildOfClass("Humanoid")
@@ -1798,11 +1819,11 @@ toggle(uScroll, "Swim in Air", state.swim, function(on)
     end
 end, 10)
 section(uScroll, "Fly", 20)
-toggle(uScroll, "Enable fly", state.fly_enabled, function(on)
+toggle(uScroll, "Enable fly", false, function(on)
     state.fly_enabled = on
     if on then start_fly(false) else stop_fly() end
 end, 21)
-slider(uScroll, "Fly speed", 10, 300, state.fly_speed, function(v) state.fly_speed = v end, 22)
+slider(uScroll, "Fly speed", 10, 300, 60, function(v) state.fly_speed = v end, 22)
 local modeRow = make("Frame", {Size = UDim2.new(1, 0, 0, 34), BackgroundColor3 = COL_PANEL_ALT, LayoutOrder = 23}, uScroll)
 corner(modeRow, 5)
 make("TextLabel", {Size = UDim2.new(1, -150, 1, 0), Position = UDim2.new(0, 12, 0, 0), BackgroundTransparency = 1, Text = "Fly Mode", TextColor3 = COL_TEXT, Font = Enum.Font.Gotham, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left}, modeRow)
@@ -1820,15 +1841,15 @@ cfBtn.MouseButton1Click:Connect(function()
     if state.fly_enabled then start_fly(false) end
     if state.vehiclefly_enabled then start_fly(true) end
 end)
-toggle(uScroll, "Enable vehicle fly", state.vehiclefly_enabled, function(on)
+toggle(uScroll, "Enable vehicle fly", false, function(on)
     state.vehiclefly_enabled = on
     if on then start_fly(true) else stop_fly() end
 end, 24)
-toggle(uScroll, "Jailbreak fly (unsits)", state.jb_fly_enabled, function(on)
+toggle(uScroll, "Jailbreak fly (unsits)", false, function(on)
     state.jb_fly_enabled = on
     if on then start_jb_fly() else stop_fly() end
 end, 25)
-toggle(uScroll, "Vehicle Noclip", state.vehicle_noclip, function(on)
+toggle(uScroll, "Vehicle Noclip", false, function(on)
     state.vehicle_noclip = on
     if on then
         if vehicle_noclip_conn then vehicle_noclip_conn:Disconnect() end
@@ -1863,7 +1884,7 @@ toggle(uScroll, "Vehicle Noclip", state.vehicle_noclip, function(on)
     end
 end, 26)
 section(uScroll, "Farm & Bypass", 30)
-toggle(uScroll, "Under Map (Immortal)", state.under_map, function(on)
+toggle(uScroll, "Under Map (Immortal)", false, function(on)
     state.under_map = on
     if on then
         if under_map_conn then under_map_conn:Disconnect() end
@@ -1881,10 +1902,10 @@ toggle(uScroll, "Under Map (Immortal)", state.under_map, function(on)
         if under_map_conn then under_map_conn:Disconnect(); under_map_conn = nil end
     end
 end, 31)
-toggle(uScroll, "Safe Fly (Anti-Kick)", state.safe_fly, function(on) state.safe_fly = on end, 32)
+toggle(uScroll, "Safe Fly (Anti-Kick)", false, function(on) state.safe_fly = on end, 32)
 section(uScroll, "Misc", 40)
-toggle(uScroll, "Hit Sounds", state.hit_sound, function(on) state.hit_sound = on end, 41)
-toggle(uScroll, "Anti-AFK", state.anti_afk, function(on)
+toggle(uScroll, "Hit Sounds", false, function(on) state.hit_sound = on end, 41)
+toggle(uScroll, "Anti-AFK", false, function(on)
     state.anti_afk = on
     if on then
         if anti_afk_conn then anti_afk_conn:Disconnect() end
@@ -1896,7 +1917,7 @@ toggle(uScroll, "Anti-AFK", state.anti_afk, function(on)
         if anti_afk_conn then anti_afk_conn:Disconnect(); anti_afk_conn = nil end
     end
 end, 42)
-toggle(uScroll, "Fullbright", state.fullbright, function(on)
+toggle(uScroll, "Fullbright", false, function(on)
     state.fullbright = on
     if on then
         Lighting.Brightness = 2; Lighting.ClockTime = 12; Lighting.GlobalShadows = false; Lighting.FogEnd = 100000
@@ -1904,8 +1925,8 @@ toggle(uScroll, "Fullbright", state.fullbright, function(on)
         Lighting.Brightness = orig_lighting.Brightness; Lighting.ClockTime = orig_lighting.ClockTime; Lighting.GlobalShadows = orig_lighting.GlobalShadows; Lighting.FogEnd = orig_lighting.FogEnd
     end
 end, 43)
-toggle(uScroll, "Click Teleport (L-Alt + Click)", state.click_tp, function(on) state.click_tp = on end, 44)
-toggle(uScroll, "Anti-Fling", state.anti_fling, function(on)
+toggle(uScroll, "Click Teleport (L-Alt + Click)", false, function(on) state.click_tp = on end, 44)
+toggle(uScroll, "Anti-Fling", false, function(on)
     state.anti_fling = on
     if on then
         if anti_fling_conn then anti_fling_conn:Disconnect() end
@@ -2142,4 +2163,26 @@ RunService.Heartbeat:Connect(function()
     if not state.triggerbot then return end
     local mouse = player:GetMouse()
     if mouse.Target then
-        local target_p = Players
+        local target_p = Players:GetPlayerFromCharacter(mouse.Target.Parent)
+        if not target_p and mouse.Target.Name == "BSS_Hitbox" then
+            for p, hb in pairs(hitbox_expanded) do
+                if hb == mouse.Target then target_p = p; break end
+            end
+        end
+        if target_p and target_p ~= player and player_in_game(target_p) then
+            if not (state.aimbot_teamcheck and same_team(player, target_p)) then
+                local vim = game:GetService("VirtualInputManager")
+                vim:SendMouseButtonEvent(camera.ViewportSize.X/2, camera.ViewportSize.Y/2, 0, true, game, 0)
+                vim:SendMouseButtonEvent(camera.ViewportSize.X/2, camera.ViewportSize.Y/2, 0, false, game, 0)
+            end
+        end
+    end
+end)
+
+-- FINISH LOADING
+task.wait(0.3)
+update_loading("Finished!", 100)
+task.wait(0.2)
+loadingGui:Destroy()
+main.Visible = true
+tween(main_scale, {Scale = 1}, 0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
