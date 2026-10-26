@@ -115,8 +115,10 @@ local state = {
     anti_afk = false, fullbright = false, click_tp = false, anti_fling = false, float = false, swim = false, under_map = false, auto_farm = false, safe_fly = false, mm2_auto_shoot = false, mm2_auto_grab = false, grabbing_gun = false,
     rapid_fire = false, rapid_fire_delay = 0.1,
     xray_enabled = false, chams_enabled = false, rainbow_enabled = false, forcefield_enabled = false,
-    jb_auto_rob = false, jb_auto_arrest = false,
+    jb_auto_rob = false, jb_auto_arrest = false, inf_jump = false, config_filename = "BSSToolkit_Config.json"
 }
+
+local ui_refs = { toggles = {}, sliders = {}, textboxes = {} }
 
 local locked_target = nil
 local keybinds = {
@@ -158,23 +160,6 @@ local orig_lighting = {
 }
 local is_mm2 = game.PlaceId == 142823291
 
--- ==========================================
--- CLEANUP & FILE LOADING
--- ==========================================
-update_loading("Checking saved config", 10)
-
-local old = CoreGui:FindFirstChild("BSSToolkit")
-if old then old:Destroy() end
-local oldLoad = CoreGui:FindFirstChild("BSS_Loading")
-if oldLoad and oldLoad ~= loadingGui then oldLoad:Destroy() end
-for _, obj in ipairs(Workspace:GetDescendants()) do
-    if obj.Name == "BSS_Hitbox" and obj:IsA("BasePart") then obj:Destroy() end
-end
-if _G._bss_fling_conn then _G._bss_fling_conn:Disconnect(); _G._bss_fling_conn = nil end
-if _G._bss_fling_weld then pcall(function() _G._bss_fling_weld:Destroy() end); _G._bss_fling_weld = nil end
-if _G._bss_inf_jump then _G._bss_inf_jump:Disconnect(); _G._bss_inf_jump = nil end
-if _G._bss_aim_debug_lbl then pcall(function() _G._bss_aim_debug_lbl:Destroy() end); _G._bss_aim_debug_lbl = nil end
-
 local function import_config(code)
     local ok, data = pcall(function() return HttpService:JSONDecode(code) end)
     if not ok then return false end
@@ -192,10 +177,22 @@ local function import_config(code)
             state[k] = v
         end
     end
+
+    -- Update UI instantly without re-executing
+    for _, item in ipairs(ui_refs.toggles) do
+        if item.key and state[item.key] ~= nil then item.set(state[item.key]) end
+    end
+    for _, item in ipairs(ui_refs.sliders) do
+        if item.key and state[item.key] ~= nil then item.set(state[item.key]) end
+    end
+    for _, item in ipairs(ui_refs.textboxes) do
+        if item.key and state[item.key] ~= nil then item.set(state[item.key]) end
+    end
+
     return true
 end
 
--- Try to load from Downloads first, then fallback to standard workspace
+-- Auto-load from Downloads or standard workspace
 if isfile then
     local file_to_load = nil
     if isfile(downloads_config) then
@@ -458,46 +455,57 @@ local function section(parent, text, order)
     make("TextLabel", {Size = UDim2.new(1, -12, 1, 0), Position = UDim2.new(0, 12, 0, 0), BackgroundTransparency = 1, Text = text, TextColor3 = COL_TEXT, TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.GothamBold, TextSize = 12}, row)
     return row
 end
-local function toggle(parent, text, initial, callback, order)
+
+local function toggle(parent, text, initial, callback, order, state_key)
+    local actual_initial = initial
+    if state_key and state[state_key] ~= nil then actual_initial = state[state_key] end
     local row = make("Frame", {Size = UDim2.new(1, 0, 0, 32), BackgroundColor3 = COL_PANEL_ALT, BorderSizePixel = 0, LayoutOrder = order or 0}, parent)
     corner(row, 6)
     make("TextLabel", {Size = UDim2.new(1, -60, 1, 0), Position = UDim2.new(0, 12, 0, 0), BackgroundTransparency = 1, Text = text, TextColor3 = COL_TEXT, TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.Gotham, TextSize = 12}, row)
-    local track_ui = make("Frame", {Size = UDim2.new(0, 36, 0, 18), Position = UDim2.new(1, -46, 0.5, -9), BackgroundColor3 = initial and COL_ACCENT or COL_PANEL, BorderSizePixel = 0}, row)
+    local track_ui = make("Frame", {Size = UDim2.new(0, 36, 0, 18), Position = UDim2.new(1, -46, 0.5, -9), BackgroundColor3 = actual_initial and COL_ACCENT or COL_PANEL, BorderSizePixel = 0}, row)
     corner(track_ui, 9)
     stroke(track_ui, COL_STROKE, 1)
-    local knob = make("Frame", {Size = UDim2.new(0, 14, 0, 14), Position = initial and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7), BackgroundColor3 = COL_TEXT, BorderSizePixel = 0}, track_ui)
+    local knob = make("Frame", {Size = UDim2.new(0, 14, 0, 14), Position = actual_initial and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7), BackgroundColor3 = COL_TEXT, BorderSizePixel = 0}, track_ui)
     corner(knob, 7)
-    local state_on = initial
+    local state_on = actual_initial
+    local function set_val(val)
+        state_on = val
+        tween(track_ui, {BackgroundColor3 = state_on and COL_ACCENT or COL_PANEL}, 0.2)
+        tween(knob, {Position = state_on and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7)}, 0.2, Enum.EasingStyle.Quad)
+        callback(val)
+    end
     local hit = make("TextButton", {Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1, Text = "", AutoButtonColor = false}, row)
     hit.MouseEnter:Connect(function() tween(row, {BackgroundColor3 = COL_PANEL_HOVER}, 0.12) end)
     hit.MouseLeave:Connect(function() tween(row, {BackgroundColor3 = COL_PANEL_ALT}, 0.12) end)
-    hit.MouseButton1Click:Connect(function()
-        state_on = not state_on
-        tween(track_ui, {BackgroundColor3 = state_on and COL_ACCENT or COL_PANEL}, 0.2)
-        tween(knob, {Position = state_on and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7)}, 0.2, Enum.EasingStyle.Quad)
-        callback(state_on)
-    end)
+    hit.MouseButton1Click:Connect(function() set_val(not state_on) end)
+    if state_key then table.insert(ui_refs.toggles, {key = state_key, set = set_val}) end
     return row
 end
-local function slider(parent, text, minv, maxv, initial, callback, order)
+
+local function slider(parent, text, minv, maxv, initial, callback, order, state_key)
+    local actual_initial = initial
+    if state_key and state[state_key] ~= nil then actual_initial = state[state_key] end
     local row = make("Frame", {Size = UDim2.new(1, 0, 0, 46), BackgroundColor3 = COL_PANEL_ALT, BorderSizePixel = 0, LayoutOrder = order or 0}, parent)
     corner(row, 6)
-    local label = make("TextLabel", {Size = UDim2.new(1, -20, 0, 18), Position = UDim2.new(0, 12, 0, 5), BackgroundTransparency = 1, Text = text .. "  (" .. string.format("%.2f", initial) .. ")", TextColor3 = COL_TEXT, TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.Gotham, TextSize = 12}, row)
+    local label = make("TextLabel", {Size = UDim2.new(1, -20, 0, 18), Position = UDim2.new(0, 12, 0, 5), BackgroundTransparency = 1, Text = text .. "  (" .. string.format("%.2f", actual_initial) .. ")", TextColor3 = COL_TEXT, TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.Gotham, TextSize = 12}, row)
     local track_ui = make("Frame", {Size = UDim2.new(1, -24, 0, 4), Position = UDim2.new(0, 12, 0, 32), BackgroundColor3 = COL_PANEL, BorderSizePixel = 0}, row)
     corner(track_ui, 2)
-    local fill = make("Frame", {Size = UDim2.new((initial - minv) / (maxv - minv), 0, 1, 0), BackgroundColor3 = COL_ACCENT, BorderSizePixel = 0}, track_ui)
+    local fill = make("Frame", {Size = UDim2.new((actual_initial - minv) / (maxv - minv), 0, 1, 0), BackgroundColor3 = COL_ACCENT, BorderSizePixel = 0}, track_ui)
     corner(fill, 2)
-    local thumb = make("Frame", {Size = UDim2.new(0, 14, 0, 14), Position = UDim2.new((initial - minv) / (maxv - minv), -7, 0.5, -7), BackgroundColor3 = COL_TEXT, BorderSizePixel = 0}, track_ui)
+    local thumb = make("Frame", {Size = UDim2.new(0, 14, 0, 14), Position = UDim2.new((actual_initial - minv) / (maxv - minv), -7, 0.5, -7), BackgroundColor3 = COL_TEXT, BorderSizePixel = 0}, track_ui)
     corner(thumb, 7)
     local thumb_stroke = make("UIStroke", {Color = COL_ACCENT, Thickness = 1.5, Transparency = 0.5}, thumb)
     local grabbing = false
-    local function set_from_x(px)
-        local rel = math.clamp((px - track_ui.AbsolutePosition.X) / track_ui.AbsoluteSize.X, 0, 1)
-        local val = minv + rel * (maxv - minv)
+    local function set_val(val)
+        local rel = math.clamp((val - minv) / (maxv - minv), 0, 1)
         fill.Size = UDim2.new(rel, 0, 1, 0)
         thumb.Position = UDim2.new(rel, -7, 0.5, -7)
         label.Text = text .. "  (" .. string.format("%.2f", val) .. ")"
         callback(val)
+    end
+    local function set_from_x(px)
+        local rel = math.clamp((px - track_ui.AbsolutePosition.X) / track_ui.AbsoluteSize.X, 0, 1)
+        set_val(minv + rel * (maxv - minv))
     end
     thumb.InputBegan:Connect(function(io)
         if io.UserInputType == Enum.UserInputType.MouseButton1 then
@@ -517,8 +525,10 @@ local function slider(parent, text, minv, maxv, initial, callback, order)
             tween(thumb, {Size = UDim2.new(0, 14, 0, 14), Position = UDim2.new(thumb.Position.X.Scale, -7, 0.5, -7)}, 0.12)
         end
     end))
+    if state_key then table.insert(ui_refs.sliders, {key = state_key, set = set_val}) end
     return row
 end
+
 local function button(parent, text, color, callback, order)
     local base = color or COL_PANEL_ALT
     local hover = lighten(base, 22)
@@ -533,14 +543,19 @@ local function button(parent, text, color, callback, order)
     end)
     return b
 end
-local function textbox(parent, placeholder, order, initial)
-    local t = make("TextBox", {Size = UDim2.new(1, 0, 0, 34), BackgroundColor3 = COL_PANEL, BorderSizePixel = 0, TextColor3 = COL_TEXT, PlaceholderText = placeholder, PlaceholderColor3 = COL_TEXT_DIM, Text = initial or "", Font = Enum.Font.Gotham, TextSize = 12, ClearTextOnFocus = false, LayoutOrder = order or 0}, parent)
+
+local function textbox(parent, placeholder, order, initial, state_key)
+    local actual_initial = initial
+    if state_key and state[state_key] ~= nil then actual_initial = state[state_key] end
+    local t = make("TextBox", {Size = UDim2.new(1, 0, 0, 34), BackgroundColor3 = COL_PANEL, BorderSizePixel = 0, TextColor3 = COL_TEXT, PlaceholderText = placeholder, PlaceholderColor3 = COL_TEXT_DIM, Text = actual_initial or "", Font = Enum.Font.Gotham, TextSize = 12, ClearTextOnFocus = false, LayoutOrder = order or 0}, parent)
     corner(t, 6)
     local s = make("UIStroke", {Color = COL_STROKE, Thickness = 1, Transparency = 0.3}, t)
     t.Focused:Connect(function() tween(s, {Color = COL_ACCENT, Transparency = 0}, 0.15) end)
     t.FocusLost:Connect(function() tween(s, {Color = COL_STROKE, Transparency = 0.3}, 0.15) end)
+    if state_key then table.insert(ui_refs.textboxes, {key = state_key, set = function(val) t.Text = val end}) end
     return t
 end
+
 local function scroll_col(parent)
     local s = make("ScrollingFrame", {Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1, BorderSizePixel = 0, ScrollBarThickness = 4, CanvasSize = UDim2.new(0, 0, 0, 0), AutomaticCanvasSize = Enum.AutomaticSize.Y, ScrollBarImageColor3 = COL_ACCENT}, parent)
     make("UIListLayout", {Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder}, s)
@@ -756,31 +771,31 @@ update_loading("Building ESP UI", 60)
 
 local espLeft, espRight = split_two(tabPages["ESP"])
 section(espLeft, "Player ESP", 1)
-toggle(espLeft, "Enable ESP", false, function(on) state.esp_enabled = on end, 2)
-toggle(espLeft, "Box", true, function(on) state.esp_box = on end, 3)
-toggle(espLeft, "Name", true, function(on) state.esp_name = on end, 4)
-toggle(espLeft, "Distance", true, function(on) state.esp_distance = on end, 5)
-toggle(espLeft, "Tracers", false, function(on) state.esp_tracers = on end, 6)
-toggle(espLeft, "Skeleton", false, function(on) state.esp_skeleton = on end, 7)
-slider(espLeft, "Max range", 50, 2000, 500, function(v) state.esp_range = v end, 8)
-toggle(espLeft, "Team color", false, function(on) state.esp_team_color = on end, 9)
+toggle(espLeft, "Enable ESP", false, function(on) state.esp_enabled = on end, 2, "esp_enabled")
+toggle(espLeft, "Box", true, function(on) state.esp_box = on end, 3, "esp_box")
+toggle(espLeft, "Name", true, function(on) state.esp_name = on end, 4, "esp_name")
+toggle(espLeft, "Distance", true, function(on) state.esp_distance = on end, 5, "esp_distance")
+toggle(espLeft, "Tracers", false, function(on) state.esp_tracers = on end, 6, "esp_tracers")
+toggle(espLeft, "Skeleton", false, function(on) state.esp_skeleton = on end, 7, "esp_skeleton")
+slider(espLeft, "Max range", 50, 2000, 500, function(v) state.esp_range = v end, 8, "esp_range")
+toggle(espLeft, "Team color", false, function(on) state.esp_team_color = on end, 9, "esp_team_color")
 section(espLeft, "Color", 10)
 slider(espLeft, "Red", 0, 255, 255, function(v) state.esp_color = Color3.fromRGB(v, state.esp_color.G * 255, state.esp_color.B * 255) end, 11)
 slider(espLeft, "Green", 0, 255, 80, function(v) state.esp_color = Color3.fromRGB(state.esp_color.R * 255, v, state.esp_color.B * 255) end, 12)
 slider(espLeft, "Blue", 0, 255, 80, function(v) state.esp_color = Color3.fromRGB(state.esp_color.R * 255, state.esp_color.G * 255, v) end, 13)
 section(espLeft, "Camera", 20)
-toggle(espLeft, "Enable FOV override", false, function(on) state.fov_enabled = on end, 21)
-slider(espLeft, "FOV", 30, 120, 70, function(v) state.fov_value = v end, 22)
+toggle(espLeft, "Enable FOV override", false, function(on) state.fov_enabled = on end, 21, "fov_enabled")
+slider(espLeft, "FOV", 30, 120, 70, function(v) state.fov_value = v end, 22, "fov_value")
 section(espRight, "Object ESP", 1)
 toggle(espRight, "Enable object ESP", false, function(on)
     state.object_esp_enabled = on
     if not on then clear_object_esp() end
-end, 2)
-local obj_name_box = textbox(espRight, "object name (exact match)", 3, "")
+end, 2, "object_esp_enabled")
+local obj_name_box = textbox(espRight, "object name (exact match)", 3, "", "object_name")
 obj_name_box:GetPropertyChangedSignal("Text"):Connect(function() state.object_name = obj_name_box.Text end)
-slider(espRight, "Object range", 50, 2000, 500, function(v) state.object_range = v end, 4)
-toggle(espRight, "Object box", true, function(on) state.object_box = on end, 5)
-toggle(espRight, "Object name label", true, function(on) state.object_name_lbl = on end, 6)
+slider(espRight, "Object range", 50, 2000, 500, function(v) state.object_range = v end, 4, "object_range")
+toggle(espRight, "Object box", true, function(on) state.object_box = on end, 5, "object_box")
+toggle(espRight, "Object name label", true, function(on) state.object_name_lbl = on end, 6, "object_name_lbl")
 
 local tpLeft, tpRight = split_two(tabPages["Teleport"])
 section(tpLeft, "Players", 1)
@@ -878,14 +893,14 @@ section(aimLeft, "Player aimbot", 1)
 toggle(aimLeft, "Enable aimbot", false, function(on)
     state.aimbot_enabled = on
     update_fov_circle()
-end, 2)
-slider(aimLeft, "FOV (px)", 20, 500, 150, function(v) state.aimbot_fov = v; update_fov_circle() end, 3)
-slider(aimLeft, "Max range", 50, 2000, 500, function(v) state.aimbot_range = v end, 4)
-slider(aimLeft, "Smoothness", 0, 1, 0.35, function(v) state.aimbot_smooth = v end, 5)
-slider(aimLeft, "Prediction", 0, 0.3, 0.05, function(v) state.aimbot_prediction = v end, 6)
-toggle(aimLeft, "Team check", true, function(on) state.aimbot_teamcheck = on end, 7)
-toggle(aimLeft, "Triggerbot", false, function(on) state.triggerbot = on end, 8)
-toggle(aimLeft, "Instant Snap (Lock-on)", false, function(on) state.aimbot_snap = on end, 9)
+end, 2, "aimbot_enabled")
+slider(aimLeft, "FOV (px)", 20, 500, 150, function(v) state.aimbot_fov = v; update_fov_circle() end, 3, "aimbot_fov")
+slider(aimLeft, "Max range", 50, 2000, 500, function(v) state.aimbot_range = v end, 4, "aimbot_range")
+slider(aimLeft, "Smoothness", 0, 1, 0.35, function(v) state.aimbot_smooth = v end, 5, "aimbot_smooth")
+slider(aimLeft, "Prediction", 0, 0.3, 0.05, function(v) state.aimbot_prediction = v end, 6, "aimbot_prediction")
+toggle(aimLeft, "Team check", true, function(on) state.aimbot_teamcheck = on end, 7, "aimbot_teamcheck")
+toggle(aimLeft, "Triggerbot", false, function(on) state.triggerbot = on end, 8, "triggerbot")
+toggle(aimLeft, "Instant Snap (Lock-on)", false, function(on) state.aimbot_snap = on end, 9, "aimbot_snap")
 
 section(aimLeft, "Target part", 10)
 toggle(aimLeft, "Head", true, function(on) state.aimbot_part = "Head" end, 11)
@@ -910,8 +925,8 @@ toggle(aimLeft, "Rapid Fire (Remote)", false, function(on)
             rapid_fire_task = nil
         end)
     end
-end, 21)
-slider(aimLeft, "Rapid Fire Delay", 0.01, 0.5, 0.1, function(v) state.rapid_fire_delay = v end, 22)
+end, 21, "rapid_fire")
+slider(aimLeft, "Rapid Fire Delay", 0.01, 0.5, 0.1, function(v) state.rapid_fire_delay = v end, 22, "rapid_fire_delay")
 
 section(aimRight, "Keybinds", 1)
 local keybindButtons = {}
@@ -956,8 +971,8 @@ keybind_button(aimRight, "Fling hold", "fling", 3)
 keybind_button(aimRight, "Fly toggle", "fly", 4)
 update_keybind_label()
 section(aimRight, "Object aimbot", 10)
-toggle(aimRight, "Enable object aimbot", false, function(on) state.object_aimbot_enabled = on; update_fov_circle() end, 11)
-local obj_aim_name = textbox(aimRight, "object name (exact match)", 12, "")
+toggle(aimRight, "Enable object aimbot", false, function(on) state.object_aimbot_enabled = on; update_fov_circle() end, 11, "object_aimbot_enabled")
+local obj_aim_name = textbox(aimRight, "object name (exact match)", 12, "", "object_name")
 obj_aim_name:GetPropertyChangedSignal("Text"):Connect(function() state.object_name = obj_aim_name.Text end)
 
 local function nearest_target()
@@ -1076,8 +1091,8 @@ track(Players.PlayerAdded:Connect(refresh_fling_list))
 track(Players.PlayerRemoving:Connect(refresh_fling_list))
 refresh_fling_list()
 section(flRight, "Options", 1)
-toggle(flRight, "Return to start after fling", true, function(on) state.fling_return = on end, 2)
-toggle(flRight, "Walkfling method", false, function(on) state.use_walkfling = on end, 3)
+toggle(flRight, "Return to start after fling", true, function(on) state.fling_return = on end, 2, "fling_return")
+toggle(flRight, "Walkfling method", false, function(on) state.use_walkfling = on end, 3, "use_walkfling")
 button(flRight, "Stop fling", COL_DANGER, function() stop_fling() end, 4)
 
 local hbLeft, hbRight = split_two(tabPages["Hitbox"])
@@ -1088,7 +1103,7 @@ end
 toggle(hbLeft, "Enabled", false, function(on)
     state.hitbox_enabled = on
     if not on then for p, _ in pairs(hitbox_expanded) do remove_hitbox(p) end end
-end, 2)
+end, 2, "hitbox_enabled")
 local partRow = make("Frame", {Size = UDim2.new(1,0,0,34), BackgroundColor3 = COL_PANEL_ALT, LayoutOrder = 3}, hbLeft)
 corner(partRow, 5)
 make("TextLabel", {Size = UDim2.new(1,-160,1,0), Position = UDim2.new(0,12,0,0), BackgroundTransparency = 1, Text = "Part", TextColor3 = COL_TEXT, Font = Enum.Font.Gotham, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left}, partRow)
@@ -1116,8 +1131,8 @@ corner(invBtn, 4)
 boxBtn.MouseButton1Click:Connect(function() state.hitbox_look = "Box"; tween(boxBtn, {BackgroundColor3 = COL_ACCENT}, 0.15); tween(wireBtn, {BackgroundColor3 = COL_PANEL}, 0.15); tween(invBtn, {BackgroundColor3 = COL_PANEL}, 0.15) end)
 wireBtn.MouseButton1Click:Connect(function() state.hitbox_look = "Wireframe"; tween(boxBtn, {BackgroundColor3 = COL_PANEL}, 0.15); tween(wireBtn, {BackgroundColor3 = COL_ACCENT}, 0.15); tween(invBtn, {BackgroundColor3 = COL_PANEL}, 0.15) end)
 invBtn.MouseButton1Click:Connect(function() state.hitbox_look = "Invisible"; tween(boxBtn, {BackgroundColor3 = COL_PANEL}, 0.15); tween(wireBtn, {BackgroundColor3 = COL_PANEL}, 0.15); tween(invBtn, {BackgroundColor3 = COL_ACCENT}, 0.15) end)
-slider(hbLeft, "Size", 1, 50, 6, function(v) state.hitbox_size = v end, 5)
-slider(hbLeft, "Transparency", 0, 1, 0.7, function(v) state.hitbox_transparency = v end, 6)
+slider(hbLeft, "Size", 1, 50, 6, function(v) state.hitbox_size = v end, 5, "hitbox_size")
+slider(hbLeft, "Transparency", 0, 1, 0.7, function(v) state.hitbox_transparency = v end, 6, "hitbox_transparency")
 local function apply_hitbox_to(p)
     if not state.hitbox_enabled then
         if hitbox_expanded[p] then remove_hitbox(p) end
@@ -1224,7 +1239,7 @@ toggle(exLeft, "Auto Rob Jewelry (Speed 300)", false, function(on)
             end
         end)
     end
-end, 3)
+end, 3, "jb_auto_rob")
 
 -- JAILBREAK AUTO ARREST
 toggle(exLeft, "Auto Arrest (Speed 300)", false, function(on)
@@ -1267,7 +1282,7 @@ toggle(exLeft, "Auto Arrest (Speed 300)", false, function(on)
             end
         end)
     end
-end, 5)
+end, 5, "jb_auto_arrest")
 
 local loop_tp_target = nil
 toggle(exLeft, "Loop Teleport to Target", false, function(on)
@@ -1353,7 +1368,7 @@ toggle(exLeft, "Wall Transparency (X-Ray)", false, function(on)
         end
         xray_originals = {}
     end
-end, 11)
+end, 11, "xray_enabled")
 
 local function apply_chams(p)
     if p == player then return end
@@ -1380,7 +1395,7 @@ toggle(exLeft, "Enemy Chams (Through Walls)", false, function(on)
         for p, hl in pairs(chams_highlights) do if hl and hl.Parent then pcall(function() hl:Destroy() end) end end
         chams_highlights = {}
     end
-end, 12)
+end, 12, "chams_enabled")
 
 toggle(exLeft, "Rainbow Character", false, function(on)
     state.rainbow_enabled = on
@@ -1416,7 +1431,7 @@ toggle(exLeft, "Rainbow Character", false, function(on)
         end
         rainbow_originals = {}
     end
-end, 13)
+end, 13, "rainbow_enabled")
 
 toggle(exLeft, "Forcefield Aura (Enemies)", false, function(on)
     state.forcefield_enabled = on
@@ -1441,7 +1456,7 @@ toggle(exLeft, "Forcefield Aura (Enemies)", false, function(on)
             end
         end
     end
-end, 14)
+end, 14, "forcefield_enabled")
 
 section(exRight, "Server Exploits", 1)
 button(exRight, "Global Server Fling (Mass Parts)", COL_DANGER, function()
@@ -1690,6 +1705,7 @@ slider(uScroll, "WalkSpeed", 16, 200, 16, function(v)
     if hum then hum.WalkSpeed = v end
 end, 2)
 toggle(uScroll, "Infinite Jump", false, function(on)
+    state.inf_jump = on
     if on then
         local conn
         conn = UserInputService.JumpRequest:Connect(function()
@@ -1701,7 +1717,7 @@ toggle(uScroll, "Infinite Jump", false, function(on)
     else
         if _G._bss_inf_jump then _G._bss_inf_jump:Disconnect(); _G._bss_inf_jump = nil end
     end
-end, 3)
+end, 3, "inf_jump")
 toggle(uScroll, "Spinbot", false, function(on)
     state.spinbot = on
     if on then
@@ -1722,11 +1738,11 @@ toggle(uScroll, "Spinbot", false, function(on)
         local hum = char and char:FindFirstChildOfClass("Humanoid")
         if hum then hum.AutoRotate = true end
     end
-end, 4)
+end, 4, "spinbot")
 slider(uScroll, "Spinbot Speed", 10, 500, 50, function(v)
     state.spinbot_speed = v
     if spin_vel then spin_vel.AngularVelocity = Vector3.new(0, state.spinbot_speed, 0) end
-end, 5)
+end, 5, "spinbot_speed")
 toggle(uScroll, "Noclip", false, function(on)
     state.noclip = on
     if on then
@@ -1749,7 +1765,7 @@ toggle(uScroll, "Noclip", false, function(on)
     else
         if noclip_conn then noclip_conn:Disconnect(); noclip_conn = nil end
     end
-end, 6)
+end, 6, "noclip")
 toggle(uScroll, "CFrame Speed", false, function(on)
     state.cf_speed = on
     if on then
@@ -1770,8 +1786,8 @@ toggle(uScroll, "CFrame Speed", false, function(on)
     else
         if cf_speed_conn then cf_speed_conn:Disconnect(); cf_speed_conn = nil end
     end
-end, 7)
-slider(uScroll, "CFrame Speed Value", 10, 300, 50, function(v) state.cf_speed_val = v end, 8)
+end, 7, "cf_speed")
+slider(uScroll, "CFrame Speed Value", 10, 300, 50, function(v) state.cf_speed_val = v end, 8, "cf_speed_val")
 toggle(uScroll, "Float (Q/E to move)", false, function(on)
     state.float = on
     local char = player.Character
@@ -1802,7 +1818,7 @@ toggle(uScroll, "Float (Q/E to move)", false, function(on)
             if bv then bv:Destroy() end
         end
     end
-end, 9)
+end, 9, "float")
 toggle(uScroll, "Swim in Air", false, function(on)
     state.swim = on
     local char = player.Character
@@ -1828,13 +1844,13 @@ toggle(uScroll, "Swim in Air", false, function(on)
         if swim_conn then swim_conn:Disconnect(); swim_conn = nil end
         if hum then hum.PlatformStand = false end
     end
-end, 10)
+end, 10, "swim")
 section(uScroll, "Fly", 20)
 toggle(uScroll, "Enable fly", false, function(on)
     state.fly_enabled = on
     if on then start_fly(false) else stop_fly() end
-end, 21)
-slider(uScroll, "Fly speed", 10, 300, 60, function(v) state.fly_speed = v end, 22)
+end, 21, "fly_enabled")
+slider(uScroll, "Fly speed", 10, 300, 60, function(v) state.fly_speed = v end, 22, "fly_speed")
 local modeRow = make("Frame", {Size = UDim2.new(1, 0, 0, 34), BackgroundColor3 = COL_PANEL_ALT, LayoutOrder = 23}, uScroll)
 corner(modeRow, 5)
 make("TextLabel", {Size = UDim2.new(1, -150, 1, 0), Position = UDim2.new(0, 12, 0, 0), BackgroundTransparency = 1, Text = "Fly Mode", TextColor3 = COL_TEXT, Font = Enum.Font.Gotham, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left}, modeRow)
@@ -1855,11 +1871,11 @@ end)
 toggle(uScroll, "Enable vehicle fly", false, function(on)
     state.vehiclefly_enabled = on
     if on then start_fly(true) else stop_fly() end
-end, 24)
+end, 24, "vehiclefly_enabled")
 toggle(uScroll, "Jailbreak fly (unsits)", false, function(on)
     state.jb_fly_enabled = on
     if on then start_jb_fly() else stop_fly() end
-end, 25)
+end, 25, "jb_fly_enabled")
 toggle(uScroll, "Vehicle Noclip", false, function(on)
     state.vehicle_noclip = on
     if on then
@@ -1893,7 +1909,7 @@ toggle(uScroll, "Vehicle Noclip", false, function(on)
             end
         end
     end
-end, 26)
+end, 26, "vehicle_noclip")
 section(uScroll, "Farm & Bypass", 30)
 toggle(uScroll, "Under Map (Immortal)", false, function(on)
     state.under_map = on
@@ -1912,10 +1928,10 @@ toggle(uScroll, "Under Map (Immortal)", false, function(on)
     else
         if under_map_conn then under_map_conn:Disconnect(); under_map_conn = nil end
     end
-end, 31)
-toggle(uScroll, "Safe Fly (Anti-Kick)", false, function(on) state.safe_fly = on end, 32)
+end, 31, "under_map")
+toggle(uScroll, "Safe Fly (Anti-Kick)", false, function(on) state.safe_fly = on end, 32, "safe_fly")
 section(uScroll, "Misc", 40)
-toggle(uScroll, "Hit Sounds", false, function(on) state.hit_sound = on end, 41)
+toggle(uScroll, "Hit Sounds", false, function(on) state.hit_sound = on end, 41, "hit_sound")
 toggle(uScroll, "Anti-AFK", false, function(on)
     state.anti_afk = on
     if on then
@@ -1927,7 +1943,7 @@ toggle(uScroll, "Anti-AFK", false, function(on)
     else
         if anti_afk_conn then anti_afk_conn:Disconnect(); anti_afk_conn = nil end
     end
-end, 42)
+end, 42, "anti_afk")
 toggle(uScroll, "Fullbright", false, function(on)
     state.fullbright = on
     if on then
@@ -1935,8 +1951,8 @@ toggle(uScroll, "Fullbright", false, function(on)
     else
         Lighting.Brightness = orig_lighting.Brightness; Lighting.ClockTime = orig_lighting.ClockTime; Lighting.GlobalShadows = orig_lighting.GlobalShadows; Lighting.FogEnd = orig_lighting.FogEnd
     end
-end, 43)
-toggle(uScroll, "Click Teleport (L-Alt + Click)", false, function(on) state.click_tp = on end, 44)
+end, 43, "fullbright")
+toggle(uScroll, "Click Teleport (L-Alt + Click)", false, function(on) state.click_tp = on end, 44, "click_tp")
 toggle(uScroll, "Anti-Fling", false, function(on)
     state.anti_fling = on
     if on then
@@ -1959,7 +1975,7 @@ toggle(uScroll, "Anti-Fling", false, function(on)
     else
         if anti_fling_conn then anti_fling_conn:Disconnect(); anti_fling_conn = nil end
     end
-end, 45)
+end, 45, "anti_fling")
 
 section(uScroll, "Config", 50)
 local configStatus = make("TextLabel", {Size = UDim2.new(1, 0, 0, 20), BackgroundTransparency = 1, Text = "", TextColor3 = COL_OK, TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.Gotham, TextSize = 12, LayoutOrder = 51}, uScroll)
@@ -1969,50 +1985,54 @@ local function set_config_status(msg, is_success)
     task.delay(3, function() if configStatus.Text == msg then configStatus.Text = "" end end)
 end
 
+local configNameBox = textbox(uScroll, "filename... (e.g. myconfig.json)", 52, "BSSToolkit_Config.json", "config_filename")
+
 button(uScroll, "Save Config", COL_ACCENT, function()
     local code = export_config()
+    local fname = configNameBox.Text
+    if fname == "" then fname = "BSSToolkit_Config.json" end
     if writefile then
-        local success = pcall(function()
-            writefile("Downloads/BSSToolkit_Config.json", code)
-        end)
+        local success = pcall(function() writefile("Downloads/" .. fname, code) end)
         if success then
-            set_config_status("Saved to Downloads/BSSToolkit_Config.json", true)
+            set_config_status("Saved to Downloads/" .. fname, true)
         else
-            local fallback_success = pcall(function() writefile("BSSToolkit_Config.json", code) end)
+            local fallback_success = pcall(function() writefile(fname, code) end)
             if fallback_success then
-                set_config_status("Saved to executor workspace (Downloads failed)", true)
+                set_config_status("Saved to workspace root", true)
             else
                 set_config_status("Failed to save config", false)
             end
         end
     else
-        set_config_status("Executor doesn't support file saving", false)
+        set_config_status("Executor doesn't support saving", false)
     end
-end, 52)
+end, 53)
 
 button(uScroll, "Load Config", COL_PANEL_ALT, function()
+    local fname = configNameBox.Text
+    if fname == "" then fname = "BSSToolkit_Config.json" end
     if isfile and readfile then
         local code
-        if isfile("Downloads/BSSToolkit_Config.json") then
-            code = readfile("Downloads/BSSToolkit_Config.json")
-        elseif isfile("BSSToolkit_Config.json") then
-            code = readfile("BSSToolkit_Config.json")
+        if isfile("Downloads/" .. fname) then
+            code = readfile("Downloads/" .. fname)
+        elseif isfile(fname) then
+            code = readfile(fname)
         end
 
         if code then
             local ok = import_config(code)
             if ok then
-                set_config_status("Config loaded! Re-execute script to apply.", true)
+                set_config_status("Config loaded and applied!", true)
             else
                 set_config_status("Config file is corrupt", false)
             end
         else
-            set_config_status("No saved config found", false)
+            set_config_status("No config file found: " .. fname, false)
         end
     else
-        set_config_status("Executor doesn't support file loading", false)
+        set_config_status("Executor doesn't support loading", false)
     end
-end, 53)
+end, 54)
 
 section(uScroll, "Character", 60)
 button(uScroll, "Reset character", COL_PANEL_ALT, function()
