@@ -5,25 +5,43 @@ local CoreGui = game:GetService("CoreGui")
 local Workspace = game:GetService("Workspace")
 local HttpService = game:GetService("HttpService")
 local Lighting = game:GetService("Lighting")
+local TweenService = game:GetService("TweenService")
 local VirtualUser = game:GetService("VirtualUser")
 local VirtualInputManager = game:GetService("VirtualInputManager")
 local player = Players.LocalPlayer
 local camera = Workspace.CurrentCamera
 local orig_fov = camera.FieldOfView
-local COL_BG = Color3.fromRGB(24, 24, 28)
-local COL_PANEL = Color3.fromRGB(34, 34, 40)
-local COL_PANEL_ALT = Color3.fromRGB(30, 30, 36)
-local COL_STROKE = Color3.fromRGB(60, 60, 70)
-local COL_TEXT = Color3.fromRGB(230, 230, 240)
-local COL_TEXT_DIM = Color3.fromRGB(170, 170, 185)
-local COL_ACCENT = Color3.fromRGB(60, 130, 220)
-local COL_OK = Color3.fromRGB(150, 200, 150)
-local COL_BAD = Color3.fromRGB(220, 130, 130)
-local COL_DANGER = Color3.fromRGB(150, 60, 60)
+local COL_BG = Color3.fromRGB(14, 14, 20)
+local COL_PANEL = Color3.fromRGB(22, 22, 32)
+local COL_PANEL_ALT = Color3.fromRGB(30, 30, 44)
+local COL_PANEL_HOVER = Color3.fromRGB(42, 42, 60)
+local COL_STROKE = Color3.fromRGB(55, 55, 80)
+local COL_TEXT = Color3.fromRGB(235, 235, 250)
+local COL_TEXT_DIM = Color3.fromRGB(140, 140, 165)
+local COL_ACCENT = Color3.fromRGB(90, 170, 255)
+local COL_ACCENT_GLOW = Color3.fromRGB(120, 200, 255)
+local COL_OK = Color3.fromRGB(120, 220, 160)
+local COL_BAD = Color3.fromRGB(255, 120, 130)
+local COL_DANGER = Color3.fromRGB(220, 70, 90)
+local COL_DANGER_HOVER = Color3.fromRGB(255, 90, 110)
 local top_conns = {}
 local function track(c)
     table.insert(top_conns, c)
     return c
+end
+local function tween(inst, props, time, style, dir)
+    local ti = TweenInfo.new(time or 0.18, style or Enum.EasingStyle.Quad, dir or Enum.EasingDirection.Out)
+    local t = TweenService:Create(inst, ti, props)
+    t:Play()
+    return t
+end
+local function lighten(c, amt)
+    amt = amt or 25
+    return Color3.fromRGB(
+        math.min(255, c.R * 255 + amt),
+        math.min(255, c.G * 255 + amt),
+        math.min(255, c.B * 255 + amt)
+    )
 end
 local state = {
     esp_enabled = false, esp_box = true, esp_name = true, esp_distance = true, esp_tracers = false, esp_skeleton = false, esp_color = Color3.fromRGB(255, 80, 80), esp_team_color = false, esp_range = 500,
@@ -31,7 +49,8 @@ local state = {
     triggerbot = false, hit_sound = false, fling_return = true, use_walkfling = false, hitbox_enabled = false, hitbox_part = "HumanoidRootPart", hitbox_look = "Box", hitbox_size = 6, hitbox_transparency = 0.5,
     object_name = "", object_esp_enabled = false, object_aimbot_enabled = false, object_box = true, object_name_lbl = true, object_range = 500, fly_enabled = false, fly_speed = 60, fly_mode = "Velocity",
     vehiclefly_enabled = false, vehicle_noclip = false, jb_fly_enabled = false, spinbot = false, spinbot_speed = 50, mask_enabled = false, mask_display = "", noclip = false, cf_speed = false, cf_speed_val = 50,
-    anti_afk = false, fullbright = false, click_tp = false, anti_fling = false, float = false, swim = false, under_map = false, auto_farm = false, safe_fly = false, mm2_auto_shoot = false, mm2_auto_grab = false, grabbing_gun = false
+    anti_afk = false, fullbright = false, click_tp = false, anti_fling = false, float = false, swim = false, under_map = false, auto_farm = false, safe_fly = false, mm2_auto_shoot = false, mm2_auto_grab = false, grabbing_gun = false,
+    rapid_fire = false, rapid_fire_delay = 0.01
 }
 local keybinds = {
     aimbot = {input = Enum.UserInputType.Keyboard, key = Enum.KeyCode.E},
@@ -60,7 +79,9 @@ local swim_conn = nil
 local vehicle_noclip_conn = nil
 local under_map_conn = nil
 local auto_farm_conn = nil
+local rapid_fire_task = nil
 local main_render_conn = nil
+local loop_tp_conn = nil
 local orig_lighting = {
     Brightness = Lighting.Brightness, ClockTime = Lighting.ClockTime, GlobalShadows = Lighting.GlobalShadows, FogEnd = Lighting.FogEnd,
 }
@@ -90,8 +111,8 @@ local function corner(inst, radius)
     make("UICorner", {CornerRadius = UDim.new(0, radius or 6)}, inst)
     return inst
 end
-local function stroke(inst, color, thickness)
-    make("UIStroke", {Color = color or COL_STROKE, Thickness = thickness or 1}, inst)
+local function stroke(inst, color, thickness, transparency)
+    make("UIStroke", {Color = color or COL_STROKE, Thickness = thickness or 1, Transparency = transparency or 0}, inst)
     return inst
 end
 local function get_root(p)
@@ -140,6 +161,8 @@ local function full_cleanup()
     if vehicle_noclip_conn then vehicle_noclip_conn:Disconnect(); vehicle_noclip_conn = nil end
     if under_map_conn then under_map_conn:Disconnect(); under_map_conn = nil end
     if auto_farm_conn then pcall(function() task.cancel(auto_farm_conn) end); auto_farm_conn = nil end
+    if rapid_fire_task then pcall(function() task.cancel(rapid_fire_task) end); rapid_fire_task = nil end
+    if loop_tp_conn then loop_tp_conn:Disconnect(); loop_tp_conn = nil end
     if spin_vel then spin_vel:Destroy(); spin_vel = nil end
     if fly_velocity then fly_velocity:Destroy(); fly_velocity = nil end
     if fly_gyro then fly_gyro:Destroy(); fly_gyro = nil end
@@ -178,18 +201,30 @@ local function full_cleanup()
     fling_active = false
 end
 local gui = make("ScreenGui", {Name = "BSSToolkit", ResetOnSpawn = false, ZIndexBehavior = Enum.ZIndexBehavior.Sibling, IgnoreGuiInset = true}, CoreGui)
-local main = make("Frame", {Size = UDim2.new(0, 660, 0, 560), Position = UDim2.new(0.5, -330, 0.5, -280), BackgroundColor3 = COL_BG, BorderSizePixel = 0, Active = false}, gui)
+local shadow = make("Frame", {Size = UDim2.new(0, 660, 0, 560), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 3, 0.5, 5), BackgroundColor3 = Color3.fromRGB(0, 0, 0), BackgroundTransparency = 0.55, BorderSizePixel = 0}, gui)
+corner(shadow, 12)
+local main = make("Frame", {Size = UDim2.new(0, 660, 0, 560), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0.5, 0), BackgroundColor3 = COL_BG, BorderSizePixel = 0, Active = false, ClipsDescendants = true}, gui)
 corner(main, 10)
-stroke(main)
-local titleBar = make("Frame", {Size = UDim2.new(1, 0, 0, 36), BackgroundColor3 = COL_PANEL, BorderSizePixel = 0}, main)
+stroke(main, COL_STROKE, 1.5)
+local main_scale = make("UIScale", {Scale = 0.85}, main)
+tween(main_scale, {Scale = 1}, 0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+local titleBar = make("Frame", {Size = UDim2.new(1, 0, 0, 38), BackgroundColor3 = COL_PANEL, BorderSizePixel = 0}, main)
 corner(titleBar, 10)
-make("TextLabel", {Size = UDim2.new(1, -140, 1, 0), Position = UDim2.new(0, 14, 0, 0), BackgroundTransparency = 1, Text = "BSSToolkit", TextColor3 = COL_TEXT, TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.GothamBold, TextSize = 15}, titleBar)
+local titleStrip = make("Frame", {Size = UDim2.new(1, 0, 0, 1), Position = UDim2.new(0, 0, 1, -1), BackgroundColor3 = COL_ACCENT, BorderSizePixel = 0, BackgroundTransparency = 0.4}, titleBar)
+local titleText = make("TextLabel", {Size = UDim2.new(1, -140, 1, 0), Position = UDim2.new(0, 16, 0, 0), BackgroundTransparency = 1, Text = "BSSToolkit", TextColor3 = COL_TEXT, TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.GothamBlack, TextSize = 15}, titleBar)
+make("UIStroke", {Color = COL_ACCENT, Thickness = 1, Transparency = 0.7}, titleText)
 local keybindLabel = make("TextLabel", {Size = UDim2.new(0, 130, 1, 0), Position = UDim2.new(1, -170, 0, 0), BackgroundTransparency = 1, Text = "", TextColor3 = COL_TEXT_DIM, TextXAlignment = Enum.TextXAlignment.Right, Font = Enum.Font.Code, TextSize = 10}, titleBar)
-local closeBtn = make("TextButton", {Size = UDim2.new(0, 28, 0, 22), Position = UDim2.new(1, -36, 0, 7), BackgroundColor3 = COL_DANGER, BorderSizePixel = 0, Text = "x", TextColor3 = Color3.fromRGB(240, 200, 200), Font = Enum.Font.GothamBold, TextSize = 13}, titleBar)
+local closeBtn = make("TextButton", {Size = UDim2.new(0, 28, 0, 22), Position = UDim2.new(1, -36, 0, 8), BackgroundColor3 = COL_DANGER, BorderSizePixel = 0, Text = "x", TextColor3 = Color3.fromRGB(255, 220, 220), Font = Enum.Font.GothamBold, TextSize = 13}, titleBar)
 corner(closeBtn, 5)
+closeBtn.MouseEnter:Connect(function() tween(closeBtn, {BackgroundColor3 = COL_DANGER_HOVER}, 0.12) end)
+closeBtn.MouseLeave:Connect(function() tween(closeBtn, {BackgroundColor3 = COL_DANGER}, 0.12) end)
 closeBtn.MouseButton1Click:Connect(function()
-    full_cleanup()
-    gui:Destroy()
+    tween(main_scale, {Scale = 0.85}, 0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+    tween(shadow, {BackgroundTransparency = 1}, 0.15)
+    task.delay(0.15, function()
+        full_cleanup()
+        gui:Destroy()
+    end)
 end)
 local dragging = false
 local drag_start = nil
@@ -206,83 +241,96 @@ track(UserInputService.InputChanged:Connect(function(io)
     if not dragging then return end
     if io.UserInputType == Enum.UserInputType.MouseMovement or io.UserInputType == Enum.UserInputType.Touch then
         local delta = io.Position - drag_start
-        main.Position = UDim2.new(drag_start_pos.X.Scale, drag_start_pos.X.Offset + delta.X, drag_start_pos.Y.Scale, drag_start_pos.Y.Offset + delta.Y)
+        local newPos = UDim2.new(drag_start_pos.X.Scale, drag_start_pos.X.Offset + delta.X, drag_start_pos.Y.Scale, drag_start_pos.Y.Offset + delta.Y)
+        main.Position = newPos
+        shadow.Position = UDim2.new(newPos.X.Scale, newPos.X.Offset + 3, newPos.Y.Scale, newPos.Y.Offset + 5)
     end
 end))
 track(UserInputService.InputEnded:Connect(function(io)
     if io.UserInputType == Enum.UserInputType.MouseButton1 or io.UserInputType == Enum.UserInputType.Touch then dragging = false end
 end))
-local tabs = {"ESP", "Teleport", "Aimbot", "Fling", "Hitbox", "Fun", "Utility"}
+local tabs = {"ESP", "Teleport", "Aimbot", "Fling", "Hitbox", "Exploits", "Fun", "Utility"}
 if is_mm2 then table.insert(tabs, "MM2") end
-local tabBar = make("Frame", {Size = UDim2.new(1, 0, 0, 34), Position = UDim2.new(0, 0, 0, 36), BackgroundColor3 = COL_BG, BorderSizePixel = 0}, main)
-make("UIListLayout", {FillDirection = Enum.FillDirection.Horizontal, SortOrder = Enum.SortOrder.LayoutOrder}, tabBar)
+local tabBar = make("Frame", {Size = UDim2.new(1, -20, 0, 34), Position = UDim2.new(0, 10, 0, 38), BackgroundColor3 = COL_BG, BorderSizePixel = 0}, main)
+make("UIListLayout", {FillDirection = Enum.FillDirection.Horizontal, SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 4)}, tabBar)
 local tabButtons = {}
 local tabPages = {}
 for i, name in ipairs(tabs) do
-    local btn = make("TextButton", {Size = UDim2.new(1 / #tabs, 0, 1, 0), BackgroundColor3 = COL_PANEL_ALT, BorderSizePixel = 0, Text = name, TextColor3 = COL_TEXT_DIM, Font = Enum.Font.GothamBold, TextSize = 11, LayoutOrder = i}, tabBar)
+    local btn = make("TextButton", {Size = UDim2.new(1 / #tabs, -4, 1, -6), Position = UDim2.new(0, 0, 0, 3), BackgroundColor3 = COL_PANEL_ALT, BorderSizePixel = 0, Text = name, TextColor3 = COL_TEXT_DIM, Font = Enum.Font.GothamBold, TextSize = 11, LayoutOrder = i, AutoButtonColor = false}, tabBar)
+    corner(btn, 6)
     tabButtons[name] = btn
     local page = make("Frame", {Size = UDim2.new(1, -24, 1, -96), Position = UDim2.new(0, 12, 0, 82), BackgroundTransparency = 1, Visible = false}, main)
     tabPages[name] = page
+    btn.MouseEnter:Connect(function()
+        if not page.Visible then tween(btn, {BackgroundColor3 = COL_PANEL_HOVER}, 0.12) end
+    end)
+    btn.MouseLeave:Connect(function()
+        if not page.Visible then tween(btn, {BackgroundColor3 = COL_PANEL_ALT}, 0.12) end
+    end)
 end
 local function switch_tab(name)
     for n, btn in pairs(tabButtons) do
-        if n == name then
-            btn.BackgroundColor3 = COL_ACCENT
-            btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-            tabPages[n].Visible = true
-        else
-            btn.BackgroundColor3 = COL_PANEL_ALT
-            btn.TextColor3 = COL_TEXT_DIM
-            tabPages[n].Visible = false
-        end
+        local active = (n == name)
+        tween(btn, {BackgroundColor3 = active and COL_ACCENT or COL_PANEL_ALT}, 0.18)
+        tween(btn, {TextColor3 = active and Color3.fromRGB(255, 255, 255) or COL_TEXT_DIM}, 0.18)
+        tabPages[n].Visible = active
     end
 end
 for n, btn in pairs(tabButtons) do btn.MouseButton1Click:Connect(function() switch_tab(n) end) end
 switch_tab("ESP")
 local function section(parent, text, order)
-    return make("TextLabel", {Size = UDim2.new(1, 0, 0, 22), BackgroundTransparency = 1, Text = text, TextColor3 = COL_TEXT, TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.GothamBold, TextSize = 12, LayoutOrder = order or 0}, parent)
+    local row = make("Frame", {Size = UDim2.new(1, 0, 0, 24), BackgroundTransparency = 1, LayoutOrder = order or 0}, parent)
+    make("Frame", {Size = UDim2.new(0, 3, 0, 14), Position = UDim2.new(0, 0, 0.5, -7), BackgroundColor3 = COL_ACCENT, BorderSizePixel = 0}, row)
+    corner(row:FindFirstChildOfClass("Frame"), 2)
+    make("TextLabel", {Size = UDim2.new(1, -12, 1, 0), Position = UDim2.new(0, 12, 0, 0), BackgroundTransparency = 1, Text = text, TextColor3 = COL_TEXT, TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.GothamBold, TextSize = 12}, row)
+    return row
 end
 local function toggle(parent, text, initial, callback, order)
-    local row = make("Frame", {Size = UDim2.new(1, 0, 0, 30), BackgroundColor3 = COL_PANEL_ALT, BorderSizePixel = 0, LayoutOrder = order or 0}, parent)
-    corner(row, 5)
-    make("TextLabel", {Size = UDim2.new(1, -60, 1, 0), Position = UDim2.new(0, 10, 0, 0), BackgroundTransparency = 1, Text = text, TextColor3 = COL_TEXT, TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.Gotham, TextSize = 12}, row)
+    local row = make("Frame", {Size = UDim2.new(1, 0, 0, 32), BackgroundColor3 = COL_PANEL_ALT, BorderSizePixel = 0, LayoutOrder = order or 0}, parent)
+    corner(row, 6)
+    make("TextLabel", {Size = UDim2.new(1, -60, 1, 0), Position = UDim2.new(0, 12, 0, 0), BackgroundTransparency = 1, Text = text, TextColor3 = COL_TEXT, TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.Gotham, TextSize = 12}, row)
     local track_ui = make("Frame", {Size = UDim2.new(0, 36, 0, 18), Position = UDim2.new(1, -46, 0.5, -9), BackgroundColor3 = initial and COL_ACCENT or COL_PANEL, BorderSizePixel = 0}, row)
     corner(track_ui, 9)
-    stroke(track_ui)
+    stroke(track_ui, COL_STROKE, 1)
     local knob = make("Frame", {Size = UDim2.new(0, 14, 0, 14), Position = initial and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7), BackgroundColor3 = COL_TEXT, BorderSizePixel = 0}, track_ui)
     corner(knob, 7)
     local state_on = initial
-    local hit = make("TextButton", {Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1, Text = ""}, row)
+    local hit = make("TextButton", {Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1, Text = "", AutoButtonColor = false}, row)
+    hit.MouseEnter:Connect(function() tween(row, {BackgroundColor3 = COL_PANEL_HOVER}, 0.12) end)
+    hit.MouseLeave:Connect(function() tween(row, {BackgroundColor3 = COL_PANEL_ALT}, 0.12) end)
     hit.MouseButton1Click:Connect(function()
         state_on = not state_on
-        track_ui.BackgroundColor3 = state_on and COL_ACCENT or COL_PANEL
-        knob.Position = state_on and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7)
+        tween(track_ui, {BackgroundColor3 = state_on and COL_ACCENT or COL_PANEL}, 0.2)
+        tween(knob, {Position = state_on and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7)}, 0.2, Enum.EasingStyle.Quad)
         callback(state_on)
     end)
     return row
 end
 local function slider(parent, text, minv, maxv, initial, callback, order)
-    local row = make("Frame", {Size = UDim2.new(1, 0, 0, 44), BackgroundColor3 = COL_PANEL_ALT, BorderSizePixel = 0, LayoutOrder = order or 0}, parent)
-    corner(row, 5)
-    local label = make("TextLabel", {Size = UDim2.new(1, -20, 0, 18), Position = UDim2.new(0, 10, 0, 4), BackgroundTransparency = 1, Text = text .. "  (" .. string.format("%.2f", initial) .. ")", TextColor3 = COL_TEXT, TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.Gotham, TextSize = 12}, row)
-    local track_ui = make("Frame", {Size = UDim2.new(1, -20, 0, 4), Position = UDim2.new(0, 10, 0, 30), BackgroundColor3 = COL_PANEL, BorderSizePixel = 0}, row)
+    local row = make("Frame", {Size = UDim2.new(1, 0, 0, 46), BackgroundColor3 = COL_PANEL_ALT, BorderSizePixel = 0, LayoutOrder = order or 0}, parent)
+    corner(row, 6)
+    local label = make("TextLabel", {Size = UDim2.new(1, -20, 0, 18), Position = UDim2.new(0, 12, 0, 5), BackgroundTransparency = 1, Text = text .. "  (" .. string.format("%.2f", initial) .. ")", TextColor3 = COL_TEXT, TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.Gotham, TextSize = 12}, row)
+    local track_ui = make("Frame", {Size = UDim2.new(1, -24, 0, 4), Position = UDim2.new(0, 12, 0, 32), BackgroundColor3 = COL_PANEL, BorderSizePixel = 0}, row)
     corner(track_ui, 2)
     local fill = make("Frame", {Size = UDim2.new((initial - minv) / (maxv - minv), 0, 1, 0), BackgroundColor3 = COL_ACCENT, BorderSizePixel = 0}, track_ui)
     corner(fill, 2)
-    local thumb = make("Frame", {Size = UDim2.new(0, 12, 0, 12), Position = UDim2.new((initial - minv) / (maxv - minv), -6, 0.5, -6), BackgroundColor3 = COL_TEXT, BorderSizePixel = 0}, track_ui)
-    corner(thumb, 6)
+    local thumb = make("Frame", {Size = UDim2.new(0, 14, 0, 14), Position = UDim2.new((initial - minv) / (maxv - minv), -7, 0.5, -7), BackgroundColor3 = COL_TEXT, BorderSizePixel = 0}, track_ui)
+    corner(thumb, 7)
+    local thumb_stroke = make("UIStroke", {Color = COL_ACCENT, Thickness = 1.5, Transparency = 0.5}, thumb)
     local grabbing = false
     local function set_from_x(px)
         local rel = math.clamp((px - track_ui.AbsolutePosition.X) / track_ui.AbsoluteSize.X, 0, 1)
         local val = minv + rel * (maxv - minv)
         fill.Size = UDim2.new(rel, 0, 1, 0)
-        thumb.Position = UDim2.new(rel, -6, 0.5, -6)
+        thumb.Position = UDim2.new(rel, -7, 0.5, -7)
         label.Text = text .. "  (" .. string.format("%.2f", val) .. ")"
         callback(val)
     end
     thumb.InputBegan:Connect(function(io)
         if io.UserInputType == Enum.UserInputType.MouseButton1 then
             grabbing = true
+            tween(thumb_stroke, {Transparency = 0}, 0.12)
+            tween(thumb, {Size = UDim2.new(0, 16, 0, 16), Position = UDim2.new(thumb.Position.X.Scale, -8, 0.5, -8)}, 0.12)
             io:CaptureFocus()
         end
     end)
@@ -292,23 +340,38 @@ local function slider(parent, text, minv, maxv, initial, callback, order)
         end
     end))
     track(UserInputService.InputEnded:Connect(function(io)
-        if io.UserInputType == Enum.UserInputType.MouseButton1 then grabbing = false end
+        if io.UserInputType == Enum.UserInputType.MouseButton1 then
+            grabbing = false
+            tween(thumb_stroke, {Transparency = 0.5}, 0.12)
+            tween(thumb, {Size = UDim2.new(0, 14, 0, 14), Position = UDim2.new(thumb.Position.X.Scale, -7, 0.5, -7)}, 0.12)
+        end
     end))
     return row
 end
 local function button(parent, text, color, callback, order)
-    local b = make("TextButton", {Size = UDim2.new(1, 0, 0, 30), BackgroundColor3 = color or COL_PANEL_ALT, BorderSizePixel = 0, Text = text, TextColor3 = COL_TEXT, Font = Enum.Font.GothamBold, TextSize = 12, LayoutOrder = order or 0}, parent)
-    corner(b, 5)
-    b.MouseButton1Click:Connect(callback)
+    local base = color or COL_PANEL_ALT
+    local hover = lighten(base, 22)
+    local b = make("TextButton", {Size = UDim2.new(1, 0, 0, 32), BackgroundColor3 = base, BorderSizePixel = 0, Text = text, TextColor3 = COL_TEXT, Font = Enum.Font.GothamBold, TextSize = 12, LayoutOrder = order or 0, AutoButtonColor = false}, parent)
+    corner(b, 6)
+    b.MouseEnter:Connect(function() tween(b, {BackgroundColor3 = hover}, 0.12) end)
+    b.MouseLeave:Connect(function() tween(b, {BackgroundColor3 = base}, 0.12) end)
+    b.MouseButton1Click:Connect(function()
+        tween(b, {BackgroundColor3 = lighten(base, 45)}, 0.05)
+        task.delay(0.08, function() tween(b, {BackgroundColor3 = hover}, 0.12) end)
+        callback()
+    end)
     return b
 end
 local function textbox(parent, placeholder, order, initial)
-    local t = make("TextBox", {Size = UDim2.new(1, 0, 0, 32), BackgroundColor3 = COL_PANEL, BorderSizePixel = 0, TextColor3 = COL_TEXT, PlaceholderText = placeholder, PlaceholderColor3 = COL_TEXT_DIM, Text = initial or "", Font = Enum.Font.Gotham, TextSize = 12, ClearTextOnFocus = false, LayoutOrder = order or 0}, parent)
+    local t = make("TextBox", {Size = UDim2.new(1, 0, 0, 34), BackgroundColor3 = COL_PANEL, BorderSizePixel = 0, TextColor3 = COL_TEXT, PlaceholderText = placeholder, PlaceholderColor3 = COL_TEXT_DIM, Text = initial or "", Font = Enum.Font.Gotham, TextSize = 12, ClearTextOnFocus = false, LayoutOrder = order or 0}, parent)
     corner(t, 6)
+    local s = make("UIStroke", {Color = COL_STROKE, Thickness = 1, Transparency = 0.3}, t)
+    t.Focused:Connect(function() tween(s, {Color = COL_ACCENT, Transparency = 0}, 0.15) end)
+    t.FocusLost:Connect(function() tween(s, {Color = COL_STROKE, Transparency = 0.3}, 0.15) end)
     return t
 end
 local function scroll_col(parent)
-    local s = make("ScrollingFrame", {Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1, BorderSizePixel = 0, ScrollBarThickness = 4, CanvasSize = UDim2.new(0, 0, 0, 0), AutomaticCanvasSize = Enum.AutomaticSize.Y}, parent)
+    local s = make("ScrollingFrame", {Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1, BorderSizePixel = 0, ScrollBarThickness = 4, CanvasSize = UDim2.new(0, 0, 0, 0), AutomaticCanvasSize = Enum.AutomaticSize.Y, ScrollBarImageColor3 = COL_ACCENT}, parent)
     make("UIListLayout", {Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder}, s)
     return s
 end
@@ -322,10 +385,10 @@ end
 local draw_holder = make("Frame", {Size = UDim2.new(1, 0, 1, 0), Position = UDim2.new(0, 0, 0, 0), BackgroundTransparency = 1, Active = false, ClipsDescendants = false}, gui)
 local fovCircle = make("Frame", {Size = UDim2.new(0, state.aimbot_fov * 2, 0, state.aimbot_fov * 2), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0.5, 0), BackgroundTransparency = 1, BorderSizePixel = 0, Visible = false, ZIndex = 5}, draw_holder)
 make("UICorner", {CornerRadius = UDim.new(1, 0)}, fovCircle)
-make("UIStroke", {Color = COL_ACCENT, Thickness = 1.5, Transparency = 0.3}, fovCircle)
+make("UIStroke", {Color = COL_ACCENT, Thickness = 1.5, Transparency = 0.35}, fovCircle)
 local function update_fov_circle()
     local d = state.aimbot_fov * 2
-    fovCircle.Size = UDim2.new(0, d, 0, d)
+    tween(fovCircle, {Size = UDim2.new(0, d, 0, d)}, 0.2)
     fovCircle.Visible = state.aimbot_enabled or state.object_aimbot_enabled
 end
 update_fov_circle()
@@ -588,15 +651,17 @@ local function rebuild_saved()
         if c:IsA("Frame") then c:Destroy() end
     end
     for i, entry in ipairs(state.saved_spots) do
-        local row = make("Frame", {Size = UDim2.new(1, 0, 0, 28), BackgroundColor3 = COL_PANEL_ALT, BorderSizePixel = 0, LayoutOrder = i}, savedFrame)
-        corner(row, 4)
-        local nb = make("TextButton", {Size = UDim2.new(1, -36, 1, 0), BackgroundTransparency = 1, Text = "  " .. entry.name, TextColor3 = COL_TEXT, TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.Gotham, TextSize = 12}, row)
+        local row = make("Frame", {Size = UDim2.new(1, 0, 0, 30), BackgroundColor3 = COL_PANEL_ALT, BorderSizePixel = 0, LayoutOrder = i}, savedFrame)
+        corner(row, 5)
+        local nb = make("TextButton", {Size = UDim2.new(1, -36, 1, 0), BackgroundTransparency = 1, Text = "  " .. entry.name, TextColor3 = COL_TEXT, TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.Gotham, TextSize = 12, AutoButtonColor = false}, row)
         nb.MouseButton1Click:Connect(function()
             local root = get_root()
             if root then root.CFrame = entry.cf; set_status("teleported to " .. entry.name, true) end
         end)
-        local del = make("TextButton", {Size = UDim2.new(0, 28, 0, 22), Position = UDim2.new(1, -32, 0, 3), BackgroundColor3 = COL_DANGER, BorderSizePixel = 0, Text = "x", TextColor3 = Color3.fromRGB(230, 180, 180), Font = Enum.Font.GothamBold, TextSize = 12}, row)
+        local del = make("TextButton", {Size = UDim2.new(0, 28, 0, 22), Position = UDim2.new(1, -32, 0, 4), BackgroundColor3 = COL_DANGER, BorderSizePixel = 0, Text = "x", TextColor3 = Color3.fromRGB(255, 220, 220), Font = Enum.Font.GothamBold, TextSize = 12, AutoButtonColor = false}, row)
         corner(del, 4)
+        del.MouseEnter:Connect(function() tween(del, {BackgroundColor3 = COL_DANGER_HOVER}, 0.12) end)
+        del.MouseLeave:Connect(function() tween(del, {BackgroundColor3 = COL_DANGER}, 0.12) end)
         del.MouseButton1Click:Connect(function()
             table.remove(state.saved_spots, i)
             rebuild_saved()
@@ -644,9 +709,29 @@ slider(aimLeft, "Smoothness", 0, 1, 0.35, function(v) state.aimbot_smooth = v en
 slider(aimLeft, "Prediction", 0, 0.3, 0.05, function(v) state.aimbot_prediction = v end, 6)
 toggle(aimLeft, "Team check", true, function(on) state.aimbot_teamcheck = on end, 7)
 toggle(aimLeft, "Triggerbot", false, function(on) state.triggerbot = on end, 8)
-section(aimLeft, "Target part", 10)
-toggle(aimLeft, "Head", true, function(on) state.aimbot_part = "Head" end, 11)
-toggle(aimLeft, "HumanoidRootPart", false, function(on) state.aimbot_part = "HumanoidRootPart" end, 12)
+section(aimLeft, "Exploits", 20)
+toggle(aimLeft, "Rapid Fire / Auto Shoot", false, function(on)
+    state.rapid_fire = on
+    if on and not rapid_fire_task then
+        rapid_fire_task = task.spawn(function()
+            while state.rapid_fire do
+                task.wait(state.rapid_fire_delay)
+                local char = player.Character
+                local tool = char and char:FindFirstChildOfClass("Tool")
+                if tool then
+                    pcall(function() tool:Activate() end)
+                end
+                if UserInputService.MouseBehavior == Enum.MouseBehavior.LockCenter or UserInputService.MouseBehavior == Enum.MouseBehavior.Default then
+                    local vim = game:GetService("VirtualInputManager")
+                    vim:SendMouseButtonEvent(camera.ViewportSize.X/2, camera.ViewportSize.Y/2, 0, true, game, 0)
+                    vim:SendMouseButtonEvent(camera.ViewportSize.X/2, camera.ViewportSize.Y/2, 0, false, game, 0)
+                end
+            end
+            rapid_fire_task = nil
+        end)
+    end
+end, 21)
+slider(aimLeft, "Rapid Fire Delay", 0.001, 0.1, 0.01, function(v) state.rapid_fire_delay = v end, 22)
 section(aimRight, "Keybinds", 1)
 local keybindButtons = {}
 local function bind_label(b)
@@ -658,9 +743,11 @@ local function bind_label(b)
     end
 end
 local function keybind_button(parent, label, slot, order)
-    local b = make("TextButton", {Size = UDim2.new(1, 0, 0, 30), BackgroundColor3 = COL_PANEL_ALT, BorderSizePixel = 0, Text = label .. ":  " .. bind_label(slot), TextColor3 = COL_TEXT, Font = Enum.Font.Gotham, TextSize = 12, LayoutOrder = order or 0}, parent)
+    local b = make("TextButton", {Size = UDim2.new(1, 0, 0, 30), BackgroundColor3 = COL_PANEL_ALT, BorderSizePixel = 0, Text = label .. ":  " .. bind_label(slot), TextColor3 = COL_TEXT, Font = Enum.Font.Gotham, TextSize = 12, LayoutOrder = order or 0, AutoButtonColor = false}, parent)
     corner(b, 5)
     keybindButtons[slot] = b
+    b.MouseEnter:Connect(function() tween(b, {BackgroundColor3 = COL_PANEL_HOVER}, 0.12) end)
+    b.MouseLeave:Connect(function() tween(b, {BackgroundColor3 = COL_PANEL_ALT}, 0.12) end)
     b.MouseButton1Click:Connect(function()
         b.Text = label .. ":  ..."
         local conn
@@ -904,31 +991,31 @@ toggle(hbLeft, "Enabled", false, function(on)
 end, 2)
 local partRow = make("Frame", {Size = UDim2.new(1,0,0,34), BackgroundColor3 = COL_PANEL_ALT, LayoutOrder = 3}, hbLeft)
 corner(partRow, 5)
-make("TextLabel", {Size = UDim2.new(1,-160,1,0), Position = UDim2.new(0,10,0,0), BackgroundTransparency = 1, Text = "Part", TextColor3 = COL_TEXT, Font = Enum.Font.Gotham, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left}, partRow)
-local hrpBtn = make("TextButton", {Size = UDim2.new(0, 80, 0, 24), Position = UDim2.new(1, -160, 0.5, -12), BackgroundColor3 = state.hitbox_part == "HumanoidRootPart" and COL_ACCENT or COL_PANEL, Text = "HumanoidRootPart", TextColor3 = COL_TEXT, Font = Enum.Font.GothamBold, TextSize = 10, TextScaled = true}, partRow)
+make("TextLabel", {Size = UDim2.new(1,-160,1,0), Position = UDim2.new(0,12,0,0), BackgroundTransparency = 1, Text = "Part", TextColor3 = COL_TEXT, Font = Enum.Font.Gotham, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left}, partRow)
+local hrpBtn = make("TextButton", {Size = UDim2.new(0, 80, 0, 24), Position = UDim2.new(1, -160, 0.5, -12), BackgroundColor3 = state.hitbox_part == "HumanoidRootPart" and COL_ACCENT or COL_PANEL, Text = "HumanoidRootPart", TextColor3 = COL_TEXT, Font = Enum.Font.GothamBold, TextSize = 10, TextScaled = true, AutoButtonColor = false}, partRow)
 corner(hrpBtn, 4)
-local headBtn = make("TextButton", {Size = UDim2.new(0, 60, 0, 24), Position = UDim2.new(1, -75, 0.5, -12), BackgroundColor3 = state.hitbox_part == "Head" and COL_ACCENT or COL_PANEL, Text = "Head", TextColor3 = COL_TEXT, Font = Enum.Font.GothamBold, TextSize = 10}, partRow)
+local headBtn = make("TextButton", {Size = UDim2.new(0, 60, 0, 24), Position = UDim2.new(1, -75, 0.5, -12), BackgroundColor3 = state.hitbox_part == "Head" and COL_ACCENT or COL_PANEL, Text = "Head", TextColor3 = COL_TEXT, Font = Enum.Font.GothamBold, TextSize = 10, AutoButtonColor = false}, partRow)
 corner(headBtn, 4)
 hrpBtn.MouseButton1Click:Connect(function()
-    state.hitbox_part = "HumanoidRootPart"; hrpBtn.BackgroundColor3 = COL_ACCENT; headBtn.BackgroundColor3 = COL_PANEL
+    state.hitbox_part = "HumanoidRootPart"; tween(hrpBtn, {BackgroundColor3 = COL_ACCENT}, 0.15); tween(headBtn, {BackgroundColor3 = COL_PANEL}, 0.15)
     for p, _ in pairs(hitbox_expanded) do remove_hitbox(p) end
 end)
 headBtn.MouseButton1Click:Connect(function()
-    state.hitbox_part = "Head"; hrpBtn.BackgroundColor3 = COL_PANEL; headBtn.BackgroundColor3 = COL_ACCENT
+    state.hitbox_part = "Head"; tween(hrpBtn, {BackgroundColor3 = COL_PANEL}, 0.15); tween(headBtn, {BackgroundColor3 = COL_ACCENT}, 0.15)
     for p, _ in pairs(hitbox_expanded) do remove_hitbox(p) end
 end)
 local lookRow = make("Frame", {Size = UDim2.new(1,0,0,34), BackgroundColor3 = COL_PANEL_ALT, LayoutOrder = 4}, hbLeft)
 corner(lookRow, 5)
-make("TextLabel", {Size = UDim2.new(1,-210,1,0), Position = UDim2.new(0,10,0,0), BackgroundTransparency = 1, Text = "Hitbox Look", TextColor3 = COL_TEXT, Font = Enum.Font.Gotham, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left}, lookRow)
-local boxBtn = make("TextButton", {Size = UDim2.new(0, 60, 0, 24), Position = UDim2.new(1, -210, 0.5, -12), BackgroundColor3 = state.hitbox_look == "Box" and COL_ACCENT or COL_PANEL, Text = "Box", TextColor3 = COL_TEXT, Font = Enum.Font.GothamBold, TextSize = 10}, lookRow)
+make("TextLabel", {Size = UDim2.new(1,-210,1,0), Position = UDim2.new(0,12,0,0), BackgroundTransparency = 1, Text = "Hitbox Look", TextColor3 = COL_TEXT, Font = Enum.Font.Gotham, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left}, lookRow)
+local boxBtn = make("TextButton", {Size = UDim2.new(0, 60, 0, 24), Position = UDim2.new(1, -210, 0.5, -12), BackgroundColor3 = state.hitbox_look == "Box" and COL_ACCENT or COL_PANEL, Text = "Box", TextColor3 = COL_TEXT, Font = Enum.Font.GothamBold, TextSize = 10, AutoButtonColor = false}, lookRow)
 corner(boxBtn, 4)
-local wireBtn = make("TextButton", {Size = UDim2.new(0, 60, 0, 24), Position = UDim2.new(1, -145, 0.5, -12), BackgroundColor3 = state.hitbox_look == "Wireframe" and COL_ACCENT or COL_PANEL, Text = "Wireframe", TextColor3 = COL_TEXT, Font = Enum.Font.GothamBold, TextSize = 10}, lookRow)
+local wireBtn = make("TextButton", {Size = UDim2.new(0, 60, 0, 24), Position = UDim2.new(1, -145, 0.5, -12), BackgroundColor3 = state.hitbox_look == "Wireframe" and COL_ACCENT or COL_PANEL, Text = "Wireframe", TextColor3 = COL_TEXT, Font = Enum.Font.GothamBold, TextSize = 10, AutoButtonColor = false}, lookRow)
 corner(wireBtn, 4)
-local invBtn = make("TextButton", {Size = UDim2.new(0, 60, 0, 24), Position = UDim2.new(1, -80, 0.5, -12), BackgroundColor3 = state.hitbox_look == "Invisible" and COL_ACCENT or COL_PANEL, Text = "Invisible", TextColor3 = COL_TEXT, Font = Enum.Font.GothamBold, TextSize = 10}, lookRow)
+local invBtn = make("TextButton", {Size = UDim2.new(0, 60, 0, 24), Position = UDim2.new(1, -80, 0.5, -12), BackgroundColor3 = state.hitbox_look == "Invisible" and COL_ACCENT or COL_PANEL, Text = "Invisible", TextColor3 = COL_TEXT, Font = Enum.Font.GothamBold, TextSize = 10, AutoButtonColor = false}, lookRow)
 corner(invBtn, 4)
-boxBtn.MouseButton1Click:Connect(function() state.hitbox_look = "Box"; boxBtn.BackgroundColor3 = COL_ACCENT; wireBtn.BackgroundColor3 = COL_PANEL; invBtn.BackgroundColor3 = COL_PANEL end)
-wireBtn.MouseButton1Click:Connect(function() state.hitbox_look = "Wireframe"; boxBtn.BackgroundColor3 = COL_PANEL; wireBtn.BackgroundColor3 = COL_ACCENT; invBtn.BackgroundColor3 = COL_PANEL end)
-invBtn.MouseButton1Click:Connect(function() state.hitbox_look = "Invisible"; boxBtn.BackgroundColor3 = COL_PANEL; wireBtn.BackgroundColor3 = COL_PANEL; invBtn.BackgroundColor3 = COL_ACCENT end)
+boxBtn.MouseButton1Click:Connect(function() state.hitbox_look = "Box"; tween(boxBtn, {BackgroundColor3 = COL_ACCENT}, 0.15); tween(wireBtn, {BackgroundColor3 = COL_PANEL}, 0.15); tween(invBtn, {BackgroundColor3 = COL_PANEL}, 0.15) end)
+wireBtn.MouseButton1Click:Connect(function() state.hitbox_look = "Wireframe"; tween(boxBtn, {BackgroundColor3 = COL_PANEL}, 0.15); tween(wireBtn, {BackgroundColor3 = COL_ACCENT}, 0.15); tween(invBtn, {BackgroundColor3 = COL_PANEL}, 0.15) end)
+invBtn.MouseButton1Click:Connect(function() state.hitbox_look = "Invisible"; tween(boxBtn, {BackgroundColor3 = COL_PANEL}, 0.15); tween(wireBtn, {BackgroundColor3 = COL_PANEL}, 0.15); tween(invBtn, {BackgroundColor3 = COL_ACCENT}, 0.15) end)
 slider(hbLeft, "Size", 1, 50, 6, function(v) state.hitbox_size = v end, 5)
 slider(hbLeft, "Transparency", 0, 1, 0.7, function(v) state.hitbox_transparency = v end, 6)
 local function apply_hitbox_to(p)
@@ -976,6 +1063,103 @@ local function apply_hitbox_to(p)
     end
 end
 track(Players.PlayerRemoving:Connect(function(p) remove_hitbox(p) end))
+local exLeft, exRight = split_two(tabPages["Exploits"])
+section(exLeft, "Targeted Exploits", 1)
+local exTargetBox = textbox(exLeft, "target player name...", 2, "")
+button(exLeft, "Invalid Avatar Rig Break", COL_DANGER, function()
+    local targetName = exTargetBox.Text
+    if targetName == "" then return end
+    local target = nil
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p.Name:lower():find(targetName:lower()) then target = p break end
+    end
+    if target and target ~= player then
+        local char = target.Character
+        local hrp = char and char:FindFirstChild("HumanoidRootPart")
+        if hrp then
+            pcall(function() hrp:SetNetworkOwner(player) end)
+            local bav = Instance.new("BodyAngularVelocity")
+            bav.AngularVelocity = Vector3.new(99999, 99999, 99999)
+            bav.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
+            bav.Parent = hrp
+            for _, joint in ipairs(char:GetDescendants()) do
+                if joint:IsA("Motor6D") or joint:IsA("Weld") then
+                    joint:Destroy()
+                end
+            end
+            local bv = Instance.new("BodyVelocity")
+            bv.Velocity = Vector3.new(10000, 10000, 10000)
+            bv.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+            bv.Parent = hrp
+            task.delay(1.5, function()
+                if bav then bav:Destroy() end
+                if bv then bv:Destroy() end
+            end)
+        end
+    end
+end, 3)
+local loop_tp_target = nil
+toggle(exLeft, "Loop Teleport to Target", false, function(on)
+    if on then
+        local targetName = exTargetBox.Text
+        if targetName == "" then return end
+        local target = nil
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p.Name:lower():find(targetName:lower()) then target = p break end
+        end
+        if target then
+            loop_tp_target = target
+            if loop_tp_conn then loop_tp_conn:Disconnect() end
+            loop_tp_conn = RunService.Heartbeat:Connect(function()
+                local hrp = get_root()
+                local t_hrp = get_root(loop_tp_target)
+                if hrp and t_hrp then
+                    hrp.CFrame = t_hrp.CFrame * CFrame.new(0, 0, 2)
+                end
+            end)
+        end
+    else
+        if loop_tp_conn then loop_tp_conn:Disconnect(); loop_tp_conn = nil end
+        loop_tp_target = nil
+    end
+end, 4)
+section(exRight, "Server Exploits", 1)
+button(exRight, "Global Server Fling", COL_DANGER, function()
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= player then
+            local char = p.Character
+            local hrp = char and char:FindFirstChild("HumanoidRootPart")
+            if hrp then
+                pcall(function() hrp:SetNetworkOwner(player) end)
+                local bv = Instance.new("BodyVelocity")
+                bv.Velocity = Vector3.new(5000, 5000, 5000)
+                bv.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+                bv.Parent = hrp
+                task.delay(1, function() if bv then bv:Destroy() end end)
+            end
+        end
+    end
+end, 2)
+button(exRight, "Spawn Lag Parts (Crash Server)", COL_DANGER, function()
+    local char = player.Character
+    local hrp = get_root()
+    if hrp then
+        for i = 1, 300 do
+            local part = Instance.new("Part")
+            part.Size = Vector3.new(50, 50, 50)
+            part.Position = hrp.Position + Vector3.new(math.random(-50, 50), math.random(10, 50), math.random(-50, 50))
+            part.Anchored = false
+            part.CanCollide = true
+            part.Transparency = 0.5
+            part.Color = Color3.fromRGB(255, 0, 0)
+            part.Parent = Workspace
+            task.delay(3, function() part:Destroy() end)
+        end
+    end
+end, 3)
+button(exRight, "Kick All (Requires Server Executor)", COL_DANGER, function()
+    print("[BSS] This requires a server-side executor.")
+end, 4)
 local funLeft, funRight = split_two(tabPages["Fun"])
 section(funLeft, "Troll", 1)
 local bangTarget = textbox(funLeft, "target player name...", 2, "")
@@ -1374,18 +1558,18 @@ end, 21)
 slider(uScroll, "Fly speed", 10, 300, 60, function(v) state.fly_speed = v end, 22)
 local modeRow = make("Frame", {Size = UDim2.new(1, 0, 0, 34), BackgroundColor3 = COL_PANEL_ALT, LayoutOrder = 23}, uScroll)
 corner(modeRow, 5)
-make("TextLabel", {Size = UDim2.new(1, -150, 1, 0), Position = UDim2.new(0, 10, 0, 0), BackgroundTransparency = 1, Text = "Fly Mode", TextColor3 = COL_TEXT, Font = Enum.Font.Gotham, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left}, modeRow)
-local velBtn = make("TextButton", {Size = UDim2.new(0, 60, 1, -8), Position = UDim2.new(1, -130, 0, 4), BackgroundColor3 = state.fly_mode == "Velocity" and COL_ACCENT or COL_PANEL, BorderSizePixel = 0, Text = "Velocity", TextColor3 = COL_TEXT, Font = Enum.Font.GothamBold, TextSize = 11}, modeRow)
+make("TextLabel", {Size = UDim2.new(1, -150, 1, 0), Position = UDim2.new(0, 12, 0, 0), BackgroundTransparency = 1, Text = "Fly Mode", TextColor3 = COL_TEXT, Font = Enum.Font.Gotham, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left}, modeRow)
+local velBtn = make("TextButton", {Size = UDim2.new(0, 60, 1, -8), Position = UDim2.new(1, -130, 0, 4), BackgroundColor3 = state.fly_mode == "Velocity" and COL_ACCENT or COL_PANEL, BorderSizePixel = 0, Text = "Velocity", TextColor3 = COL_TEXT, Font = Enum.Font.GothamBold, TextSize = 11, AutoButtonColor = false}, modeRow)
 corner(velBtn, 4)
-local cfBtn = make("TextButton", {Size = UDim2.new(0, 60, 1, -8), Position = UDim2.new(1, -66, 0, 4), BackgroundColor3 = state.fly_mode == "CFrame" and COL_ACCENT or COL_PANEL, BorderSizePixel = 0, Text = "CFrame", TextColor3 = COL_TEXT, Font = Enum.Font.GothamBold, TextSize = 11}, modeRow)
+local cfBtn = make("TextButton", {Size = UDim2.new(0, 60, 1, -8), Position = UDim2.new(1, -66, 0, 4), BackgroundColor3 = state.fly_mode == "CFrame" and COL_ACCENT or COL_PANEL, BorderSizePixel = 0, Text = "CFrame", TextColor3 = COL_TEXT, Font = Enum.Font.GothamBold, TextSize = 11, AutoButtonColor = false}, modeRow)
 corner(cfBtn, 4)
 velBtn.MouseButton1Click:Connect(function()
-    state.fly_mode = "Velocity"; velBtn.BackgroundColor3 = COL_ACCENT; cfBtn.BackgroundColor3 = COL_PANEL
+    state.fly_mode = "Velocity"; tween(velBtn, {BackgroundColor3 = COL_ACCENT}, 0.15); tween(cfBtn, {BackgroundColor3 = COL_PANEL}, 0.15)
     if state.fly_enabled then start_fly(false) end
     if state.vehiclefly_enabled then start_fly(true) end
 end)
 cfBtn.MouseButton1Click:Connect(function()
-    state.fly_mode = "CFrame"; velBtn.BackgroundColor3 = COL_PANEL; cfBtn.BackgroundColor3 = COL_ACCENT
+    state.fly_mode = "CFrame"; tween(velBtn, {BackgroundColor3 = COL_PANEL}, 0.15); tween(cfBtn, {BackgroundColor3 = COL_ACCENT}, 0.15)
     if state.fly_enabled then start_fly(false) end
     if state.vehiclefly_enabled then start_fly(true) end
 end)
@@ -1596,6 +1780,7 @@ track(UserInputService.InputBegan:Connect(function(io, gp)
         if key_state.fly then start_fly(false) else stop_fly() end
     elseif io.UserInputType == hide_bind.input and (io.KeyCode == hide_bind.key or hide_bind.input ~= Enum.UserInputType.Keyboard) then
         main.Visible = not main.Visible
+        shadow.Visible = main.Visible
     end
 end))
 track(UserInputService.InputEnded:Connect(function(io)
