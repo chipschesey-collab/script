@@ -25,6 +25,7 @@ local COL_BAD = Color3.fromRGB(255, 120, 130)
 local COL_DANGER = Color3.fromRGB(220, 70, 90)
 local COL_DANGER_HOVER = Color3.fromRGB(255, 90, 110)
 local top_conns = {}
+local hit_sound_conns = {}
 local function track(c)
     table.insert(top_conns, c)
     return c
@@ -50,7 +51,8 @@ local state = {
     object_name = "", object_esp_enabled = false, object_aimbot_enabled = false, object_box = true, object_name_lbl = true, object_range = 500, fly_enabled = false, fly_speed = 60, fly_mode = "Velocity",
     vehiclefly_enabled = false, vehicle_noclip = false, jb_fly_enabled = false, spinbot = false, spinbot_speed = 50, mask_enabled = false, mask_display = "", noclip = false, cf_speed = false, cf_speed_val = 50,
     anti_afk = false, fullbright = false, click_tp = false, anti_fling = false, float = false, swim = false, under_map = false, auto_farm = false, safe_fly = false, mm2_auto_shoot = false, mm2_auto_grab = false, grabbing_gun = false,
-    rapid_fire = false, rapid_fire_delay = 0.01
+    rapid_fire = false, rapid_fire_delay = 0.01,
+    xray_enabled = false, chams_enabled = false, rainbow_enabled = false, forcefield_enabled = false,
 }
 local keybinds = {
     aimbot = {input = Enum.UserInputType.Keyboard, key = Enum.KeyCode.E},
@@ -82,6 +84,10 @@ local auto_farm_conn = nil
 local rapid_fire_task = nil
 local main_render_conn = nil
 local loop_tp_conn = nil
+local xray_originals = {}
+local chams_highlights = {}
+local rainbow_task = nil
+local rainbow_originals = {}
 local orig_lighting = {
     Brightness = Lighting.Brightness, ClockTime = Lighting.ClockTime, GlobalShadows = Lighting.GlobalShadows, FogEnd = Lighting.FogEnd,
 }
@@ -146,6 +152,34 @@ local function player_in_game(p)
     if hum.Health <= 0 then return false end
     return true
 end
+local function play_hit_sound()
+    local s = Instance.new("Sound")
+    s.SoundId = "rbxassetid://131094575"
+    s.Volume = 0.6
+    s.Parent = camera
+    s:Play()
+    task.delay(1, function() s:Destroy() end)
+end
+local function monitor_health(p)
+    if p == player then return end
+    if hit_sound_conns[p] then hit_sound_conns[p]:Disconnect() end
+    local function bind_char(char)
+        local hum = char:WaitForChild("Humanoid", 5)
+        if hum then
+            hit_sound_conns[p] = hum.HealthChanged:Connect(function(newHealth)
+                if state.hit_sound and newHealth < hum.MaxHealth then
+                    play_hit_sound()
+                end
+            end)
+        end
+    end
+    if p.Character then bind_char(p.Character) end
+    track(p.CharacterAdded:Connect(bind_char))
+end
+track(Players.PlayerAdded:Connect(monitor_health))
+for _, p in ipairs(Players:GetPlayers()) do
+    if p ~= player then monitor_health(p) end
+end
 local function full_cleanup()
     pcall(function() RunService:UnbindFromRenderStep("BSSToolkitAim") end)
     if main_render_conn then main_render_conn:Disconnect(); main_render_conn = nil end
@@ -163,6 +197,21 @@ local function full_cleanup()
     if auto_farm_conn then pcall(function() task.cancel(auto_farm_conn) end); auto_farm_conn = nil end
     if rapid_fire_task then pcall(function() task.cancel(rapid_fire_task) end); rapid_fire_task = nil end
     if loop_tp_conn then loop_tp_conn:Disconnect(); loop_tp_conn = nil end
+    if rainbow_task then pcall(function() task.cancel(rainbow_task) end); rainbow_task = nil end
+    for obj, orig in pairs(xray_originals) do
+        if obj and obj.Parent then obj.Transparency = orig end
+    end
+    xray_originals = {}
+    for p, hl in pairs(chams_highlights) do
+        if hl and hl.Parent then pcall(function() hl:Destroy() end) end
+    end
+    chams_highlights = {}
+    for part, orig in pairs(rainbow_originals) do
+        if part and part.Parent then part.Color = orig end
+    end
+    rainbow_originals = {}
+    for _, conn in pairs(hit_sound_conns) do conn:Disconnect() end
+    hit_sound_conns = {}
     if spin_vel then spin_vel:Destroy(); spin_vel = nil end
     if fly_velocity then fly_velocity:Destroy(); fly_velocity = nil end
     if fly_gyro then fly_gyro:Destroy(); fly_gyro = nil end
@@ -210,7 +259,7 @@ local main_scale = make("UIScale", {Scale = 0.85}, main)
 tween(main_scale, {Scale = 1}, 0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
 local titleBar = make("Frame", {Size = UDim2.new(1, 0, 0, 38), BackgroundColor3 = COL_PANEL, BorderSizePixel = 0}, main)
 corner(titleBar, 10)
-local titleStrip = make("Frame", {Size = UDim2.new(1, 0, 0, 1), Position = UDim2.new(0, 0, 1, -1), BackgroundColor3 = COL_ACCENT, BorderSizePixel = 0, BackgroundTransparency = 0.4}, titleBar)
+make("Frame", {Size = UDim2.new(1, 0, 0, 1), Position = UDim2.new(0, 0, 1, -1), BackgroundColor3 = COL_ACCENT, BorderSizePixel = 0, BackgroundTransparency = 0.4}, titleBar)
 local titleText = make("TextLabel", {Size = UDim2.new(1, -140, 1, 0), Position = UDim2.new(0, 16, 0, 0), BackgroundTransparency = 1, Text = "BSSToolkit", TextColor3 = COL_TEXT, TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.GothamBlack, TextSize = 15}, titleBar)
 make("UIStroke", {Color = COL_ACCENT, Thickness = 1, Transparency = 0.7}, titleText)
 local keybindLabel = make("TextLabel", {Size = UDim2.new(0, 130, 1, 0), Position = UDim2.new(1, -170, 0, 0), BackgroundTransparency = 1, Text = "", TextColor3 = COL_TEXT_DIM, TextXAlignment = Enum.TextXAlignment.Right, Font = Enum.Font.Code, TextSize = 10}, titleBar)
@@ -280,8 +329,8 @@ for n, btn in pairs(tabButtons) do btn.MouseButton1Click:Connect(function() swit
 switch_tab("ESP")
 local function section(parent, text, order)
     local row = make("Frame", {Size = UDim2.new(1, 0, 0, 24), BackgroundTransparency = 1, LayoutOrder = order or 0}, parent)
-    make("Frame", {Size = UDim2.new(0, 3, 0, 14), Position = UDim2.new(0, 0, 0.5, -7), BackgroundColor3 = COL_ACCENT, BorderSizePixel = 0}, row)
-    corner(row:FindFirstChildOfClass("Frame"), 2)
+    local bar = make("Frame", {Size = UDim2.new(0, 3, 0, 14), Position = UDim2.new(0, 0, 0.5, -7), BackgroundColor3 = COL_ACCENT, BorderSizePixel = 0}, row)
+    corner(bar, 2)
     make("TextLabel", {Size = UDim2.new(1, -12, 1, 0), Position = UDim2.new(0, 12, 0, 0), BackgroundTransparency = 1, Text = text, TextColor3 = COL_TEXT, TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.GothamBold, TextSize = 12}, row)
     return row
 end
@@ -395,14 +444,14 @@ update_fov_circle()
 local esp_objects = {}
 local function make_esp_for(p)
     local frame = make("Frame", {BackgroundTransparency = 1, Visible = false}, draw_holder)
-    local box = make("Frame", {BackgroundTransparency = 1, Visible = false}, frame)
+    local box = make("Frame", {BackgroundTransparency = 1, Visible = false, AnchorPoint = Vector2.new(0.5, 0.5)}, frame)
     local box_stroke = make("UIStroke", {Color = state.esp_color, Thickness = 1}, box)
-    local nameLbl = make("TextLabel", {BackgroundTransparency = 1, TextColor3 = state.esp_color, Font = Enum.Font.GothamBold, TextSize = 12, TextStrokeTransparency = 0.4}, frame)
-    local distLbl = make("TextLabel", {BackgroundTransparency = 1, TextColor3 = state.esp_color, Font = Enum.Font.Gotham, TextSize = 11, TextStrokeTransparency = 0.4}, frame)
-    local tracer = make("Frame", {BackgroundColor3 = state.esp_color, BorderSizePixel = 0, Visible = false}, frame)
+    local nameLbl = make("TextLabel", {BackgroundTransparency = 1, TextColor3 = state.esp_color, Font = Enum.Font.GothamBold, TextSize = 12, TextStrokeTransparency = 0.4, AnchorPoint = Vector2.new(0.5, 0.5)}, frame)
+    local distLbl = make("TextLabel", {BackgroundTransparency = 1, TextColor3 = state.esp_color, Font = Enum.Font.Gotham, TextSize = 11, TextStrokeTransparency = 0.4, AnchorPoint = Vector2.new(0.5, 0.5)}, frame)
+    local tracer = make("Frame", {BackgroundColor3 = state.esp_color, BorderSizePixel = 0, Visible = false, AnchorPoint = Vector2.new(0, 0.5)}, frame)
     local skel = {}
     for i = 1, 16 do
-        skel[i] = make("Frame", {BackgroundColor3 = Color3.fromRGB(200, 200, 210), BorderSizePixel = 0, Visible = false}, frame)
+        skel[i] = make("Frame", {BackgroundColor3 = Color3.fromRGB(200, 200, 210), BorderSizePixel = 0, Visible = false, AnchorPoint = Vector2.new(0, 0.5)}, frame)
     end
     esp_objects[p] = {root = frame, box = box, box_stroke = box_stroke, name = nameLbl, dist = distLbl, tracer = tracer, skel = skel}
 end
@@ -412,7 +461,8 @@ local function remove_esp_for(p)
     esp_objects[p] = nil
 end
 local function world_to_screen(pos)
-    local sp, on = camera:WorldToViewportPoint(pos)
+    local cam = Workspace.CurrentCamera
+    local sp, on = cam:WorldToScreenPoint(pos)
     if not on then return nil end
     return Vector2.new(sp.X, sp.Y), sp.Z
 end
@@ -484,19 +534,19 @@ local function update_esp()
                     if state.esp_box then
                         o.box.Visible = true
                         o.box.Size = UDim2.new(0, w, 0, h)
-                        o.box.Position = UDim2.new(0, pos.X - w/2, 0, pos.Y - h/2)
+                        o.box.Position = UDim2.new(0, pos.X, 0, pos.Y)
                     else o.box.Visible = false end
                     if state.esp_name then
                         o.name.Visible = true
                         o.name.Text = p.Name
                         o.name.Size = UDim2.new(0, w * 2, 0, 14)
-                        o.name.Position = UDim2.new(0, pos.X - w, 0, pos.Y - h/2 - 16)
+                        o.name.Position = UDim2.new(0, pos.X, 0, pos.Y - h/2 - 12)
                     else o.name.Visible = false end
                     if state.esp_distance then
                         o.dist.Visible = true
                         o.dist.Text = string.format("%d studs", dist)
                         o.dist.Size = UDim2.new(0, w * 2, 0, 12)
-                        o.dist.Position = UDim2.new(0, pos.X - w, 0, pos.Y + h/2 + 2)
+                        o.dist.Position = UDim2.new(0, pos.X, 0, pos.Y + h/2 + 12)
                     else o.dist.Visible = false end
                     if state.esp_tracers then
                         o.tracer.Visible = true
@@ -544,9 +594,9 @@ local function update_object_esp()
                 seen[obj] = true
                 if not obj_esp_objs[obj] then
                     local frame = make("Frame", {BackgroundTransparency = 1, Visible = false}, draw_holder)
-                    local box = make("Frame", {BackgroundTransparency = 1}, frame)
+                    local box = make("Frame", {BackgroundTransparency = 1, AnchorPoint = Vector2.new(0.5, 0.5)}, frame)
                     stroke(box, Color3.fromRGB(80, 200, 255), 1)
-                    local label = make("TextLabel", {BackgroundTransparency = 1, TextColor3 = Color3.fromRGB(140, 220, 255), Font = Enum.Font.GothamBold, TextSize = 11, TextStrokeTransparency = 0.4}, frame)
+                    local label = make("TextLabel", {BackgroundTransparency = 1, TextColor3 = Color3.fromRGB(140, 220, 255), Font = Enum.Font.GothamBold, TextSize = 11, TextStrokeTransparency = 0.4, AnchorPoint = Vector2.new(0.5, 0.5)}, frame)
                     obj_esp_objs[obj] = {frame = frame, box = box, label = label}
                 end
                 local o = obj_esp_objs[obj]
@@ -558,11 +608,11 @@ local function update_object_esp()
                     o.frame.Visible = true
                     o.box.Visible = state.object_box
                     o.box.Size = UDim2.new(0, w, 0, h)
-                    o.box.Position = UDim2.new(0, pos.X - w/2, 0, pos.Y - h/2)
+                    o.box.Position = UDim2.new(0, pos.X, 0, pos.Y)
                     o.label.Visible = state.object_name_lbl
                     o.label.Text = obj.Name
                     o.label.Size = UDim2.new(0, w * 3, 0, 14)
-                    o.label.Position = UDim2.new(0, pos.X - w*1.5, 0, pos.Y - h/2 - 16)
+                    o.label.Position = UDim2.new(0, pos.X, 0, pos.Y - h/2 - 12)
                 else
                     o.frame.Visible = false
                 end
@@ -783,6 +833,7 @@ obj_aim_name:GetPropertyChangedSignal("Text"):Connect(function()
     state.object_name = obj_aim_name.Text
 end)
 local function nearest_target()
+    local cam = Workspace.CurrentCamera
     local best, best_dist = nil, state.aimbot_fov
     local my_pos = get_root() and get_root().Position or Vector3.zero
     for _, p in ipairs(Players:GetPlayers()) do
@@ -793,9 +844,9 @@ local function nearest_target()
                 if part then
                     local world_dist = (part.Position - my_pos).Magnitude
                     if world_dist <= state.aimbot_range then
-                        local sp, onscreen = camera:WorldToViewportPoint(part.Position)
+                        local sp, onscreen = cam:WorldToViewportPoint(part.Position)
                         if onscreen and sp.Z > 0 then
-                            local vp = camera.ViewportSize
+                            local vp = cam.ViewportSize
                             local center = Vector2.new(vp.X/2, vp.Y/2)
                             local d = (Vector2.new(sp.X, sp.Y) - center).Magnitude
                             if d < best_dist then best_dist = d; best = part end
@@ -808,6 +859,7 @@ local function nearest_target()
     return best
 end
 local function nearest_object()
+    local cam = Workspace.CurrentCamera
     if state.object_name == "" then return nil end
     local best, best_dist = nil, state.aimbot_fov
     local my_pos = get_root() and get_root().Position or Vector3.zero
@@ -815,9 +867,9 @@ local function nearest_object()
         if obj.Name == state.object_name and obj:IsA("BasePart") then
             local world_dist = (obj.Position - my_pos).Magnitude
             if world_dist <= state.object_range then
-                local sp, onscreen = camera:WorldToViewportPoint(obj.Position)
+                local sp, onscreen = cam:WorldToViewportPoint(obj.Position)
                 if onscreen and sp.Z > 0 then
-                    local vp = camera.ViewportSize
+                    local vp = cam.ViewportSize
                     local center = Vector2.new(vp.X/2, vp.Y/2)
                     local d = (Vector2.new(sp.X, sp.Y) - center).Magnitude
                     if d < best_dist then best_dist = d; best = obj end
@@ -849,8 +901,9 @@ local function dbg(msg)
     dbg_lbl.Text = msg
 end
 RunService:BindToRenderStep("BSSToolkitAim", Enum.RenderPriority.Camera.Value + 1, function(dt)
+    local cam = Workspace.CurrentCamera
     if not gui.Parent then return end
-    if state.fov_enabled then camera.FieldOfView = state.fov_value end
+    if state.fov_enabled then cam.FieldOfView = state.fov_value end
     if not key_state.aimbot then
         if dbg_lbl and dbg_lbl.Parent and dbg_lbl.Text ~= "" then dbg_lbl.Text = "" end
         return
@@ -867,12 +920,12 @@ RunService:BindToRenderStep("BSSToolkitAim", Enum.RenderPriority.Camera.Value + 
         local hrp = target.Parent:FindFirstChild("HumanoidRootPart")
         if hrp then aim_pos = aim_pos + hrp.AssemblyLinearVelocity * state.aimbot_prediction end
     end
-    local sp, onscreen = camera:WorldToViewportPoint(aim_pos)
+    local sp, onscreen = cam:WorldToViewportPoint(aim_pos)
     if not onscreen or sp.Z <= 0 then
         dbg("[aim] target offscreen Z=" .. string.format("%.1f", sp.Z))
         return
     end
-    local vp = camera.ViewportSize
+    local vp = cam.ViewportSize
     local dx = sp.X - vp.X * 0.5
     local dy = sp.Y - vp.Y * 0.5
     local strength = 1 - state.aimbot_smooth * 0.9
@@ -881,13 +934,13 @@ RunService:BindToRenderStep("BSSToolkitAim", Enum.RenderPriority.Camera.Value + 
         mousemoverel(dx * strength, dy * strength)
     else
         dbg("[aim] fallback -- no mousemoverel global")
-        local cam_pos = camera.CFrame.Position
+        local cam_pos = cam.CFrame.Position
         local target_cf = CFrame.lookAt(cam_pos, aim_pos)
         if state.aimbot_smooth <= 0.01 then
-            camera.CFrame = target_cf
+            cam.CFrame = target_cf
         else
             local alpha = 1 - (0.001 ^ (dt * 60))
-            camera.CFrame = camera.CFrame:Lerp(target_cf, alpha * (1 - state.aimbot_smooth * 0.7))
+            cam.CFrame = cam.CFrame:Lerp(target_cf, alpha * (1 - state.aimbot_smooth * 0.7))
         end
         local char = player.Character
         local hrp = char and char:FindFirstChild("HumanoidRootPart")
@@ -942,10 +995,15 @@ local function start_fling(target_player)
     local char = player.Character
     local hum = char and char:FindFirstChildOfClass("Humanoid")
     if not root or not target_root or not hum then return end
+
     fling_target = target_player
     fling_return_cf = root.CFrame
     fling_active = true
-    root.CFrame = target_root.CFrame
+
+    pcall(function() target_root:SetNetworkOwner(player) end)
+    root.CFrame = target_root.CFrame * CFrame.new(0, 0, 2)
+    task.wait(0.15)
+
     if state.use_walkfling then hum.PlatformStand = true end
     local weld = Instance.new("WeldConstraint")
     weld.Part0 = target_root; weld.Part1 = root; weld.Parent = target_root
@@ -1074,26 +1132,28 @@ button(exLeft, "Invalid Avatar Rig Break", COL_DANGER, function()
         if p.Name:lower():find(targetName:lower()) then target = p break end
     end
     if target and target ~= player then
-        local char = target.Character
-        local hrp = char and char:FindFirstChild("HumanoidRootPart")
-        if hrp then
-            pcall(function() hrp:SetNetworkOwner(player) end)
+        local t_char = target.Character
+        local t_hrp = t_char and t_char:FindFirstChild("HumanoidRootPart")
+        local hrp = get_root()
+        if t_hrp and hrp then
+            hrp.CFrame = t_hrp.CFrame
+            local breaker = Instance.new("Part")
+            breaker.Size = Vector3.new(10, 10, 10)
+            breaker.Position = t_hrp.Position
+            breaker.CanCollide = true
+            breaker.Transparency = 1
+            breaker.Massless = false
+            breaker.Parent = Workspace
+            local weld = Instance.new("WeldConstraint")
+            weld.Part0 = breaker
+            weld.Part1 = t_hrp
+            weld.Parent = breaker
             local bav = Instance.new("BodyAngularVelocity")
-            bav.AngularVelocity = Vector3.new(99999, 99999, 99999)
+            bav.AngularVelocity = Vector3.new(999999, 999999, 999999)
             bav.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
-            bav.Parent = hrp
-            for _, joint in ipairs(char:GetDescendants()) do
-                if joint:IsA("Motor6D") or joint:IsA("Weld") then
-                    joint:Destroy()
-                end
-            end
-            local bv = Instance.new("BodyVelocity")
-            bv.Velocity = Vector3.new(10000, 10000, 10000)
-            bv.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
-            bv.Parent = hrp
+            bav.Parent = breaker
             task.delay(1.5, function()
-                if bav then bav:Destroy() end
-                if bv then bv:Destroy() end
+                if breaker then breaker:Destroy() end
             end)
         end
     end
@@ -1123,19 +1183,153 @@ toggle(exLeft, "Loop Teleport to Target", false, function(on)
         loop_tp_target = nil
     end
 end, 4)
+section(exLeft, "Rage Visuals", 10)
+toggle(exLeft, "Wall Transparency (X-Ray)", false, function(on)
+    state.xray_enabled = on
+    if on then
+        local char_parts = {}
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p.Character then
+                for _, desc in ipairs(p.Character:GetDescendants()) do
+                    if desc:IsA("BasePart") then char_parts[desc] = true end
+                end
+            end
+        end
+        for _, obj in ipairs(Workspace:GetDescendants()) do
+            if obj:IsA("BasePart") and not char_parts[obj] then
+                if not xray_originals[obj] then
+                    xray_originals[obj] = obj.Transparency
+                end
+                obj.Transparency = 0.85
+            end
+        end
+    else
+        for obj, orig in pairs(xray_originals) do
+            if obj and obj.Parent then obj.Transparency = orig end
+        end
+        xray_originals = {}
+    end
+end, 11)
+local function apply_chams(p)
+    if p == player then return end
+    local char = p.Character
+    if not char then return end
+    if chams_highlights[p] and chams_highlights[p].Parent then return end
+    local hl = Instance.new("Highlight")
+    hl.Name = "BSS_Chams"
+    hl.Adornee = char
+    hl.FillColor = Color3.fromRGB(255, 40, 90)
+    hl.FillTransparency = 0.35
+    hl.OutlineColor = Color3.fromRGB(255, 120, 150)
+    hl.OutlineTransparency = 0
+    hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+    hl.Parent = char
+    chams_highlights[p] = hl
+end
+toggle(exLeft, "Enemy Chams (Through Walls)", false, function(on)
+    state.chams_enabled = on
+    if on then
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p ~= player then apply_chams(p) end
+        end
+    else
+        for p, hl in pairs(chams_highlights) do
+            if hl and hl.Parent then pcall(function() hl:Destroy() end) end
+        end
+        chams_highlights = {}
+    end
+end, 12)
+toggle(exLeft, "Rainbow Character", false, function(on)
+    state.rainbow_enabled = on
+    if on then
+        local char = player.Character
+        if char then
+            rainbow_originals = {}
+            for _, part in ipairs(char:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    rainbow_originals[part] = part.Color
+                end
+            end
+        end
+        if not rainbow_task then
+            rainbow_task = task.spawn(function()
+                local t = 0
+                while state.rainbow_enabled do
+                    t = t + 0.02
+                    local c = Color3.fromHSV((t * 0.3) % 1, 1, 1)
+                    local char = player.Character
+                    if char then
+                        for _, part in ipairs(char:GetDescendants()) do
+                            if part:IsA("BasePart") then
+                                part.Color = c
+                            end
+                        end
+                    end
+                    task.wait(0.05)
+                end
+                rainbow_task = nil
+            end)
+        end
+    else
+        if rainbow_task then task.cancel(rainbow_task); rainbow_task = nil end
+        for part, orig in pairs(rainbow_originals) do
+            if part and part.Parent then part.Color = orig end
+        end
+        rainbow_originals = {}
+    end
+end, 13)
+toggle(exLeft, "Forcefield Aura (Enemies)", false, function(on)
+    state.forcefield_enabled = on
+    if on then
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p ~= player and p.Character then
+                local hrp = p.Character:FindFirstChild("HumanoidRootPart")
+                if hrp and not hrp:FindFirstChild("BSS_FF") then
+                    local ff = Instance.new("ForceField")
+                    ff.Name = "BSS_FF"
+                    ff.Visible = true
+                    ff.Parent = hrp
+                end
+            end
+        end
+    else
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p.Character then
+                for _, desc in ipairs(p.Character:GetDescendants()) do
+                    if desc.Name == "BSS_FF" then desc:Destroy() end
+                end
+            end
+        end
+    end
+end, 14)
 section(exRight, "Server Exploits", 1)
-button(exRight, "Global Server Fling", COL_DANGER, function()
+button(exRight, "Global Server Fling (Mass Parts)", COL_DANGER, function()
+    local hrp = get_root()
+    if not hrp then return end
     for _, p in ipairs(Players:GetPlayers()) do
         if p ~= player then
-            local char = p.Character
-            local hrp = char and char:FindFirstChild("HumanoidRootPart")
-            if hrp then
-                pcall(function() hrp:SetNetworkOwner(player) end)
-                local bv = Instance.new("BodyVelocity")
-                bv.Velocity = Vector3.new(5000, 5000, 5000)
-                bv.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
-                bv.Parent = hrp
-                task.delay(1, function() if bv then bv:Destroy() end end)
+            local t_hrp = get_root(p)
+            if t_hrp then
+                for i = 1, 15 do
+                    local mass = Instance.new("Part")
+                    mass.Size = Vector3.new(5, 5, 5)
+                    mass.Position = t_hrp.Position
+                    mass.CanCollide = true
+                    mass.Transparency = 1
+                    mass.Massless = false
+                    mass.Parent = Workspace
+                    local weld = Instance.new("WeldConstraint")
+                    weld.Part0 = mass
+                    weld.Part1 = t_hrp
+                    weld.Parent = mass
+                    local bv = Instance.new("BodyVelocity")
+                    bv.Velocity = Vector3.new(math.random(-9999, 9999), 9999, math.random(-9999, 9999))
+                    bv.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+                    bv.Parent = mass
+                    task.delay(1, function()
+                        if mass then mass:Destroy() end
+                    end)
+                end
             end
         end
     end
@@ -1758,11 +1952,6 @@ track(UserInputService.InputBegan:Connect(function(io, gp)
             if hrp then hrp.CFrame = CFrame.new(mouse.Hit.Position + Vector3.new(0, 3, 0)) end
         end
     end
-    if io.UserInputType == Enum.UserInputType.MouseButton1 then
-        if state.hit_sound then
-            local s = Instance.new("Sound"); s.SoundId = "rbxassetid://131094575"; s.Volume = 0.5; s.Parent = camera; s:Play(); task.delay(1, function() s:Destroy() end)
-        end
-    end
     local aim_bind = keybinds.aimbot; local fling_bind = keybinds.fling; local fly_bind = keybinds.fly; local hide_bind = keybinds.hide
     if io.UserInputType == aim_bind.input and (io.KeyCode == aim_bind.key or aim_bind.input ~= Enum.UserInputType.Keyboard) then
         key_state.aimbot = true
@@ -1794,7 +1983,26 @@ track(UserInputService.WindowFocusReleased:Connect(function()
     key_state.fly = false
 end))
 main_render_conn = RunService.RenderStepped:Connect(function(dt)
+    camera = Workspace.CurrentCamera
     if not gui.Parent then return end
+    if state.chams_enabled then
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p ~= player then apply_chams(p) end
+        end
+    end
+    if state.forcefield_enabled then
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p ~= player and p.Character then
+                local hrp = p.Character:FindFirstChild("HumanoidRootPart")
+                if hrp and not hrp:FindFirstChild("BSS_FF") then
+                    local ff = Instance.new("ForceField")
+                    ff.Name = "BSS_FF"
+                    ff.Visible = true
+                    ff.Parent = hrp
+                end
+            end
+        end
+    end
     update_esp()
     update_object_esp()
     update_fov_circle()
