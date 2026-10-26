@@ -460,37 +460,21 @@ local function remove_esp_for(p)
     if o and o.root then o.root:Destroy() end
     esp_objects[p] = nil
 end
-local function world_to_screen(pos)
-    local cam = Workspace.CurrentCamera
-    local sp, on = cam:WorldToScreenPoint(pos)
-    if not on then return nil end
-    return Vector2.new(sp.X, sp.Y), sp.Z
-end
 local function char_bounds(char)
     local hrp = char:FindFirstChild("HumanoidRootPart")
-    local head = char:FindFirstChild("Head")
     if not hrp then return nil end
     
-    local pos = hrp.Position
-    local top_world = pos + Vector3.new(0, 3, 0)
-    local bottom_world = pos - Vector3.new(0, 3, 0)
-    
-    if head then
-        top_world = head.Position + Vector3.new(0, 0.5, 0)
-    end
-
     local cam = Workspace.CurrentCamera
-    local top_sp, top_on = cam:WorldToScreenPoint(top_world)
-    local bot_sp, bot_on = cam:WorldToScreenPoint(bottom_world)
-
-    if not top_on or not bot_on then return nil end
-    if top_sp.Z <= 0 then return nil end
-
-    local h = math.abs(top_sp.Y - bot_sp.Y)
-    local w = h * 0.55
-    local centerY = (top_sp.Y + bot_sp.Y) / 2
+    local sp, onscreen = cam:WorldToViewportPoint(hrp.Position)
+    if not onscreen or sp.Z <= 0 then return nil end
     
-    return Vector2.new(top_sp.X, centerY), w, h, top_sp.Z
+    local dist = (cam.CFrame.Position - hrp.Position).Magnitude
+    
+    -- Stable distance scaling
+    local h = 1200 / math.max(dist, 1)
+    local w = h * 0.6
+    
+    return Vector2.new(sp.X, sp.Y), w, h, dist
 end
 local SKEL_R6 = {
     {"Head", "Torso"}, {"Torso", "Left Arm"}, {"Torso", "Right Arm"}, {"Torso", "Left Leg"}, {"Torso", "Right Leg"},
@@ -507,12 +491,16 @@ local function draw_skeleton(o, char)
         local a = char:FindFirstChild(pair[1])
         local b = char:FindFirstChild(pair[2])
         if a and b then
-            local pa = world_to_screen(a.Position)
-            local pb = world_to_screen(b.Position)
-            if pa and pb then
+            local cam = Workspace.CurrentCamera
+            local sp_a, on_a = cam:WorldToViewportPoint(a.Position)
+            local sp_b, on_b = cam:WorldToViewportPoint(b.Position)
+            
+            if on_a and on_b then
                 idx = idx + 1
                 local line = o.skel[idx]
                 if line then
+                    local pa = Vector2.new(sp_a.X, sp_a.Y)
+                    local pb = Vector2.new(sp_b.X, sp_b.Y)
                     local delta = pb - pa
                     local length = delta.Magnitude
                     line.Visible = true
@@ -555,15 +543,15 @@ local function update_esp()
                     if state.esp_name then
                         o.name.Visible = true
                         o.name.Text = p.Name
-                        o.name.Size = UDim2.new(0, w * 2, 0, 14)
-                        o.name.Position = UDim2.new(0, pos.X, 0, pos.Y - h/2 - 12)
+                        o.name.Size = UDim2.new(0, 200, 0, 14)
+                        o.name.Position = UDim2.new(0, pos.X, 0, pos.Y - h/2 - 10)
                     else o.name.Visible = false end
                     
                     if state.esp_distance then
                         o.dist.Visible = true
                         o.dist.Text = string.format("%d studs", dist)
-                        o.dist.Size = UDim2.new(0, w * 2, 0, 12)
-                        o.dist.Position = UDim2.new(0, pos.X, 0, pos.Y + h/2 + 12)
+                        o.dist.Size = UDim2.new(0, 200, 0, 12)
+                        o.dist.Position = UDim2.new(0, pos.X, 0, pos.Y + h/2 + 10)
                     else o.dist.Visible = false end
                     
                     if state.esp_tracers then
@@ -619,19 +607,20 @@ local function update_object_esp()
                     obj_esp_objs[obj] = {frame = frame, box = box, label = label}
                 end
                 local o = obj_esp_objs[obj]
-                local pos, sdist = world_to_screen(obj.Position)
-                if pos and sdist then
-                    local scale = 800 / math.max(sdist, 1)
+                local cam = Workspace.CurrentCamera
+                local sp, onscreen = cam:WorldToViewportPoint(obj.Position)
+                if onscreen then
+                    local scale = 800 / math.max(dist, 1)
                     local h = math.clamp(scale, 8, 300)
                     local w = h
                     o.frame.Visible = true
                     o.box.Visible = state.object_box
                     o.box.Size = UDim2.new(0, w, 0, h)
-                    o.box.Position = UDim2.new(0, pos.X, 0, pos.Y)
+                    o.box.Position = UDim2.new(0, sp.X, 0, sp.Y)
                     o.label.Visible = state.object_name_lbl
                     o.label.Text = obj.Name
-                    o.label.Size = UDim2.new(0, w * 3, 0, 14)
-                    o.label.Position = UDim2.new(0, pos.X, 0, pos.Y - h/2 - 12)
+                    o.label.Size = UDim2.new(0, 150, 0, 14)
+                    o.label.Position = UDim2.new(0, sp.X, 0, sp.Y - h/2 - 10)
                 else
                     o.frame.Visible = false
                 end
