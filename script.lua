@@ -468,14 +468,29 @@ local function world_to_screen(pos)
 end
 local function char_bounds(char)
     local hrp = char:FindFirstChild("HumanoidRootPart")
+    local head = char:FindFirstChild("Head")
     if not hrp then return nil end
-    local pos, dist = world_to_screen(hrp.Position)
-    if not pos then return nil end
-    local scale = 1400 / math.max(dist, 1)
-    local h = math.clamp(scale, 12, 450)
-    local w = h * 0.6
-    local cy = pos.Y + (h * 0.2) -- pushes the box down slightly onto the torso
-    return Vector2.new(pos.X, cy), w, h, dist
+    
+    local pos = hrp.Position
+    local top_world = pos + Vector3.new(0, 3, 0)
+    local bottom_world = pos - Vector3.new(0, 3, 0)
+    
+    if head then
+        top_world = head.Position + Vector3.new(0, 0.5, 0)
+    end
+
+    local cam = Workspace.CurrentCamera
+    local top_sp, top_on = cam:WorldToScreenPoint(top_world)
+    local bot_sp, bot_on = cam:WorldToScreenPoint(bottom_world)
+
+    if not top_on or not bot_on then return nil end
+    if top_sp.Z <= 0 then return nil end
+
+    local h = math.abs(top_sp.Y - bot_sp.Y)
+    local w = h * 0.55
+    local centerY = (top_sp.Y + bot_sp.Y) / 2
+    
+    return Vector2.new(top_sp.X, centerY), w, h, top_sp.Z
 end
 local SKEL_R6 = {
     {"Head", "Torso"}, {"Torso", "Left Arm"}, {"Torso", "Right Arm"}, {"Torso", "Left Leg"}, {"Torso", "Right Leg"},
