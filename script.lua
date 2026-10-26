@@ -437,7 +437,7 @@ make("UICorner", {CornerRadius = UDim.new(1, 0)}, fovCircle)
 make("UIStroke", {Color = COL_ACCENT, Thickness = 1.5, Transparency = 0.35}, fovCircle)
 local function update_fov_circle()
     local d = state.aimbot_fov * 2
-    fovCircle.Size = UDim2.new(0, d, 0, d) -- REMOVED TWEEN HERE (was leaking memory)
+    fovCircle.Size = UDim2.new(0, d, 0, d)
     fovCircle.Visible = state.aimbot_enabled or state.object_aimbot_enabled
 end
 update_fov_circle()
@@ -1990,7 +1990,7 @@ track(UserInputService.WindowFocusReleased:Connect(function()
     key_state.fling = false
     key_state.fly = false
 end))
-main_render_conn = RunService.RenderStepped:Connect(function(dt)
+main_render_conn = RunService.Heartbeat:Connect(function(dt)
     pcall(function()
         camera = Workspace.CurrentCamera
         if not gui.Parent then return end
