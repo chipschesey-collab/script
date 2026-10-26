@@ -18,11 +18,70 @@ local COL_STROKE = Color3.fromRGB(55, 55, 80)
 local COL_TEXT = Color3.fromRGB(235, 235, 250)
 local COL_TEXT_DIM = Color3.fromRGB(140, 140, 165)
 local COL_ACCENT = Color3.fromRGB(90, 170, 255)
-local COL_ACCENT_GLOW = Color3.fromRGB(120, 200, 255)
 local COL_OK = Color3.fromRGB(120, 220, 160)
 local COL_BAD = Color3.fromRGB(255, 120, 130)
 local COL_DANGER = Color3.fromRGB(220, 70, 90)
 local COL_DANGER_HOVER = Color3.fromRGB(255, 90, 110)
+
+-- ==========================================
+-- LOADING SCREEN
+-- ==========================================
+local loadingGui = Instance.new("ScreenGui")
+loadingGui.Name = "BSS_Loading"
+loadingGui.ResetOnSpawn = false
+loadingGui.IgnoreGuiInset = true
+loadingGui.DisplayOrder = 9999
+loadingGui.Parent = CoreGui
+
+local bg = Instance.new("Frame", loadingGui)
+bg.Size = UDim2.new(1, 0, 1, 0)
+bg.BackgroundColor3 = Color3.fromRGB(10, 10, 15)
+bg.BorderSizePixel = 0
+
+local title = Instance.new("TextLabel", bg)
+title.Size = UDim2.new(1, 0, 0, 30)
+title.Position = UDim2.new(0, 0, 0.4, 0)
+title.BackgroundTransparency = 1
+title.Text = "BSSToolkit"
+title.TextColor3 = COL_ACCENT
+title.Font = Enum.Font.GothamBlack
+title.TextSize = 28
+
+local status = Instance.new("TextLabel", bg)
+status.Size = UDim2.new(1, 0, 0, 20)
+status.Position = UDim2.new(0, 0, 0.45, 10)
+status.BackgroundTransparency = 1
+status.Text = "Starting..."
+status.TextColor3 = COL_TEXT
+status.Font = Enum.Font.Gotham
+status.TextSize = 14
+
+local barBg = Instance.new("Frame", bg)
+barBg.Size = UDim2.new(0, 300, 0, 6)
+barBg.Position = UDim2.new(0.5, -150, 0.5, 15)
+barBg.BackgroundColor3 = COL_PANEL_ALT
+barBg.BorderSizePixel = 0
+local cornerBar = Instance.new("UICorner", barBg)
+cornerBar.CornerRadius = UDim.new(1, 0)
+
+local barFill = Instance.new("Frame", barBg)
+barFill.Size = UDim2.new(0, 0, 1, 0)
+barFill.BackgroundColor3 = COL_ACCENT
+barFill.BorderSizePixel = 0
+local cornerFill = Instance.new("UICorner", barFill)
+cornerFill.CornerRadius = UDim.new(1, 0)
+
+local function update_loading(text, pct)
+    status.Text = text .. " (" .. tostring(pct) .. "%)"
+    TweenService:Create(barFill, TweenInfo.new(0.3), {Size = UDim2.new(pct/100, 0, 1, 0)}):Play()
+    task.wait(0.1) -- Yields execution to prevent crash
+end
+
+-- ==========================================
+-- MAIN SCRIPT VARIABLES
+-- ==========================================
+update_loading("Initializing variables", 5)
+
 local top_conns = {}
 local hit_sound_conns = {}
 local function track(c)
@@ -45,7 +104,7 @@ local function lighten(c, amt)
 end
 local state = {
     esp_enabled = false, esp_box = true, esp_name = true, esp_distance = true, esp_tracers = false, esp_skeleton = false, esp_color = Color3.fromRGB(255, 80, 80), esp_team_color = false, esp_range = 500,
-    fov_enabled = false, fov_value = 70, saved_spots = {}, aimbot_enabled = false, aimbot_fov = 150, aimbot_smooth = 0.35, aimbot_part = "Head", aimbot_teamcheck = true, aimbot_range = 500, aimbot_prediction = 0.05, aimbot_snap = false,
+    fov_enabled = false, fov_value = 70, saved_spots = {}, aimbot_enabled = false, aimbot_fov = 150, aimbot_smooth = 0.35, aimbot_part = "Head", aimbot_teamcheck = true, aimbot_range = 500, aimbot_prediction = 0.05, aimbot_snap = false, silent_aim = false,
     triggerbot = false, hit_sound = false, fling_return = true, use_walkfling = false, hitbox_enabled = false, hitbox_part = "HumanoidRootPart", hitbox_look = "Box", hitbox_size = 6, hitbox_transparency = 0.5,
     object_name = "", object_esp_enabled = false, object_aimbot_enabled = false, object_box = true, object_name_lbl = true, object_range = 500, fly_enabled = false, fly_speed = 60, fly_mode = "Velocity",
     vehiclefly_enabled = false, vehicle_noclip = false, jb_fly_enabled = false, spinbot = false, spinbot_speed = 50, mask_enabled = false, mask_display = "", noclip = false, cf_speed = false, cf_speed_val = 50,
@@ -92,8 +151,17 @@ local orig_lighting = {
     Brightness = Lighting.Brightness, ClockTime = Lighting.ClockTime, GlobalShadows = Lighting.GlobalShadows, FogEnd = Lighting.FogEnd,
 }
 local is_mm2 = game.PlaceId == 142823291
+
+-- ==========================================
+-- CLEANUP OLD INSTANCES
+-- ==========================================
+update_loading("Cleaning up old instances", 10)
+
 local old = CoreGui:FindFirstChild("BSSToolkit")
 if old then old:Destroy() end
+local oldLoad = CoreGui:FindFirstChild("BSS_Loading")
+if oldLoad and oldLoad ~= loadingGui then oldLoad:Destroy() end
+
 for _, obj in ipairs(Workspace:GetDescendants()) do
     if obj.Name == "BSS_Hitbox" and obj:IsA("BasePart") then
         obj:Destroy()
@@ -101,12 +169,9 @@ for _, obj in ipairs(Workspace:GetDescendants()) do
 end
 if _G._bss_fling_conn then _G._bss_fling_conn:Disconnect(); _G._bss_fling_conn = nil end
 if _G._bss_fling_weld then pcall(function() _G._bss_fling_weld:Destroy() end); _G._bss_fling_weld = nil end
-if _G._bss_fling_bav then pcall(function() _G._bss_fling_bav:Destroy() end); _G._bss_fling_bav = nil end
 if _G._bss_inf_jump then _G._bss_inf_jump:Disconnect(); _G._bss_inf_jump = nil end
-if _G._bss_fly_conn then _G._bss_fly_conn:Disconnect(); _G._bss_fly_conn = nil end
-if _G._bss_fly_vel then pcall(function() _G._bss_fly_vel:Destroy() end); _G._bss_fly_vel = nil end
-if _G._bss_fly_gyro then pcall(function() _G._bss_fly_gyro:Destroy() end); _G._bss_fly_gyro = nil end
 if _G._bss_aim_debug_lbl then pcall(function() _G._bss_aim_debug_lbl:Destroy() end); _G._bss_aim_debug_lbl = nil end
+
 local function make(class, props, parent)
     local inst = Instance.new(class)
     for k, v in pairs(props or {}) do inst[k] = v end
@@ -180,6 +245,10 @@ track(Players.PlayerAdded:Connect(monitor_health))
 for _, p in ipairs(Players:GetPlayers()) do
     if p ~= player then monitor_health(p) end
 end
+
+-- ==========================================
+-- FULL CLEANUP
+-- ==========================================
 local function full_cleanup()
     pcall(function() RunService:UnbindFromRenderStep("BSSToolkitAim") end)
     if main_render_conn then main_render_conn:Disconnect(); main_render_conn = nil end
@@ -249,14 +318,20 @@ local function full_cleanup()
     key_state.fly = false
     fling_active = false
 end
+
+-- ==========================================
+-- UI CREATION
+-- ==========================================
+update_loading("Building main window", 25)
+
 local gui = make("ScreenGui", {Name = "BSSToolkit", ResetOnSpawn = false, ZIndexBehavior = Enum.ZIndexBehavior.Sibling, IgnoreGuiInset = true}, CoreGui)
 local shadow = make("Frame", {Size = UDim2.new(0, 660, 0, 560), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 3, 0.5, 5), BackgroundColor3 = Color3.fromRGB(0, 0, 0), BackgroundTransparency = 0.55, BorderSizePixel = 0}, gui)
 corner(shadow, 12)
-local main = make("Frame", {Size = UDim2.new(0, 660, 0, 560), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0.5, 0), BackgroundColor3 = COL_BG, BorderSizePixel = 0, Active = false, ClipsDescendants = true}, gui)
+local main = make("Frame", {Size = UDim2.new(0, 660, 0, 560), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0.5, 0), BackgroundColor3 = COL_BG, BorderSizePixel = 0, Active = false, ClipsDescendants = true, Visible = false}, gui)
 corner(main, 10)
 stroke(main, COL_STROKE, 1.5)
 local main_scale = make("UIScale", {Scale = 0.85}, main)
-tween(main_scale, {Scale = 1}, 0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+
 local titleBar = make("Frame", {Size = UDim2.new(1, 0, 0, 38), BackgroundColor3 = COL_PANEL, BorderSizePixel = 0}, main)
 corner(titleBar, 10)
 make("Frame", {Size = UDim2.new(1, 0, 0, 1), Position = UDim2.new(0, 0, 1, -1), BackgroundColor3 = COL_ACCENT, BorderSizePixel = 0, BackgroundTransparency = 0.4}, titleBar)
@@ -298,6 +373,12 @@ end))
 track(UserInputService.InputEnded:Connect(function(io)
     if io.UserInputType == Enum.UserInputType.MouseButton1 or io.UserInputType == Enum.UserInputType.Touch then dragging = false end
 end))
+
+-- ==========================================
+-- TAB BAR
+-- ==========================================
+update_loading("Building tabs", 35)
+
 local tabs = {"ESP", "Teleport", "Aimbot", "Fling", "Hitbox", "Exploits", "Fun", "Utility"}
 if is_mm2 then table.insert(tabs, "MM2") end
 local tabBar = make("Frame", {Size = UDim2.new(1, -20, 0, 34), Position = UDim2.new(0, 10, 0, 38), BackgroundColor3 = COL_BG, BorderSizePixel = 0}, main)
@@ -327,6 +408,10 @@ local function switch_tab(name)
 end
 for n, btn in pairs(tabButtons) do btn.MouseButton1Click:Connect(function() switch_tab(n) end) end
 switch_tab("ESP")
+
+-- ==========================================
+-- UI HELPER FUNCTIONS
+-- ==========================================
 local function section(parent, text, order)
     local row = make("Frame", {Size = UDim2.new(1, 0, 0, 24), BackgroundTransparency = 1, LayoutOrder = order or 0}, parent)
     local bar = make("Frame", {Size = UDim2.new(0, 3, 0, 14), Position = UDim2.new(0, 0, 0.5, -7), BackgroundColor3 = COL_ACCENT, BorderSizePixel = 0}, row)
@@ -431,6 +516,12 @@ local function split_two(parent)
     local rs = scroll_col(right)
     return ls, rs
 end
+
+-- ==========================================
+-- ESP & DRAWING
+-- ==========================================
+update_loading("Building ESP elements", 50)
+
 local draw_holder = make("Frame", {Size = UDim2.new(1, 0, 1, 0), Position = UDim2.new(0, 0, 0, 0), BackgroundTransparency = 1, Active = false, ClipsDescendants = false}, gui)
 local fovCircle = make("Frame", {Size = UDim2.new(0, state.aimbot_fov * 2, 0, state.aimbot_fov * 2), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0.5, 0), BackgroundTransparency = 1, BorderSizePixel = 0, Visible = false, ZIndex = 5}, draw_holder)
 make("UICorner", {CornerRadius = UDim.new(1, 0)}, fovCircle)
@@ -633,6 +724,12 @@ local function update_object_esp()
         end
     end
 end
+
+-- ==========================================
+-- TAB BUILDER: ESP & TELEPORT
+-- ==========================================
+update_loading("Building ESP UI", 60)
+
 local espLeft, espRight = split_two(tabPages["ESP"])
 section(espLeft, "Player ESP", 1)
 toggle(espLeft, "Enable ESP", false, function(on) state.esp_enabled = on end, 2)
@@ -662,6 +759,7 @@ end)
 slider(espRight, "Object range", 50, 2000, 500, function(v) state.object_range = v end, 4)
 toggle(espRight, "Object box", true, function(on) state.object_box = on end, 5)
 toggle(espRight, "Object name label", true, function(on) state.object_name_lbl = on end, 6)
+
 local tpLeft, tpRight = split_two(tabPages["Teleport"])
 section(tpLeft, "Players", 1)
 local playerListFrame = make("Frame", {Size = UDim2.new(1, 0, 0, 0), BackgroundTransparency = 1, AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = 2}, tpLeft)
@@ -751,6 +849,12 @@ button(tpRight, "Clear All Waypoints", COL_DANGER, function()
     set_status("cleared all waypoints", true)
 end, 10)
 rebuild_saved()
+
+-- ==========================================
+-- TAB BUILDER: AIMBOT
+-- ==========================================
+update_loading("Building Aimbot", 70)
+
 local aimLeft, aimRight = split_two(tabPages["Aimbot"])
 section(aimLeft, "Player aimbot", 1)
 toggle(aimLeft, "Enable aimbot", false, function(on)
@@ -849,6 +953,7 @@ local obj_aim_name = textbox(aimRight, "object name (exact match)", 12, "")
 obj_aim_name:GetPropertyChangedSignal("Text"):Connect(function()
     state.object_name = obj_aim_name.Text
 end)
+
 local function nearest_target()
     local cam = Workspace.CurrentCamera
     local best, best_dist = nil, state.aimbot_fov
@@ -896,123 +1001,12 @@ local function nearest_object()
     end
     return best
 end
-local dbg_lbl = _G._bss_aim_debug_lbl
-local function dbg(msg)
-    if not dbg_lbl or not dbg_lbl.Parent then
-        local pg = player:FindFirstChild("PlayerGui") or player:WaitForChild("PlayerGui")
-        dbg_lbl = Instance.new("TextLabel")
-        dbg_lbl.Name = "BSSToolkitAimDebug"
-        dbg_lbl.Size = UDim2.new(0, 540, 0, 22)
-        dbg_lbl.Position = UDim2.new(0, 10, 0, 10)
-        dbg_lbl.BackgroundColor3 = Color3.new(0, 0, 0)
-        dbg_lbl.BackgroundTransparency = 0.35
-        dbg_lbl.TextColor3 = Color3.new(0, 1, 0)
-        dbg_lbl.Font = Enum.Font.Code
-        dbg_lbl.TextSize = 13
-        dbg_lbl.TextXAlignment = Enum.TextXAlignment.Left
-        dbg_lbl.BorderSizePixel = 0
-        dbg_lbl.ZIndex = 999
-        dbg_lbl.Parent = pg
-        _G._bss_aim_debug_lbl = dbg_lbl
-    end
-    dbg_lbl.Text = msg
-end
-RunService:BindToRenderStep("BSSToolkitAim", Enum.RenderPriority.Camera.Value + 1, function(dt)
-    local cam = Workspace.CurrentCamera
-    if not gui.Parent then return end
-    if state.fov_enabled then cam.FieldOfView = state.fov_value end
-    if not key_state.aimbot then
-        if dbg_lbl and dbg_lbl.Parent and dbg_lbl.Text ~= "" then dbg_lbl.Text = "" end
-        locked_target = nil
-        return
-    end
 
-    if locked_target then
-        local char = locked_target.Parent
-        local hum = char and char:FindFirstChildOfClass("Humanoid")
-        if not hum or hum.Health <= 0 then
-            locked_target = nil
-        end
-    end
+-- ==========================================
+-- TAB BUILDER: FLING & HITBOX
+-- ==========================================
+update_loading("Building Fling & Hitbox", 80)
 
-    if not locked_target then
-        if state.aimbot_enabled then locked_target = nearest_target() end
-        if not locked_target and state.object_aimbot_enabled then locked_target = nearest_object() end
-    end
-
-    if not locked_target then
-        dbg("[aim] no target")
-        return
-    end
-
-    local aim_pos = locked_target.Position
-    if locked_target.Parent and locked_target.Parent:IsA("Model") then
-        local hrp = locked_target.Parent:FindFirstChild("HumanoidRootPart")
-        if hrp then aim_pos = aim_pos + hrp.AssemblyLinearVelocity * state.aimbot_prediction end
-    end
-    local sp, onscreen = cam:WorldToViewportPoint(aim_pos)
-    if not onscreen or sp.Z <= 0 then
-        dbg("[aim] target offscreen Z=" .. string.format("%.1f", sp.Z))
-        return
-    end
-    
-    if state.aimbot_snap then
-        dbg("[aim] Instant Snap Lock-on")
-        local cam_pos = cam.CFrame.Position
-        local target_cf = CFrame.lookAt(cam_pos, aim_pos)
-        cam.CFrame = target_cf
-        local char = player.Character
-        local hrp = char and char:FindFirstChild("HumanoidRootPart")
-        if hrp then
-            local look = Vector3.new(aim_pos.X, hrp.Position.Y, aim_pos.Z)
-            hrp.CFrame = CFrame.lookAt(hrp.Position, look)
-        end
-    else
-        local vp = cam.ViewportSize
-        local dx = sp.X - vp.X * 0.5
-        local dy = sp.Y - vp.Y * 0.5
-        local strength = 1 - state.aimbot_smooth * 0.9
-        if type(mousemoverel) == "function" then
-            dbg("[aim] mousemoverel dx=" .. math.floor(dx) .. " dy=" .. math.floor(dy))
-            mousemoverel(dx * strength, dy * strength)
-        else
-            dbg("[aim] fallback -- no mousemoverel global")
-            local cam_pos = cam.CFrame.Position
-            local target_cf = CFrame.lookAt(cam_pos, aim_pos)
-            if state.aimbot_smooth <= 0.01 then
-                cam.CFrame = target_cf
-            else
-                local alpha = 1 - (0.001 ^ (dt * 60))
-                cam.CFrame = cam.CFrame:Lerp(target_cf, alpha * (1 - state.aimbot_smooth * 0.7))
-            end
-            local char = player.Character
-            local hrp = char and char:FindFirstChild("HumanoidRootPart")
-            if hrp then
-                local look = Vector3.new(aim_pos.X, hrp.Position.Y, aim_pos.Z)
-                hrp.CFrame = CFrame.lookAt(hrp.Position, look)
-            end
-        end
-    end
-end)
-local function triggerbot_step()
-    if not state.triggerbot then return end
-    local mouse = player:GetMouse()
-    if mouse.Target then
-        local target_p = Players:GetPlayerFromCharacter(mouse.Target.Parent)
-        if not target_p and mouse.Target.Name == "BSS_Hitbox" then
-            for p, hb in pairs(hitbox_expanded) do
-                if hb == mouse.Target then target_p = p; break end
-            end
-        end
-        if target_p and target_p ~= player and player_in_game(target_p) then
-            if not (state.aimbot_teamcheck and same_team(player, target_p)) then
-                local vim = game:GetService("VirtualInputManager")
-                vim:SendMouseButtonEvent(camera.ViewportSize.X/2, camera.ViewportSize.Y/2, 0, true, game, 0)
-                vim:SendMouseButtonEvent(camera.ViewportSize.X/2, camera.ViewportSize.Y/2, 0, false, game, 0)
-            end
-        end
-    end
-end
 local flLeft, flRight = split_two(tabPages["Fling"])
 section(flLeft, "Fling target", 1)
 local flingListFrame = make("Frame", {Size = UDim2.new(1, 0, 0, 0), BackgroundTransparency = 1, AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = 2}, flLeft)
@@ -1082,6 +1076,7 @@ section(flRight, "Options", 1)
 toggle(flRight, "Return to start after fling", true, function(on) state.fling_return = on end, 2)
 toggle(flRight, "Walkfling method", false, function(on) state.use_walkfling = on end, 3)
 button(flRight, "Stop fling", COL_DANGER, function() stop_fling() end, 4)
+
 local hbLeft, hbRight = split_two(tabPages["Hitbox"])
 section(hbLeft, "Hitbox Expander", 1)
 local function remove_hitbox(p)
@@ -1165,6 +1160,12 @@ local function apply_hitbox_to(p)
     end
 end
 track(Players.PlayerRemoving:Connect(function(p) remove_hitbox(p) end))
+
+-- ==========================================
+-- TAB BUILDER: EXPLOITS & FUN
+-- ==========================================
+update_loading("Building Exploits", 90)
+
 local exLeft, exRight = split_two(tabPages["Exploits"])
 section(exLeft, "Targeted Exploits", 1)
 local exTargetBox = textbox(exLeft, "target player name...", 2, "")
@@ -1395,9 +1396,7 @@ button(exRight, "Spawn Lag Parts (Crash Server)", COL_DANGER, function()
         end
     end
 end, 3)
-button(exRight, "Kick All (Requires Server Executor)", COL_DANGER, function()
-    print("[BSS] This requires a server-side executor.")
-end, 4)
+
 local funLeft, funRight = split_two(tabPages["Fun"])
 section(funLeft, "Troll", 1)
 local bangTarget = textbox(funLeft, "target player name...", 2, "")
@@ -1415,12 +1414,6 @@ button(funLeft, "Bang Target (Back n Forth)", COL_PANEL_ALT, function()
         local t_root = t_char and t_char:FindFirstChild("HumanoidRootPart")
         if root and t_root then
             if troll_conn then troll_conn:Disconnect() end
-            local sound = Instance.new("Sound")
-            sound.SoundId = "rbxassetid://131094575"
-            sound.Volume = 2
-            sound.Parent = t_root
-            sound:Play()
-            task.delay(2, function() sound:Destroy() end)
             local start_cf = root.CFrame
             troll_conn = RunService.RenderStepped:Connect(function()
                 local r = get_root()
@@ -1457,40 +1450,12 @@ button(funRight, "Force Dance", COL_ACCENT, function()
         end
     end
 end, 2)
-section(funRight, "Mask (Display Name)", 10)
-local dispBox = textbox(funRight, "fake display name...", 11, "")
-toggle(funRight, "Enable Mask", false, function(on)
-    state.mask_enabled = on
-    local char = player.Character
-    local hum = char and char:FindFirstChildOfClass("Humanoid")
-    if hum then
-        if on and dispBox.Text ~= "" then
-            state.mask_display = dispBox.Text
-            hum.DisplayName = state.mask_display
-            if not hum:FindFirstChild("MaskTag") then
-                local tag = Instance.new("BillboardGui")
-                tag.Name = "MaskTag"
-                tag.Size = UDim2.new(0, 200, 0, 50)
-                tag.StudsOffset = Vector3.new(0, 2.5, 0)
-                tag.AlwaysOnTop = true
-                tag.Parent = hum
-                local text = Instance.new("TextLabel")
-                text.Size = UDim2.new(1, 0, 1, 0)
-                text.BackgroundTransparency = 1
-                text.Text = state.mask_display
-                text.TextColor3 = Color3.new(1, 1, 1)
-                text.TextStrokeTransparency = 0
-                text.Font = Enum.Font.GothamBold
-                text.TextSize = 14
-                text.Parent = tag
-            end
-        else
-            hum.DisplayName = player.DisplayName
-            local tag = hum:FindFirstChild("MaskTag")
-            if tag then tag:Destroy() end
-        end
-    end
-end, 12)
+
+-- ==========================================
+-- TAB BUILDER: UTILITY & FLY
+-- ==========================================
+update_loading("Building Utility", 95)
+
 local function stop_fly()
     if fly_conn then fly_conn:Disconnect(); fly_conn = nil end
     if fly_velocity then fly_velocity:Destroy(); fly_velocity = nil end
@@ -1961,31 +1926,13 @@ end, 61)
 button(uScroll, "Rejoin server", COL_DANGER, function()
     game:GetService("TeleportService"):Teleport(game.PlaceId, player)
 end, 62)
-if is_mm2 then
-    local mm2Left, mm2Right = split_two(tabPages["MM2"])
-    section(mm2Left, "Info", 1)
-    local infoLabel = make("TextLabel", {Size = UDim2.new(1, 0, 0, 60), BackgroundTransparency = 1, Text = "Scanning...", TextColor3 = COL_TEXT, Font = Enum.Font.Gotham, TextSize = 12, TextWrapped = true, TextXAlignment = Enum.TextXAlignment.Left, LayoutOrder = 2}, mm2Left)
-    task.spawn(function()
-        while true do
-            task.wait(1)
-            if tabPages["MM2"] and tabPages["MM2"].Visible and tabPages["MM2"].Parent then
-                local murderer = "None"; local sheriff = "None"
-                for _, p in ipairs(Players:GetPlayers()) do
-                    local backpack = p:FindFirstChild("Backpack")
-                    if backpack then
-                        for _, tool in ipairs(backpack:GetChildren()) do
-                            if tool.Name == "Knife" then murderer = p.Name end
-                            if tool.Name == "Gun" then sheriff = p.Name end
-                        end
-                    end
-                end
-                infoLabel.Text = "Murderer: " .. murderer .. "\nSheriff: " .. sheriff
-            end
-        end
-    end)
-    toggle(mm2Left, "Auto Shoot Murderer (Sheriff)", false, function(on) state.mm2_auto_shoot = on end, 3)
-    toggle(mm2Left, "Auto Grab Gun (Innocent)", false, function(on) state.mm2_auto_grab = on end, 4)
-end
+
+-- ==========================================
+-- FINAL INITIALIZATION
+-- ==========================================
+update_loading("Starting services", 98)
+
+-- SAFE INPUT HOOKS
 track(UserInputService.InputBegan:Connect(function(io, gp)
     if gp then return end
     if state.click_tp and io.KeyCode == Enum.KeyCode.LeftAlt and io.UserInputType == Enum.UserInputType.Keyboard then
@@ -2016,16 +1963,20 @@ track(UserInputService.InputBegan:Connect(function(io, gp)
         shadow.Visible = main.Visible
     end
 end))
+
 track(UserInputService.InputEnded:Connect(function(io)
     local aim_bind = keybinds.aimbot; local fling_bind = keybinds.fling
     if io.UserInputType == aim_bind.input and (io.KeyCode == aim_bind.key or aim_bind.input ~= Enum.UserInputType.Keyboard) then key_state.aimbot = false end
     if io.UserInputType == fling_bind.input and (io.KeyCode == fling_bind.key or fling_bind.input ~= Enum.UserInputType.Keyboard) then key_state.fling = false end
 end))
+
 track(UserInputService.WindowFocusReleased:Connect(function()
     key_state.aimbot = false
     key_state.fling = false
     key_state.fly = false
 end))
+
+-- MAIN LOOP
 main_render_conn = RunService.Heartbeat:Connect(function(dt)
     pcall(function()
         camera = Workspace.CurrentCamera
@@ -2052,61 +2003,107 @@ main_render_conn = RunService.Heartbeat:Connect(function(dt)
         
         update_esp()
         update_object_esp()
-        triggerbot_step()
         
         if state.hitbox_enabled then
             for _, p in ipairs(Players:GetPlayers()) do if p ~= player then apply_hitbox_to(p) end end
         end
-        
-        -- MM2 specific loop
-        if state.mm2_auto_shoot and is_mm2 then
-            local char = player.Character
-            local backpack = player:FindFirstChild("Backpack")
-            local hasGun = false
-            if backpack then for _, tool in ipairs(backpack:GetChildren()) do if tool.Name == "Gun" then hasGun = true end end end
-            if hasGun then
-                local murderer_char = nil
-                for _, p in ipairs(Players:GetPlayers()) do
-                    local b = p:FindFirstChild("Backpack")
-                    if b then for _, t in ipairs(b:GetChildren()) do if t.Name == "Knife" then murderer_char = p.Character end end end
-                end
-                if murderer_char then
-                    local hrp = murderer_char:FindFirstChild("HumanoidRootPart")
-                    if hrp then
-                        camera.CFrame = CFrame.lookAt(camera.CFrame.Position, hrp.Position)
-                        local tool = char and char:FindFirstChildOfClass("Tool")
-                        if tool then pcall(function() tool:Activate() end) end
-                    end
-                end
-            end
-        end
-        if state.mm2_auto_grab and is_mm2 and not state.grabbing_gun then
-            local backpack = player:FindFirstChild("Backpack")
-            local gunInBackpack = backpack and backpack:FindFirstChild("Gun")
-            if gunInBackpack then
-                local char = player.Character
-                local hum = char and char:FindFirstChildOfClass("Humanoid")
-                if hum and not char:FindFirstChild("Gun") then hum:EquipTool(gunInBackpack) end
-            else
-                local droppedGun = Workspace:FindFirstChild("Gun")
-                if droppedGun then
-                    local char = player.Character
-                    local hrp = char and char:FindFirstChild("HumanoidRootPart")
-                    if hrp then
-                        state.grabbing_gun = true
-                        local original_cf = hrp.CFrame
-                        local target_part = droppedGun:IsA("BasePart") and droppedGun or droppedGun:FindFirstChildWhichIsA("BasePart")
-                        if target_part then
-                            hrp.CFrame = target_part.CFrame
-                            task.wait(0.2)
-                            local newGun = backpack and backpack:FindFirstChild("Gun")
-                            if newGun then local hum = char:FindFirstChildOfClass("Humanoid"); if hum then hum:EquipTool(newGun) end end
-                            hrp.CFrame = original_cf
-                        end
-                        state.grabbing_gun = false
-                    end
-                end
-            end
-        end
     end)
 end)
+
+-- AIMBOT BIND
+RunService:BindToRenderStep("BSSToolkitAim", Enum.RenderPriority.Camera.Value + 1, function(dt)
+    local cam = Workspace.CurrentCamera
+    if not gui.Parent then return end
+    if state.fov_enabled then cam.FieldOfView = state.fov_value end
+    if not key_state.aimbot then
+        locked_target = nil
+        return
+    end
+
+    if locked_target then
+        local char = locked_target.Parent
+        local hum = char and char:FindFirstChildOfClass("Humanoid")
+        if not hum or hum.Health <= 0 then
+            locked_target = nil
+        end
+    end
+
+    if not locked_target then
+        if state.aimbot_enabled then locked_target = nearest_target() end
+        if not locked_target and state.object_aimbot_enabled then locked_target = nearest_object() end
+    end
+
+    if not locked_target then return end
+
+    local aim_pos = locked_target.Position
+    if locked_target.Parent and locked_target.Parent:IsA("Model") then
+        local hrp = locked_target.Parent:FindFirstChild("HumanoidRootPart")
+        if hrp then aim_pos = aim_pos + hrp.AssemblyLinearVelocity * state.aimbot_prediction end
+    end
+    local sp, onscreen = cam:WorldToViewportPoint(aim_pos)
+    if not onscreen or sp.Z <= 0 then return end
+    
+    if state.aimbot_snap then
+        local cam_pos = cam.CFrame.Position
+        local target_cf = CFrame.lookAt(cam_pos, aim_pos)
+        cam.CFrame = target_cf
+        local char = player.Character
+        local hrp = char and char:FindFirstChild("HumanoidRootPart")
+        if hrp then
+            local look = Vector3.new(aim_pos.X, hrp.Position.Y, aim_pos.Z)
+            hrp.CFrame = CFrame.lookAt(hrp.Position, look)
+        end
+    else
+        local vp = cam.ViewportSize
+        local dx = sp.X - vp.X * 0.5
+        local dy = sp.Y - vp.Y * 0.5
+        local strength = 1 - state.aimbot_smooth * 0.9
+        if type(mousemoverel) == "function" then
+            mousemoverel(dx * strength, dy * strength)
+        else
+            local cam_pos = cam.CFrame.Position
+            local target_cf = CFrame.lookAt(cam_pos, aim_pos)
+            if state.aimbot_smooth <= 0.01 then
+                cam.CFrame = target_cf
+            else
+                local alpha = 1 - (0.001 ^ (dt * 60))
+                cam.CFrame = cam.CFrame:Lerp(target_cf, alpha * (1 - state.aimbot_smooth * 0.7))
+            end
+            local char = player.Character
+            local hrp = char and char:FindFirstChild("HumanoidRootPart")
+            if hrp then
+                local look = Vector3.new(aim_pos.X, hrp.Position.Y, aim_pos.Z)
+                hrp.CFrame = CFrame.lookAt(hrp.Position, look)
+            end
+        end
+    end
+end)
+
+-- TRIGGERBOT BIND
+RunService.Heartbeat:Connect(function()
+    if not state.triggerbot then return end
+    local mouse = player:GetMouse()
+    if mouse.Target then
+        local target_p = Players:GetPlayerFromCharacter(mouse.Target.Parent)
+        if not target_p and mouse.Target.Name == "BSS_Hitbox" then
+            for p, hb in pairs(hitbox_expanded) do
+                if hb == mouse.Target then target_p = p; break end
+            end
+        end
+        if target_p and target_p ~= player and player_in_game(target_p) then
+            if not (state.aimbot_teamcheck and same_team(player, target_p)) then
+                local vim = game:GetService("VirtualInputManager")
+                vim:SendMouseButtonEvent(camera.ViewportSize.X/2, camera.ViewportSize.Y/2, 0, true, game, 0)
+                vim:SendMouseButtonEvent(camera.ViewportSize.X/2, camera.ViewportSize.Y/2, 0, false, game, 0)
+            end
+        end
+    end
+end)
+
+-- FINISH LOADING
+task.wait(0.3)
+update_loading("Finished!", 100)
+task.wait(0.2)
+loadingGui:Destroy()
+main.Visible = true
+tween(main_scale, {Scale = 1}, 0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
