@@ -45,7 +45,7 @@ local function lighten(c, amt)
 end
 local state = {
     esp_enabled = false, esp_box = true, esp_name = true, esp_distance = true, esp_tracers = false, esp_skeleton = false, esp_color = Color3.fromRGB(255, 80, 80), esp_team_color = false, esp_range = 500,
-    fov_enabled = false, fov_value = 70, saved_spots = {}, aimbot_enabled = false, aimbot_fov = 150, aimbot_smooth = 0.35, aimbot_part = "Head", aimbot_teamcheck = true, aimbot_range = 500, aimbot_prediction = 0.05,
+    fov_enabled = false, fov_value = 70, saved_spots = {}, aimbot_enabled = false, aimbot_fov = 150, aimbot_smooth = 0.35, aimbot_part = "Head", aimbot_teamcheck = true, aimbot_range = 500, aimbot_prediction = 0.05, aimbot_snap = false,
     triggerbot = false, hit_sound = false, fling_return = true, use_walkfling = false, hitbox_enabled = false, hitbox_part = "HumanoidRootPart", hitbox_look = "Box", hitbox_size = 6, hitbox_transparency = 0.5,
     object_name = "", object_esp_enabled = false, object_aimbot_enabled = false, object_box = true, object_name_lbl = true, object_range = 500, fly_enabled = false, fly_speed = 60, fly_mode = "Velocity",
     vehiclefly_enabled = false, vehicle_noclip = false, jb_fly_enabled = false, spinbot = false, spinbot_speed = 50, mask_enabled = false, mask_display = "", noclip = false, cf_speed = false, cf_speed_val = 50,
@@ -765,9 +765,13 @@ slider(aimLeft, "Smoothness", 0, 1, 0.35, function(v) state.aimbot_smooth = v en
 slider(aimLeft, "Prediction", 0, 0.3, 0.05, function(v) state.aimbot_prediction = v end, 6)
 toggle(aimLeft, "Team check", true, function(on) state.aimbot_teamcheck = on end, 7)
 toggle(aimLeft, "Triggerbot", false, function(on) state.triggerbot = on end, 8)
-section(aimLeft, "Exploits", 20)
+toggle(aimLeft, "Instant Snap (Lock-on)", false, function(on) state.aimbot_snap = on end, 9)
 
--- THE NEW RAPID FIRE VIA REMOTE
+section(aimLeft, "Target part", 10)
+toggle(aimLeft, "Head", true, function(on) state.aimbot_part = "Head" end, 11)
+toggle(aimLeft, "HumanoidRootPart", false, function(on) state.aimbot_part = "HumanoidRootPart" end, 12)
+
+section(aimLeft, "Exploits", 20)
 toggle(aimLeft, "Rapid Fire (Remote)", false, function(on)
     state.rapid_fire = on
     if on and not rapid_fire_task then
@@ -792,8 +796,8 @@ toggle(aimLeft, "Rapid Fire (Remote)", false, function(on)
         end)
     end
 end, 21)
-
 slider(aimLeft, "Rapid Fire Delay", 0.01, 0.5, 0.1, function(v) state.rapid_fire_delay = v end, 22)
+
 section(aimRight, "Keybinds", 1)
 local keybindButtons = {}
 local function bind_label(b)
@@ -937,28 +941,42 @@ RunService:BindToRenderStep("BSSToolkitAim", Enum.RenderPriority.Camera.Value + 
         dbg("[aim] target offscreen Z=" .. string.format("%.1f", sp.Z))
         return
     end
-    local vp = cam.ViewportSize
-    local dx = sp.X - vp.X * 0.5
-    local dy = sp.Y - vp.Y * 0.5
-    local strength = 1 - state.aimbot_smooth * 0.9
-    if type(mousemoverel) == "function" then
-        dbg("[aim] mousemoverel dx=" .. math.floor(dx) .. " dy=" .. math.floor(dy))
-        mousemoverel(dx * strength, dy * strength)
-    else
-        dbg("[aim] fallback -- no mousemoverel global")
+    
+    if state.aimbot_snap then
+        dbg("[aim] Instant Snap Lock-on")
         local cam_pos = cam.CFrame.Position
         local target_cf = CFrame.lookAt(cam_pos, aim_pos)
-        if state.aimbot_smooth <= 0.01 then
-            cam.CFrame = target_cf
-        else
-            local alpha = 1 - (0.001 ^ (dt * 60))
-            cam.CFrame = cam.CFrame:Lerp(target_cf, alpha * (1 - state.aimbot_smooth * 0.7))
-        end
+        cam.CFrame = target_cf
         local char = player.Character
         local hrp = char and char:FindFirstChild("HumanoidRootPart")
         if hrp then
             local look = Vector3.new(aim_pos.X, hrp.Position.Y, aim_pos.Z)
             hrp.CFrame = CFrame.lookAt(hrp.Position, look)
+        end
+    else
+        local vp = cam.ViewportSize
+        local dx = sp.X - vp.X * 0.5
+        local dy = sp.Y - vp.Y * 0.5
+        local strength = 1 - state.aimbot_smooth * 0.9
+        if type(mousemoverel) == "function" then
+            dbg("[aim] mousemoverel dx=" .. math.floor(dx) .. " dy=" .. math.floor(dy))
+            mousemoverel(dx * strength, dy * strength)
+        else
+            dbg("[aim] fallback -- no mousemoverel global")
+            local cam_pos = cam.CFrame.Position
+            local target_cf = CFrame.lookAt(cam_pos, aim_pos)
+            if state.aimbot_smooth <= 0.01 then
+                cam.CFrame = target_cf
+            else
+                local alpha = 1 - (0.001 ^ (dt * 60))
+                cam.CFrame = cam.CFrame:Lerp(target_cf, alpha * (1 - state.aimbot_smooth * 0.7))
+            end
+            local char = player.Character
+            local hrp = char and char:FindFirstChild("HumanoidRootPart")
+            if hrp then
+                local look = Vector3.new(aim_pos.X, hrp.Position.Y, aim_pos.Z)
+                hrp.CFrame = CFrame.lookAt(hrp.Position, look)
+            end
         end
     end
 end)
@@ -974,9 +992,9 @@ local function triggerbot_step()
         end
         if target_p and target_p ~= player and player_in_game(target_p) then
             if not (state.aimbot_teamcheck and same_team(player, target_p)) then
-                local char = player.Character
-                local tool = char and char:FindFirstChildOfClass("Tool")
-                if tool then pcall(function() tool:Activate() end) end
+                local vim = game:GetService("VirtualInputManager")
+                vim:SendMouseButtonEvent(camera.ViewportSize.X/2, camera.ViewportSize.Y/2, 0, true, game, 0)
+                vim:SendMouseButtonEvent(camera.ViewportSize.X/2, camera.ViewportSize.Y/2, 0, false, game, 0)
             end
         end
     end
