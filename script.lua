@@ -109,17 +109,24 @@ if _G._bss_fly_vel then pcall(function() _G._bss_fly_vel:Destroy() end); _G._bss
 if _G._bss_fly_gyro then pcall(function() _G._bss_fly_gyro:Destroy() end); _G._bss_fly_gyro = nil end
 if _G._bss_aim_debug_lbl then pcall(function() _G._bss_aim_debug_lbl:Destroy() end); _G._bss_aim_debug_lbl = nil end
 
--- SILENT AIM HOOK
-local oldRaycast = workspace.Raycast
-workspace.Raycast = function(self, origin, direction, params)
-    if state.silent_aim and key_state.aimbot and silent_target then
-        local newDir = (silent_target.Position - origin)
-        if newDir.Magnitude > 0.1 then
-            return oldRaycast(self, origin, newDir.Unit * direction.Magnitude, params)
+-- Safe Silent Aim Hook
+local oldNamecall
+pcall(function()
+    oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
+        local method = getnamecallmethod()
+        if method == "Raycast" and state.silent_aim and key_state.aimbot and silent_target then
+            local args = {...}
+            local origin = args[1]
+            local direction = args[2]
+            local newDir = (silent_target.Position - origin)
+            if newDir.Magnitude > 0.1 then
+                args[2] = newDir.Unit * direction.Magnitude
+                return oldNamecall(self, table.unpack(args))
+            end
         end
-    end
-    return oldRaycast(self, origin, direction, params)
-end
+        return oldNamecall(self, ...)
+    end)
+end)
 
 local function make(class, props, parent)
     local inst = Instance.new(class)
