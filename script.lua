@@ -22,6 +22,7 @@ local COL_OK = Color3.fromRGB(120, 220, 160)
 local COL_BAD = Color3.fromRGB(255, 120, 130)
 local COL_DANGER = Color3.fromRGB(220, 70, 90)
 local COL_DANGER_HOVER = Color3.fromRGB(255, 90, 110)
+local config_file = "BSSToolkit_Config.json"
 
 -- ==========================================
 -- LOADING SCREEN
@@ -74,7 +75,7 @@ cornerFill.CornerRadius = UDim.new(1, 0)
 local function update_loading(text, pct)
     status.Text = text .. " (" .. tostring(pct) .. "%)"
     TweenService:Create(barFill, TweenInfo.new(0.3), {Size = UDim2.new(pct/100, 0, 1, 0)}):Play()
-    task.wait(0.1) -- Yields execution to prevent crash
+    task.wait(0.1)
 end
 
 -- ==========================================
@@ -102,9 +103,10 @@ local function lighten(c, amt)
         math.min(255, c.B * 255 + amt)
     )
 end
+
 local state = {
     esp_enabled = false, esp_box = true, esp_name = true, esp_distance = true, esp_tracers = false, esp_skeleton = false, esp_color = Color3.fromRGB(255, 80, 80), esp_team_color = false, esp_range = 500,
-    fov_enabled = false, fov_value = 70, saved_spots = {}, aimbot_enabled = false, aimbot_fov = 150, aimbot_smooth = 0.35, aimbot_part = "Head", aimbot_teamcheck = true, aimbot_range = 500, aimbot_prediction = 0.05, aimbot_snap = false, silent_aim = false,
+    fov_enabled = false, fov_value = 70, saved_spots = {}, aimbot_enabled = false, aimbot_fov = 150, aimbot_smooth = 0.35, aimbot_part = "Head", aimbot_teamcheck = true, aimbot_range = 500, aimbot_prediction = 0.05, aimbot_snap = false,
     triggerbot = false, hit_sound = false, fling_return = true, use_walkfling = false, hitbox_enabled = false, hitbox_part = "HumanoidRootPart", hitbox_look = "Box", hitbox_size = 6, hitbox_transparency = 0.5,
     object_name = "", object_esp_enabled = false, object_aimbot_enabled = false, object_box = true, object_name_lbl = true, object_range = 500, fly_enabled = false, fly_speed = 60, fly_mode = "Velocity",
     vehiclefly_enabled = false, vehicle_noclip = false, jb_fly_enabled = false, spinbot = false, spinbot_speed = 50, mask_enabled = false, mask_display = "", noclip = false, cf_speed = false, cf_speed_val = 50,
@@ -112,6 +114,7 @@ local state = {
     rapid_fire = false, rapid_fire_delay = 0.1,
     xray_enabled = false, chams_enabled = false, rainbow_enabled = false, forcefield_enabled = false,
 }
+
 local locked_target = nil
 local keybinds = {
     aimbot = {input = Enum.UserInputType.Keyboard, key = Enum.KeyCode.E},
@@ -153,24 +156,48 @@ local orig_lighting = {
 local is_mm2 = game.PlaceId == 142823291
 
 -- ==========================================
--- CLEANUP OLD INSTANCES
+-- CLEANUP & FILE LOADING
 -- ==========================================
-update_loading("Cleaning up old instances", 10)
+update_loading("Checking saved config", 10)
 
 local old = CoreGui:FindFirstChild("BSSToolkit")
 if old then old:Destroy() end
 local oldLoad = CoreGui:FindFirstChild("BSS_Loading")
 if oldLoad and oldLoad ~= loadingGui then oldLoad:Destroy() end
-
 for _, obj in ipairs(Workspace:GetDescendants()) do
-    if obj.Name == "BSS_Hitbox" and obj:IsA("BasePart") then
-        obj:Destroy()
-    end
+    if obj.Name == "BSS_Hitbox" and obj:IsA("BasePart") then obj:Destroy() end
 end
 if _G._bss_fling_conn then _G._bss_fling_conn:Disconnect(); _G._bss_fling_conn = nil end
 if _G._bss_fling_weld then pcall(function() _G._bss_fling_weld:Destroy() end); _G._bss_fling_weld = nil end
 if _G._bss_inf_jump then _G._bss_inf_jump:Disconnect(); _G._bss_inf_jump = nil end
 if _G._bss_aim_debug_lbl then pcall(function() _G._bss_aim_debug_lbl:Destroy() end); _G._bss_aim_debug_lbl = nil end
+
+local function import_config(code)
+    local ok, data = pcall(function() return HttpService:JSONDecode(code) end)
+    if not ok then return false end
+    for k, v in pairs(data) do
+        if type(v) == "table" then
+            if v.__color then
+                state[k] = Color3.new(v.r, v.g, v.b)
+            elseif v.__keybind then
+                if keybinds[k] then
+                    keybinds[k].key = Enum.KeyCode[v.keyName] or Enum.KeyCode.E
+                    keybinds[k].input = Enum.UserInputType[v.inputName] or Enum.UserInputType.Keyboard
+                end
+            end
+        elseif state[k] ~= nil then
+            state[k] = v
+        end
+    end
+    return true
+end
+
+if isfile and isfile(config_file) then
+    local ok, savedData = pcall(function() return readfile(config_file) end)
+    if ok and savedData then
+        import_config(savedData)
+    end
+end
 
 local function make(class, props, parent)
     local inst = Instance.new(class)
@@ -232,9 +259,7 @@ local function monitor_health(p)
         local hum = char:WaitForChild("Humanoid", 5)
         if hum then
             hit_sound_conns[p] = hum.HealthChanged:Connect(function(newHealth)
-                if state.hit_sound and newHealth < hum.MaxHealth then
-                    play_hit_sound()
-                end
+                if state.hit_sound and newHealth < hum.MaxHealth then play_hit_sound() end
             end)
         end
     end
@@ -246,9 +271,6 @@ for _, p in ipairs(Players:GetPlayers()) do
     if p ~= player then monitor_health(p) end
 end
 
--- ==========================================
--- FULL CLEANUP
--- ==========================================
 local function full_cleanup()
     pcall(function() RunService:UnbindFromRenderStep("BSSToolkitAim") end)
     if main_render_conn then main_render_conn:Disconnect(); main_render_conn = nil end
@@ -267,17 +289,11 @@ local function full_cleanup()
     if rapid_fire_task then pcall(function() task.cancel(rapid_fire_task) end); rapid_fire_task = nil end
     if loop_tp_conn then loop_tp_conn:Disconnect(); loop_tp_conn = nil end
     if rainbow_task then pcall(function() task.cancel(rainbow_task) end); rainbow_task = nil end
-    for obj, orig in pairs(xray_originals) do
-        if obj and obj.Parent then obj.Transparency = orig end
-    end
+    for obj, orig in pairs(xray_originals) do if obj and obj.Parent then obj.Transparency = orig end end
     xray_originals = {}
-    for p, hl in pairs(chams_highlights) do
-        if hl and hl.Parent then pcall(function() hl:Destroy() end) end
-    end
+    for p, hl in pairs(chams_highlights) do if hl and hl.Parent then pcall(function() hl:Destroy() end) end end
     chams_highlights = {}
-    for part, orig in pairs(rainbow_originals) do
-        if part and part.Parent then part.Color = orig end
-    end
+    for part, orig in pairs(rainbow_originals) do if part and part.Parent then part.Color = orig end end
     rainbow_originals = {}
     for _, conn in pairs(hit_sound_conns) do conn:Disconnect() end
     hit_sound_conns = {}
@@ -317,6 +333,23 @@ local function full_cleanup()
     key_state.fling = false
     key_state.fly = false
     fling_active = false
+end
+
+local function export_config()
+    local data = {}
+    for k, v in pairs(state) do
+        if k ~= "saved_spots" then
+            if typeof(v) == "Color3" then
+                data[k] = {r = v.R, g = v.G, b = v.B, __color = true}
+            else
+                data[k] = v
+            end
+        end
+    end
+    for k, v in pairs(keybinds) do
+        data[k] = {keyName = v.key.Name, inputName = v.input.Name, __keybind = true}
+    end
+    return HttpService:JSONEncode(data)
 end
 
 -- ==========================================
@@ -375,7 +408,7 @@ track(UserInputService.InputEnded:Connect(function(io)
 end))
 
 -- ==========================================
--- TAB BAR
+-- TAB BAR & HELPERS
 -- ==========================================
 update_loading("Building tabs", 35)
 
@@ -391,12 +424,8 @@ for i, name in ipairs(tabs) do
     tabButtons[name] = btn
     local page = make("Frame", {Size = UDim2.new(1, -24, 1, -96), Position = UDim2.new(0, 12, 0, 82), BackgroundTransparency = 1, Visible = false}, main)
     tabPages[name] = page
-    btn.MouseEnter:Connect(function()
-        if not page.Visible then tween(btn, {BackgroundColor3 = COL_PANEL_HOVER}, 0.12) end
-    end)
-    btn.MouseLeave:Connect(function()
-        if not page.Visible then tween(btn, {BackgroundColor3 = COL_PANEL_ALT}, 0.12) end
-    end)
+    btn.MouseEnter:Connect(function() if not page.Visible then tween(btn, {BackgroundColor3 = COL_PANEL_HOVER}, 0.12) end end)
+    btn.MouseLeave:Connect(function() if not page.Visible then tween(btn, {BackgroundColor3 = COL_PANEL_ALT}, 0.12) end end)
 end
 local function switch_tab(name)
     for n, btn in pairs(tabButtons) do
@@ -409,9 +438,6 @@ end
 for n, btn in pairs(tabButtons) do btn.MouseButton1Click:Connect(function() switch_tab(n) end) end
 switch_tab("ESP")
 
--- ==========================================
--- UI HELPER FUNCTIONS
--- ==========================================
 local function section(parent, text, order)
     local row = make("Frame", {Size = UDim2.new(1, 0, 0, 24), BackgroundTransparency = 1, LayoutOrder = order or 0}, parent)
     local bar = make("Frame", {Size = UDim2.new(0, 3, 0, 14), Position = UDim2.new(0, 0, 0.5, -7), BackgroundColor3 = COL_ACCENT, BorderSizePixel = 0}, row)
@@ -469,9 +495,7 @@ local function slider(parent, text, minv, maxv, initial, callback, order)
         end
     end)
     track(UserInputService.InputChanged:Connect(function(io)
-        if grabbing and io.UserInputType == Enum.UserInputType.MouseMovement then
-            set_from_x(io.Position.X)
-        end
+        if grabbing and io.UserInputType == Enum.UserInputType.MouseMovement then set_from_x(io.Position.X) end
     end))
     track(UserInputService.InputEnded:Connect(function(io)
         if io.UserInputType == Enum.UserInputType.MouseButton1 then
@@ -554,16 +578,12 @@ end
 local function char_bounds(char)
     local hrp = char:FindFirstChild("HumanoidRootPart")
     if not hrp then return nil end
-    
     local cam = Workspace.CurrentCamera
     local sp, onscreen = cam:WorldToViewportPoint(hrp.Position)
     if not onscreen or sp.Z <= 0 then return nil end
-    
     local dist = (cam.CFrame.Position - hrp.Position).Magnitude
-    
     local h = 1200 / math.max(dist, 1)
     local w = h * 0.6
-    
     return Vector2.new(sp.X, sp.Y), w, h, dist
 end
 local SKEL_R6 = {
@@ -584,7 +604,6 @@ local function draw_skeleton(o, char)
             local cam = Workspace.CurrentCamera
             local sp_a, on_a = cam:WorldToViewportPoint(a.Position)
             local sp_b, on_b = cam:WorldToViewportPoint(b.Position)
-            
             if on_a and on_b then
                 idx = idx + 1
                 local line = o.skel[idx]
@@ -613,9 +632,7 @@ local function update_esp()
             local o = esp_objects[p]
             local char = p.Character
             local use_color = state.esp_color
-            if state.esp_team_color and p.Team then
-                use_color = p.Team.TeamColor.Color
-            end
+            if state.esp_team_color and p.Team then use_color = p.Team.TeamColor.Color end
             o.box_stroke.Color = use_color
             o.name.TextColor3 = use_color
             o.dist.TextColor3 = use_color
@@ -629,21 +646,18 @@ local function update_esp()
                         o.box.Size = UDim2.new(0, w, 0, h)
                         o.box.Position = UDim2.new(0, pos.X, 0, pos.Y)
                     else o.box.Visible = false end
-                    
                     if state.esp_name then
                         o.name.Visible = true
                         o.name.Text = p.Name
                         o.name.Size = UDim2.new(0, 200, 0, 14)
                         o.name.Position = UDim2.new(0, pos.X, 0, pos.Y - h/2 - 10)
                     else o.name.Visible = false end
-                    
                     if state.esp_distance then
                         o.dist.Visible = true
                         o.dist.Text = string.format("%d studs", dist)
                         o.dist.Size = UDim2.new(0, 200, 0, 12)
                         o.dist.Position = UDim2.new(0, pos.X, 0, pos.Y + h/2 + 10)
                     else o.dist.Visible = false end
-                    
                     if state.esp_tracers then
                         o.tracer.Visible = true
                         local vp = camera.ViewportSize
@@ -655,7 +669,6 @@ local function update_esp()
                         o.tracer.Position = UDim2.new(0, startV.X, 0, startV.Y)
                         o.tracer.Rotation = math.deg(math.atan2(delta.Y, delta.X))
                     else o.tracer.Visible = false end
-                    
                     if state.esp_skeleton then
                         draw_skeleton(o, char)
                     else
@@ -671,9 +684,7 @@ local function update_esp()
     end
 end
 local function clear_object_esp()
-    for inst, o in pairs(obj_esp_objs) do
-        if o.frame then o.frame:Destroy() end
-    end
+    for inst, o in pairs(obj_esp_objs) do if o.frame then o.frame:Destroy() end end
     obj_esp_objs = {}
 end
 local function update_object_esp()
@@ -753,9 +764,7 @@ toggle(espRight, "Enable object ESP", false, function(on)
     if not on then clear_object_esp() end
 end, 2)
 local obj_name_box = textbox(espRight, "object name (exact match)", 3, "")
-obj_name_box:GetPropertyChangedSignal("Text"):Connect(function()
-    state.object_name = obj_name_box.Text
-end)
+obj_name_box:GetPropertyChangedSignal("Text"):Connect(function() state.object_name = obj_name_box.Text end)
 slider(espRight, "Object range", 50, 2000, 500, function(v) state.object_range = v end, 4)
 toggle(espRight, "Object box", true, function(on) state.object_box = on end, 5)
 toggle(espRight, "Object name label", true, function(on) state.object_name_lbl = on end, 6)
@@ -765,9 +774,7 @@ section(tpLeft, "Players", 1)
 local playerListFrame = make("Frame", {Size = UDim2.new(1, 0, 0, 0), BackgroundTransparency = 1, AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = 2}, tpLeft)
 make("UIListLayout", {Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder}, playerListFrame)
 local function refresh_player_list()
-    for _, c in ipairs(playerListFrame:GetChildren()) do
-        if c:IsA("TextButton") then c:Destroy() end
-    end
+    for _, c in ipairs(playerListFrame:GetChildren()) do if c:IsA("TextButton") then c:Destroy() end end
     for i, p in ipairs(Players:GetPlayers()) do
         if p ~= player then
             button(playerListFrame, p.Name, COL_PANEL_ALT, function()
@@ -802,9 +809,7 @@ local saveBox = textbox(tpRight, "name this spot...", 5, "")
 local savedFrame = make("Frame", {Size = UDim2.new(1, 0, 0, 0), BackgroundTransparency = 1, AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = 7}, tpRight)
 make("UIListLayout", {Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder}, savedFrame)
 local function rebuild_saved()
-    for _, c in ipairs(savedFrame:GetChildren()) do
-        if c:IsA("Frame") then c:Destroy() end
-    end
+    for _, c in ipairs(savedFrame:GetChildren()) do if c:IsA("Frame") then c:Destroy() end end
     for i, entry in ipairs(state.saved_spots) do
         local row = make("Frame", {Size = UDim2.new(1, 0, 0, 30), BackgroundColor3 = COL_PANEL_ALT, BorderSizePixel = 0, LayoutOrder = i}, savedFrame)
         corner(row, 5)
@@ -861,10 +866,7 @@ toggle(aimLeft, "Enable aimbot", false, function(on)
     state.aimbot_enabled = on
     update_fov_circle()
 end, 2)
-slider(aimLeft, "FOV (px)", 20, 500, 150, function(v)
-    state.aimbot_fov = v
-    update_fov_circle()
-end, 3)
+slider(aimLeft, "FOV (px)", 20, 500, 150, function(v) state.aimbot_fov = v; update_fov_circle() end, 3)
 slider(aimLeft, "Max range", 50, 2000, 500, function(v) state.aimbot_range = v end, 4)
 slider(aimLeft, "Smoothness", 0, 1, 0.35, function(v) state.aimbot_smooth = v end, 5)
 slider(aimLeft, "Prediction", 0, 0.3, 0.05, function(v) state.aimbot_prediction = v end, 6)
@@ -886,16 +888,11 @@ toggle(aimLeft, "Rapid Fire (Remote)", false, function(on)
             local replication = remotes and remotes:WaitForChild("Replication", 5)
             local fighter = replication and replication:WaitForChild("Fighter", 5)
             local shoot_remote = fighter and fighter:WaitForChild("UseItem", 5)
-            
             while state.rapid_fire do
                 task.wait(state.rapid_fire_delay)
                 local char = player.Character
                 local tool = char and char:FindFirstChildOfClass("Tool")
-                if tool and shoot_remote then
-                    pcall(function()
-                        shoot_remote:FireServer(tool)
-                    end)
-                end
+                if tool and shoot_remote then pcall(function() shoot_remote:FireServer(tool) end) end
             end
             rapid_fire_task = nil
         end)
@@ -907,11 +904,7 @@ section(aimRight, "Keybinds", 1)
 local keybindButtons = {}
 local function bind_label(b)
     local bind = keybinds[b]
-    if bind.input == Enum.UserInputType.Keyboard then
-        return bind.key.Name
-    else
-        return bind.input.Name
-    end
+    if bind.input == Enum.UserInputType.Keyboard then return bind.key.Name else return bind.input.Name end
 end
 local function keybind_button(parent, label, slot, order)
     local b = make("TextButton", {Size = UDim2.new(1, 0, 0, 30), BackgroundColor3 = COL_PANEL_ALT, BorderSizePixel = 0, Text = label .. ":  " .. bind_label(slot), TextColor3 = COL_TEXT, Font = Enum.Font.Gotham, TextSize = 12, LayoutOrder = order or 0, AutoButtonColor = false}, parent)
@@ -923,6 +916,12 @@ local function keybind_button(parent, label, slot, order)
         b.Text = label .. ":  ..."
         local conn
         conn = UserInputService.InputBegan:Connect(function(io, gp)
+            -- Ignore ESC to cancel binding
+            if io.KeyCode == Enum.KeyCode.Escape then
+                b.Text = label .. ":  " .. bind_label(slot)
+                conn:Disconnect()
+                return
+            end
             if gp then return end
             if io.UserInputType == Enum.UserInputType.Keyboard then
                 keybinds[slot] = {input = Enum.UserInputType.Keyboard, key = io.KeyCode}
@@ -945,14 +944,9 @@ keybind_button(aimRight, "Fling hold", "fling", 3)
 keybind_button(aimRight, "Fly toggle", "fly", 4)
 update_keybind_label()
 section(aimRight, "Object aimbot", 10)
-toggle(aimRight, "Enable object aimbot", false, function(on)
-    state.object_aimbot_enabled = on
-    update_fov_circle()
-end, 11)
+toggle(aimRight, "Enable object aimbot", false, function(on) state.object_aimbot_enabled = on; update_fov_circle() end, 11)
 local obj_aim_name = textbox(aimRight, "object name (exact match)", 12, "")
-obj_aim_name:GetPropertyChangedSignal("Text"):Connect(function()
-    state.object_name = obj_aim_name.Text
-end)
+obj_aim_name:GetPropertyChangedSignal("Text"):Connect(function() state.object_name = obj_aim_name.Text end)
 
 local function nearest_target()
     local cam = Workspace.CurrentCamera
@@ -1033,15 +1027,12 @@ local function start_fling(target_player)
     local char = player.Character
     local hum = char and char:FindFirstChildOfClass("Humanoid")
     if not root or not target_root or not hum then return end
-
     fling_target = target_player
     fling_return_cf = root.CFrame
     fling_active = true
-
     pcall(function() target_root:SetNetworkOwner(player) end)
     root.CFrame = target_root.CFrame * CFrame.new(0, 0, 2)
     task.wait(0.15)
-
     if state.use_walkfling then hum.PlatformStand = true end
     local weld = Instance.new("WeldConstraint")
     weld.Part0 = target_root; weld.Part1 = root; weld.Parent = target_root
@@ -1197,9 +1188,7 @@ button(exLeft, "Invalid Avatar Rig Break", COL_DANGER, function()
             bav.AngularVelocity = Vector3.new(999999, 999999, 999999)
             bav.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
             bav.Parent = breaker
-            task.delay(1.5, function()
-                if breaker then breaker:Destroy() end
-            end)
+            task.delay(1.5, function() if breaker then breaker:Destroy() end end)
         end
     end
 end, 3)
@@ -1218,9 +1207,7 @@ toggle(exLeft, "Loop Teleport to Target", false, function(on)
             loop_tp_conn = RunService.Heartbeat:Connect(function()
                 local hrp = get_root()
                 local t_hrp = get_root(loop_tp_target)
-                if hrp and t_hrp then
-                    hrp.CFrame = t_hrp.CFrame * CFrame.new(0, 0, 2)
-                end
+                if hrp and t_hrp then hrp.CFrame = t_hrp.CFrame * CFrame.new(0, 0, 2) end
             end)
         end
     else
@@ -1242,9 +1229,7 @@ toggle(exLeft, "Wall Transparency (X-Ray)", false, function(on)
         end
         for _, obj in ipairs(Workspace:GetDescendants()) do
             if obj:IsA("BasePart") and not char_parts[obj] then
-                if not xray_originals[obj] then
-                    xray_originals[obj] = obj.Transparency
-                end
+                if not xray_originals[obj] then xray_originals[obj] = obj.Transparency end
                 obj.Transparency = 0.85
             end
         end
@@ -1274,13 +1259,9 @@ end
 toggle(exLeft, "Enemy Chams (Through Walls)", false, function(on)
     state.chams_enabled = on
     if on then
-        for _, p in ipairs(Players:GetPlayers()) do
-            if p ~= player then apply_chams(p) end
-        end
+        for _, p in ipairs(Players:GetPlayers()) do if p ~= player then apply_chams(p) end end
     else
-        for p, hl in pairs(chams_highlights) do
-            if hl and hl.Parent then pcall(function() hl:Destroy() end) end
-        end
+        for p, hl in pairs(chams_highlights) do if hl and hl.Parent then pcall(function() hl:Destroy() end) end end
         chams_highlights = {}
     end
 end, 12)
@@ -1291,9 +1272,7 @@ toggle(exLeft, "Rainbow Character", false, function(on)
         if char then
             rainbow_originals = {}
             for _, part in ipairs(char:GetDescendants()) do
-                if part:IsA("BasePart") then
-                    rainbow_originals[part] = part.Color
-                end
+                if part:IsA("BasePart") then rainbow_originals[part] = part.Color end
             end
         end
         if not rainbow_task then
@@ -1305,9 +1284,7 @@ toggle(exLeft, "Rainbow Character", false, function(on)
                     local char = player.Character
                     if char then
                         for _, part in ipairs(char:GetDescendants()) do
-                            if part:IsA("BasePart") then
-                                part.Color = c
-                            end
+                            if part:IsA("BasePart") then part.Color = c end
                         end
                     end
                     task.wait(0.05)
@@ -1371,9 +1348,7 @@ button(exRight, "Global Server Fling (Mass Parts)", COL_DANGER, function()
                     bv.Velocity = Vector3.new(math.random(-9999, 9999), 9999, math.random(-9999, 9999))
                     bv.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
                     bv.Parent = mass
-                    task.delay(1, function()
-                        if mass then mass:Destroy() end
-                    end)
+                    task.delay(1, function() if mass then mass:Destroy() end end)
                 end
             end
         end
@@ -1510,9 +1485,7 @@ local function start_fly(on_vehicle)
             local speed = state.fly_speed
             if state.safe_fly then speed = math.min(speed, 50) end
             if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then speed = speed * 2.5 end
-            if move.Magnitude > 0 then
-                r.CFrame = r.CFrame + (move.Unit * speed * dt)
-            end
+            if move.Magnitude > 0 then r.CFrame = r.CFrame + (move.Unit * speed * dt) end
         end)
     else
         fly_velocity = Instance.new("BodyVelocity")
@@ -1588,31 +1561,7 @@ local function start_jb_fly()
         fly_velocity.Velocity = move.Magnitude > 0 and move.Unit * speed or Vector3.zero
     end)
 end
-local function export_config()
-    local data = {}
-    for k, v in pairs(state) do
-        if k ~= "saved_spots" then
-            if typeof(v) == "Color3" then
-                data[k] = {r = v.R, g = v.G, b = v.B, __color = true}
-            else
-                data[k] = v
-            end
-        end
-    end
-    return HttpService:JSONEncode(data)
-end
-local function import_config(code)
-    local ok, data = pcall(function() return HttpService:JSONDecode(code) end)
-    if not ok then return false end
-    for k, v in pairs(data) do
-        if type(v) == "table" and v.__color then
-            state[k] = Color3.new(v.r, v.g, v.b)
-        elseif state[k] ~= nil then
-            state[k] = v
-        end
-    end
-    return true
-end
+
 local uScroll = scroll_col(tabPages["Utility"])
 section(uScroll, "Movement", 1)
 slider(uScroll, "WalkSpeed", 16, 200, 16, function(v)
@@ -1823,41 +1772,6 @@ toggle(uScroll, "Under Map (Immortal)", false, function(on)
     end
 end, 31)
 toggle(uScroll, "Safe Fly (Anti-Kick)", false, function(on) state.safe_fly = on end, 32)
-toggle(uScroll, "Auto Farm Coins", false, function(on)
-    state.auto_farm = on
-    if on then
-        if auto_farm_conn then task.cancel(auto_farm_conn) end
-        auto_farm_conn = task.spawn(function()
-            while state.auto_farm do
-                task.wait(0.1)
-                if Workspace:FindFirstChild("Lobby") or Workspace:FindFirstChild("LobbySpawn") then task.wait(1); continue end
-                local char = player.Character
-                local hrp = char and char:FindFirstChild("HumanoidRootPart")
-                if hrp then
-                    local best_coin = nil
-                    local best_dist = math.huge
-                    for _, obj in ipairs(Workspace:GetDescendants()) do
-                        if (obj.Name == "Coin_server" or obj.Name == "Candy") and obj:IsA("BasePart") then
-                            local dist = (obj.Position - hrp.Position).Magnitude
-                            if dist < best_dist then best_dist = dist; best_coin = obj end
-                        end
-                    end
-                    if best_coin then
-                        local target_cf = CFrame.new(best_coin.Position + Vector3.new(0, 3, 0))
-                        for i = 1, 15 do
-                            if not state.auto_farm then break end
-                            hrp.CFrame = hrp.CFrame:Lerp(target_cf, 0.2)
-                            task.wait(0.05)
-                        end
-                        task.wait(0.2)
-                    end
-                end
-            end
-        end)
-    else
-        if auto_farm_conn then task.cancel(auto_farm_conn); auto_farm_conn = nil end
-    end
-end, 33)
 section(uScroll, "Misc", 40)
 toggle(uScroll, "Hit Sounds", false, function(on) state.hit_sound = on end, 41)
 toggle(uScroll, "Anti-AFK", false, function(on)
@@ -1904,19 +1818,43 @@ toggle(uScroll, "Anti-Fling", false, function(on)
         if anti_fling_conn then anti_fling_conn:Disconnect(); anti_fling_conn = nil end
     end
 end, 45)
+
 section(uScroll, "Config", 50)
 local configOut = make("TextBox", {Size = UDim2.new(1, 0, 0, 60), BackgroundColor3 = COL_PANEL, BorderSizePixel = 0, TextColor3 = COL_TEXT, PlaceholderText = "config code appears here...", PlaceholderColor3 = COL_TEXT_DIM, Text = "", TextWrapped = true, TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top, Font = Enum.Font.Code, TextSize = 10, ClearTextOnFocus = false, LayoutOrder = 51}, uScroll)
 corner(configOut, 6)
-button(uScroll, "Export config", COL_ACCENT, function()
+button(uScroll, "Export to Clipboard", COL_ACCENT, function()
     local code = export_config()
     configOut.Text = code
     if setclipboard then setclipboard(code) end
 end, 52)
 local configIn = textbox(uScroll, "paste config code here...", 53, "")
-button(uScroll, "Import config", COL_PANEL_ALT, function()
+button(uScroll, "Import from Clipboard", COL_PANEL_ALT, function()
     local ok = import_config(configIn.Text)
     if ok then configOut.Text = "imported. re-execute to apply." else configOut.Text = "import failed" end
 end, 54)
+button(uScroll, "Save Config to File", COL_ACCENT, function()
+    local code = export_config()
+    if writefile then
+        pcall(function() writefile(config_file, code) end)
+        configOut.Text = "Saved to file!"
+    else
+        configOut.Text = "Executor doesn't support file saving."
+    end
+end, 55)
+button(uScroll, "Load Config from File", COL_PANEL_ALT, function()
+    if isfile and readfile then
+        if isfile(config_file) then
+            local code = readfile(config_file)
+            local ok = import_config(code)
+            if ok then configOut.Text = "Loaded from file! Re-execute to apply." else configOut.Text = "File is corrupt." end
+        else
+            configOut.Text = "No saved config found."
+        end
+    else
+        configOut.Text = "Executor doesn't support file loading."
+    end
+end, 56)
+
 section(uScroll, "Character", 60)
 button(uScroll, "Reset character", COL_PANEL_ALT, function()
     local char = player.Character
@@ -1935,6 +1873,9 @@ update_loading("Starting services", 98)
 -- SAFE INPUT HOOKS
 track(UserInputService.InputBegan:Connect(function(io, gp)
     if gp then return end
+    -- Ensure keybinds don't fire if you are typing in a textbox
+    if UserInputService:GetFocusedTextBox() then return end
+    
     if state.click_tp and io.KeyCode == Enum.KeyCode.LeftAlt and io.UserInputType == Enum.UserInputType.Keyboard then
         local mouse = player:GetMouse()
         if mouse.Target then
