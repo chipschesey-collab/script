@@ -169,7 +169,11 @@ local function import_config(code)
                 state[k] = Color3.new(v.r, v.g, v.b)
             elseif v.__keybind then
                 if keybinds[k] then
-                    keybinds[k].key = Enum.KeyCode[v.keyName] or Enum.KeyCode.E
+                    if v.keyName == "None" then
+                        keybinds[k].key = nil
+                    else
+                        keybinds[k].key = Enum.KeyCode[v.keyName] or Enum.KeyCode.E
+                    end
                     keybinds[k].input = Enum.UserInputType[v.inputName] or Enum.UserInputType.Keyboard
                 end
             end
@@ -178,7 +182,6 @@ local function import_config(code)
         end
     end
 
-    -- Update UI instantly without re-executing
     for _, item in ipairs(ui_refs.toggles) do
         if item.key and state[item.key] ~= nil then item.set(state[item.key]) end
     end
@@ -357,7 +360,7 @@ local function export_config()
         end
     end
     for k, v in pairs(keybinds) do
-        data[k] = {keyName = v.key.Name, inputName = v.input.Name, __keybind = true}
+        data[k] = {keyName = v.key and v.key.Name or "None", inputName = v.input.Name, __keybind = true}
     end
     return HttpService:JSONEncode(data)
 end
@@ -932,6 +935,7 @@ section(aimRight, "Keybinds", 1)
 local keybindButtons = {}
 local function bind_label(b)
     local bind = keybinds[b]
+    if not bind.key then return "none" end
     if bind.input == Enum.UserInputType.Keyboard then return bind.key.Name else return bind.input.Name end
 end
 local function keybind_button(parent, label, slot, order)
@@ -950,6 +954,12 @@ local function keybind_button(parent, label, slot, order)
                 return
             end
             if gp then return end
+            if io.KeyCode == Enum.KeyCode.Backspace or io.KeyCode == Enum.KeyCode.Delete then
+                keybinds[slot] = {input = Enum.UserInputType.Keyboard, key = nil}
+                b.Text = label .. ":  none"
+                conn:Disconnect(); update_keybind_label()
+                return
+            end
             if io.UserInputType == Enum.UserInputType.Keyboard then
                 keybinds[slot] = {input = Enum.UserInputType.Keyboard, key = io.KeyCode}
                 b.Text = label .. ":  " .. io.KeyCode.Name
@@ -1188,7 +1198,6 @@ local exLeft, exRight = split_two(tabPages["Exploits"])
 section(exLeft, "Targeted Exploits", 1)
 local exTargetBox = textbox(exLeft, "target player name...", 2, "")
 
--- Helper function for Velocity Flying
 local function fly_to_position(target_pos, speed)
     local hrp = get_root()
     if not hrp then return end
@@ -1212,7 +1221,6 @@ local function fly_to_position(target_pos, speed)
     if bv then bv.Velocity = Vector3.zero; task.wait(0.1); bv:Destroy() end
 end
 
--- JAILBREAK AUTO ROB (HARDCODED COORDINATES)
 local DIAMOND_CFRAME = CFrame.new(111.998154, 17.5156422, 1294.89917, 0.173624337, -0, -0.984811902, 0, 1, -0, 0.984811902, 0, 0.173624337)
 local DROPOFF_CFRAME = CFrame.new(-300.185577, 20.6801224, 1594.45862, -0.29079634, 6.13783641e-06, -0.956784964, 0.00014125774, 1, -3.65175038e-05, 0.956784964, -0.000145772443, -0.29079634)
 
@@ -1241,7 +1249,6 @@ toggle(exLeft, "Auto Rob Jewelry (Speed 300)", false, function(on)
     end
 end, 3, "jb_auto_rob")
 
--- JAILBREAK AUTO ARREST
 toggle(exLeft, "Auto Arrest (Speed 300)", false, function(on)
     state.jb_auto_arrest = on
     if on then
@@ -1310,7 +1317,6 @@ toggle(exLeft, "Loop Teleport to Target", false, function(on)
     end
 end, 4)
 
--- THE REST OF THE EXPLOITS TAB
 button(exLeft, "Invalid Avatar Rig Break", COL_DANGER, function()
     local targetName = exTargetBox.Text
     if targetName == "" then return end
@@ -1750,7 +1756,6 @@ toggle(uScroll, "Noclip", false, function(on)
         noclip_conn = RunService.Stepped:Connect(function()
             local char = player.Character
             if char then
-                -- Force Network Ownership
                 local hrp = char:FindFirstChild("HumanoidRootPart")
                 if hrp then pcall(function() hrp:SetNetworkOwner(player) end) end
                 
@@ -2073,9 +2078,9 @@ track(UserInputService.InputBegan:Connect(function(io, gp)
         end
     end
     local aim_bind = keybinds.aimbot; local fling_bind = keybinds.fling; local fly_bind = keybinds.fly; local hide_bind = keybinds.hide
-    if io.UserInputType == aim_bind.input and (io.KeyCode == aim_bind.key or aim_bind.input ~= Enum.UserInputType.Keyboard) then
+    if aim_bind.key and io.UserInputType == aim_bind.input and io.KeyCode == aim_bind.key then
         key_state.aimbot = true
-    elseif io.UserInputType == fling_bind.input and (io.KeyCode == fling_bind.key or fling_bind.input ~= Enum.UserInputType.Keyboard) then
+    elseif fling_bind.key and io.UserInputType == fling_bind.input and io.KeyCode == fling_bind.key then
         key_state.fling = true
         local tgt = nearest_target()
         if not tgt and state.object_aimbot_enabled then
@@ -2084,10 +2089,10 @@ track(UserInputService.InputBegan:Connect(function(io, gp)
         elseif tgt then
             local tp = Players:GetPlayerFromCharacter(tgt.Parent); if tp then start_fling(tp) end
         end
-    elseif io.UserInputType == fly_bind.input and (io.KeyCode == fly_bind.key or fly_bind.input ~= Enum.UserInputType.Keyboard) then
+    elseif fly_bind.key and io.UserInputType == fly_bind.input and io.KeyCode == fly_bind.key then
         key_state.fly = not key_state.fly
         if key_state.fly then start_fly(false) else stop_fly() end
-    elseif io.UserInputType == hide_bind.input and (io.KeyCode == hide_bind.key or hide_bind.input ~= Enum.UserInputType.Keyboard) then
+    elseif hide_bind.key and io.UserInputType == hide_bind.input and io.KeyCode == hide_bind.key then
         main.Visible = not main.Visible
         shadow.Visible = main.Visible
     end
@@ -2095,8 +2100,8 @@ end))
 
 track(UserInputService.InputEnded:Connect(function(io)
     local aim_bind = keybinds.aimbot; local fling_bind = keybinds.fling
-    if io.UserInputType == aim_bind.input and (io.KeyCode == aim_bind.key or aim_bind.input ~= Enum.UserInputType.Keyboard) then key_state.aimbot = false end
-    if io.UserInputType == fling_bind.input and (io.KeyCode == fling_bind.key or fling_bind.input ~= Enum.UserInputType.Keyboard) then key_state.fling = false end
+    if aim_bind.key and io.UserInputType == aim_bind.input and io.KeyCode == aim_bind.key then key_state.aimbot = false end
+    if fling_bind.key and io.UserInputType == fling_bind.input and io.KeyCode == fling_bind.key then key_state.fling = false end
 end))
 
 track(UserInputService.WindowFocusReleased:Connect(function()
