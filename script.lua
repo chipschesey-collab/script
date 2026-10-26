@@ -474,8 +474,7 @@ local function char_bounds(char)
     local scale = 1200 / math.max(dist, 1)
     local h = math.clamp(scale, 10, 400)
     local w = h * 0.5
-    local cy = pos.Y - (h * 0.15)
-    return Vector2.new(pos.X, cy), w, h, dist
+    return Vector2.new(pos.X, pos.Y), w, h, dist
 end
 local SKEL_R6 = {
     {"Head", "Torso"}, {"Torso", "Left Arm"}, {"Torso", "Right Arm"}, {"Torso", "Left Leg"}, {"Torso", "Right Leg"},
@@ -536,18 +535,21 @@ local function update_esp()
                         o.box.Size = UDim2.new(0, w, 0, h)
                         o.box.Position = UDim2.new(0, pos.X, 0, pos.Y)
                     else o.box.Visible = false end
+                    
                     if state.esp_name then
                         o.name.Visible = true
                         o.name.Text = p.Name
                         o.name.Size = UDim2.new(0, w * 2, 0, 14)
                         o.name.Position = UDim2.new(0, pos.X, 0, pos.Y - h/2 - 12)
                     else o.name.Visible = false end
+                    
                     if state.esp_distance then
                         o.dist.Visible = true
                         o.dist.Text = string.format("%d studs", dist)
                         o.dist.Size = UDim2.new(0, w * 2, 0, 12)
                         o.dist.Position = UDim2.new(0, pos.X, 0, pos.Y + h/2 + 12)
                     else o.dist.Visible = false end
+                    
                     if state.esp_tracers then
                         o.tracer.Visible = true
                         local vp = camera.ViewportSize
@@ -559,6 +561,7 @@ local function update_esp()
                         o.tracer.Position = UDim2.new(0, startV.X, 0, startV.Y)
                         o.tracer.Rotation = math.deg(math.atan2(delta.Y, delta.X))
                     else o.tracer.Visible = false end
+                    
                     if state.esp_skeleton then
                         draw_skeleton(o, char)
                     else
