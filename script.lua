@@ -45,7 +45,7 @@ local function lighten(c, amt)
 end
 local state = {
     esp_enabled = false, esp_box = true, esp_name = true, esp_distance = true, esp_tracers = false, esp_skeleton = false, esp_color = Color3.fromRGB(255, 80, 80), esp_team_color = false, esp_range = 500,
-    fov_enabled = false, fov_value = 70, saved_spots = {}, aimbot_enabled = false, aimbot_fov = 150, aimbot_smooth = 0.35, aimbot_part = "Head", aimbot_teamcheck = true, aimbot_range = 500, aimbot_prediction = 0.05, aimbot_snap = false, silent_aim = false,
+    fov_enabled = false, fov_value = 70, saved_spots = {}, aimbot_enabled = false, aimbot_fov = 150, aimbot_smooth = 0.35, aimbot_part = "Head", aimbot_teamcheck = true, aimbot_range = 500, aimbot_prediction = 0.05, aimbot_snap = false,
     triggerbot = false, hit_sound = false, fling_return = true, use_walkfling = false, hitbox_enabled = false, hitbox_part = "HumanoidRootPart", hitbox_look = "Box", hitbox_size = 6, hitbox_transparency = 0.5,
     object_name = "", object_esp_enabled = false, object_aimbot_enabled = false, object_box = true, object_name_lbl = true, object_range = 500, fly_enabled = false, fly_speed = 60, fly_mode = "Velocity",
     vehiclefly_enabled = false, vehicle_noclip = false, jb_fly_enabled = false, spinbot = false, spinbot_speed = 50, mask_enabled = false, mask_display = "", noclip = false, cf_speed = false, cf_speed_val = 50,
@@ -53,7 +53,6 @@ local state = {
     rapid_fire = false, rapid_fire_delay = 0.1,
     xray_enabled = false, chams_enabled = false, rainbow_enabled = false, forcefield_enabled = false,
 }
-local silent_target = nil
 local locked_target = nil
 local keybinds = {
     aimbot = {input = Enum.UserInputType.Keyboard, key = Enum.KeyCode.E},
@@ -108,26 +107,6 @@ if _G._bss_fly_conn then _G._bss_fly_conn:Disconnect(); _G._bss_fly_conn = nil e
 if _G._bss_fly_vel then pcall(function() _G._bss_fly_vel:Destroy() end); _G._bss_fly_vel = nil end
 if _G._bss_fly_gyro then pcall(function() _G._bss_fly_gyro:Destroy() end); _G._bss_fly_gyro = nil end
 if _G._bss_aim_debug_lbl then pcall(function() _G._bss_aim_debug_lbl:Destroy() end); _G._bss_aim_debug_lbl = nil end
-
--- Safe Silent Aim Hook
-local oldNamecall
-pcall(function()
-    oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
-        local method = getnamecallmethod()
-        if method == "Raycast" and state.silent_aim and key_state.aimbot and silent_target then
-            local args = {...}
-            local origin = args[1]
-            local direction = args[2]
-            local newDir = (silent_target.Position - origin)
-            if newDir.Magnitude > 0.1 then
-                args[2] = newDir.Unit * direction.Magnitude
-                return oldNamecall(self, table.unpack(args))
-            end
-        end
-        return oldNamecall(self, ...)
-    end)
-end)
-
 local function make(class, props, parent)
     local inst = Instance.new(class)
     for k, v in pairs(props or {}) do inst[k] = v end
@@ -788,11 +767,10 @@ slider(aimLeft, "Prediction", 0, 0.3, 0.05, function(v) state.aimbot_prediction 
 toggle(aimLeft, "Team check", true, function(on) state.aimbot_teamcheck = on end, 7)
 toggle(aimLeft, "Triggerbot", false, function(on) state.triggerbot = on end, 8)
 toggle(aimLeft, "Instant Snap (Lock-on)", false, function(on) state.aimbot_snap = on end, 9)
-toggle(aimLeft, "Silent Aim (Raycast Hook)", false, function(on) state.silent_aim = on end, 10)
 
-section(aimLeft, "Target part", 11)
-toggle(aimLeft, "Head", true, function(on) state.aimbot_part = "Head" end, 12)
-toggle(aimLeft, "HumanoidRootPart", false, function(on) state.aimbot_part = "HumanoidRootPart" end, 13)
+section(aimLeft, "Target part", 10)
+toggle(aimLeft, "Head", true, function(on) state.aimbot_part = "Head" end, 11)
+toggle(aimLeft, "HumanoidRootPart", false, function(on) state.aimbot_part = "HumanoidRootPart" end, 12)
 
 section(aimLeft, "Exploits", 20)
 toggle(aimLeft, "Rapid Fire (Remote)", false, function(on)
@@ -946,7 +924,6 @@ RunService:BindToRenderStep("BSSToolkitAim", Enum.RenderPriority.Camera.Value + 
     if not key_state.aimbot then
         if dbg_lbl and dbg_lbl.Parent and dbg_lbl.Text ~= "" then dbg_lbl.Text = "" end
         locked_target = nil
-        silent_target = nil
         return
     end
 
@@ -965,14 +942,6 @@ RunService:BindToRenderStep("BSSToolkitAim", Enum.RenderPriority.Camera.Value + 
 
     if not locked_target then
         dbg("[aim] no target")
-        silent_target = nil
-        return
-    end
-    
-    silent_target = locked_target
-    
-    if state.silent_aim then
-        dbg("[aim] Silent Aim Active")
         return
     end
 
