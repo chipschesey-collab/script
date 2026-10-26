@@ -24,6 +24,7 @@ local COL_BAD = Color3.fromRGB(255, 120, 130)
 local COL_DANGER = Color3.fromRGB(220, 70, 90)
 local COL_DANGER_HOVER = Color3.fromRGB(255, 90, 110)
 local config_file = "BSSToolkit_Config.json"
+local downloads_config = "Downloads/BSSToolkit_Config.json"
 
 -- ==========================================
 -- LOADING SCREEN
@@ -194,10 +195,20 @@ local function import_config(code)
     return true
 end
 
-if isfile and isfile(config_file) then
-    local ok, savedData = pcall(function() return readfile(config_file) end)
-    if ok and savedData then
-        import_config(savedData)
+-- Try to load from Downloads first, then fallback to standard workspace
+if isfile then
+    local file_to_load = nil
+    if isfile(downloads_config) then
+        file_to_load = downloads_config
+    elseif isfile(config_file) then
+        file_to_load = config_file
+    end
+    
+    if file_to_load then
+        local ok, savedData = pcall(function() return readfile(file_to_load) end)
+        if ok and savedData then
+            import_config(savedData)
+        end
     end
 end
 
@@ -1949,41 +1960,60 @@ toggle(uScroll, "Anti-Fling", false, function(on)
         if anti_fling_conn then anti_fling_conn:Disconnect(); anti_fling_conn = nil end
     end
 end, 45)
+
 section(uScroll, "Config", 50)
-local configOut = make("TextBox", {Size = UDim2.new(1, 0, 0, 60), BackgroundColor3 = COL_PANEL, BorderSizePixel = 0, TextColor3 = COL_TEXT, PlaceholderText = "config code appears here...", PlaceholderColor3 = COL_TEXT_DIM, Text = "", TextWrapped = true, TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top, Font = Enum.Font.Code, TextSize = 10, ClearTextOnFocus = false, LayoutOrder = 51}, uScroll)
-corner(configOut, 6)
-button(uScroll, "Export to Clipboard", COL_ACCENT, function()
-    local code = export_config()
-    configOut.Text = code
-    if setclipboard then setclipboard(code) end
-end, 52)
-local configIn = textbox(uScroll, "paste config code here...", 53, "")
-button(uScroll, "Import from Clipboard", COL_PANEL_ALT, function()
-    local ok = import_config(configIn.Text)
-    if ok then configOut.Text = "imported. re-execute to apply." else configOut.Text = "import failed" end
-end, 54)
-button(uScroll, "Save Config to File", COL_ACCENT, function()
+local configStatus = make("TextLabel", {Size = UDim2.new(1, 0, 0, 20), BackgroundTransparency = 1, Text = "", TextColor3 = COL_OK, TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.Gotham, TextSize = 12, LayoutOrder = 51}, uScroll)
+local function set_config_status(msg, is_success)
+    configStatus.Text = msg
+    configStatus.TextColor3 = is_success and COL_OK or COL_BAD
+    task.delay(3, function() if configStatus.Text == msg then configStatus.Text = "" end end)
+end
+
+button(uScroll, "Save Config", COL_ACCENT, function()
     local code = export_config()
     if writefile then
-        pcall(function() writefile(config_file, code) end)
-        configOut.Text = "Saved to file!"
-    else
-        configOut.Text = "Executor doesn't support file saving."
-    end
-end, 55)
-button(uScroll, "Load Config from File", COL_PANEL_ALT, function()
-    if isfile and readfile then
-        if isfile(config_file) then
-            local code = readfile(config_file)
-            local ok = import_config(code)
-            if ok then configOut.Text = "Loaded from file! Re-execute to apply." else configOut.Text = "File is corrupt." end
+        local success = pcall(function()
+            writefile("Downloads/BSSToolkit_Config.json", code)
+        end)
+        if success then
+            set_config_status("Saved to Downloads/BSSToolkit_Config.json", true)
         else
-            configOut.Text = "No saved config found."
+            local fallback_success = pcall(function() writefile("BSSToolkit_Config.json", code) end)
+            if fallback_success then
+                set_config_status("Saved to executor workspace (Downloads failed)", true)
+            else
+                set_config_status("Failed to save config", false)
+            end
         end
     else
-        configOut.Text = "Executor doesn't support file loading."
+        set_config_status("Executor doesn't support file saving", false)
     end
-end, 56)
+end, 52)
+
+button(uScroll, "Load Config", COL_PANEL_ALT, function()
+    if isfile and readfile then
+        local code
+        if isfile("Downloads/BSSToolkit_Config.json") then
+            code = readfile("Downloads/BSSToolkit_Config.json")
+        elseif isfile("BSSToolkit_Config.json") then
+            code = readfile("BSSToolkit_Config.json")
+        end
+
+        if code then
+            local ok = import_config(code)
+            if ok then
+                set_config_status("Config loaded! Re-execute script to apply.", true)
+            else
+                set_config_status("Config file is corrupt", false)
+            end
+        else
+            set_config_status("No saved config found", false)
+        end
+    else
+        set_config_status("Executor doesn't support file loading", false)
+    end
+end, 53)
+
 section(uScroll, "Character", 60)
 button(uScroll, "Reset character", COL_PANEL_ALT, function()
     local char = player.Character
