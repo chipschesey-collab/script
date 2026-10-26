@@ -471,10 +471,11 @@ local function char_bounds(char)
     if not hrp then return nil end
     local pos, dist = world_to_screen(hrp.Position)
     if not pos then return nil end
-    local scale = 1200 / math.max(dist, 1)
-    local h = math.clamp(scale, 10, 400)
-    local w = h * 0.5
-    return Vector2.new(pos.X, pos.Y), w, h, dist
+    local scale = 1400 / math.max(dist, 1)
+    local h = math.clamp(scale, 12, 450)
+    local w = h * 0.6
+    local cy = pos.Y + (h * 0.2) -- pushes the box down slightly onto the torso
+    return Vector2.new(pos.X, cy), w, h, dist
 end
 local SKEL_R6 = {
     {"Head", "Torso"}, {"Torso", "Left Arm"}, {"Torso", "Right Arm"}, {"Torso", "Left Leg"}, {"Torso", "Right Leg"},
