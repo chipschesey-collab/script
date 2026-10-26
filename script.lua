@@ -7,7 +7,6 @@ local HttpService = game:GetService("HttpService")
 local Lighting = game:GetService("Lighting")
 local TweenService = game:GetService("TweenService")
 local VirtualUser = game:GetService("VirtualUser")
-local VirtualInputManager = game:GetService("VirtualInputManager")
 local player = Players.LocalPlayer
 local camera = Workspace.CurrentCamera
 local orig_fov = camera.FieldOfView
@@ -51,7 +50,7 @@ local state = {
     object_name = "", object_esp_enabled = false, object_aimbot_enabled = false, object_box = true, object_name_lbl = true, object_range = 500, fly_enabled = false, fly_speed = 60, fly_mode = "Velocity",
     vehiclefly_enabled = false, vehicle_noclip = false, jb_fly_enabled = false, spinbot = false, spinbot_speed = 50, mask_enabled = false, mask_display = "", noclip = false, cf_speed = false, cf_speed_val = 50,
     anti_afk = false, fullbright = false, click_tp = false, anti_fling = false, float = false, swim = false, under_map = false, auto_farm = false, safe_fly = false, mm2_auto_shoot = false, mm2_auto_grab = false, grabbing_gun = false,
-    rapid_fire = false, rapid_fire_delay = 0.01,
+    rapid_fire = false, rapid_fire_delay = 0.1,
     xray_enabled = false, chams_enabled = false, rainbow_enabled = false, forcefield_enabled = false,
 }
 local keybinds = {
@@ -593,7 +592,6 @@ local function update_object_esp()
     local name = state.object_name
     local seen = {}
     local my_pos = get_root() and get_root().Position or Vector3.zero
-    -- Throttle this heavy loop so it doesn't freeze the game
     for _, obj in ipairs(Workspace:GetChildren()) do
         if obj.Name == name and obj:IsA("BasePart") then
             local dist = (obj.Position - my_pos).Magnitude
@@ -768,28 +766,34 @@ slider(aimLeft, "Prediction", 0, 0.3, 0.05, function(v) state.aimbot_prediction 
 toggle(aimLeft, "Team check", true, function(on) state.aimbot_teamcheck = on end, 7)
 toggle(aimLeft, "Triggerbot", false, function(on) state.triggerbot = on end, 8)
 section(aimLeft, "Exploits", 20)
-toggle(aimLeft, "Rapid Fire / Auto Shoot", false, function(on)
+
+-- THE NEW RAPID FIRE VIA REMOTE
+toggle(aimLeft, "Rapid Fire (Remote)", false, function(on)
     state.rapid_fire = on
     if on and not rapid_fire_task then
         rapid_fire_task = task.spawn(function()
+            local rs = game:GetService("ReplicatedStorage")
+            local remotes = rs:WaitForChild("Remotes", 5)
+            local replication = remotes and remotes:WaitForChild("Replication", 5)
+            local fighter = replication and replication:WaitForChild("Fighter", 5)
+            local shoot_remote = fighter and fighter:WaitForChild("UseItem", 5)
+            
             while state.rapid_fire do
                 task.wait(state.rapid_fire_delay)
                 local char = player.Character
                 local tool = char and char:FindFirstChildOfClass("Tool")
-                if tool then
-                    pcall(function() tool:Activate() end)
-                end
-                if UserInputService.MouseBehavior == Enum.MouseBehavior.LockCenter or UserInputService.MouseBehavior == Enum.MouseBehavior.Default then
-                    local vim = game:GetService("VirtualInputManager")
-                    vim:SendMouseButtonEvent(camera.ViewportSize.X/2, camera.ViewportSize.Y/2, 0, true, game, 0)
-                    vim:SendMouseButtonEvent(camera.ViewportSize.X/2, camera.ViewportSize.Y/2, 0, false, game, 0)
+                if tool and shoot_remote then
+                    pcall(function()
+                        shoot_remote:FireServer(tool)
+                    end)
                 end
             end
             rapid_fire_task = nil
         end)
     end
 end, 21)
-slider(aimLeft, "Rapid Fire Delay", 0.001, 0.1, 0.01, function(v) state.rapid_fire_delay = v end, 22)
+
+slider(aimLeft, "Rapid Fire Delay", 0.01, 0.5, 0.1, function(v) state.rapid_fire_delay = v end, 22)
 section(aimRight, "Keybinds", 1)
 local keybindButtons = {}
 local function bind_label(b)
@@ -970,9 +974,9 @@ local function triggerbot_step()
         end
         if target_p and target_p ~= player and player_in_game(target_p) then
             if not (state.aimbot_teamcheck and same_team(player, target_p)) then
-                local vim = game:GetService("VirtualInputManager")
-                vim:SendMouseButtonEvent(camera.ViewportSize.X/2, camera.ViewportSize.Y/2, 0, true, game, 0)
-                vim:SendMouseButtonEvent(camera.ViewportSize.X/2, camera.ViewportSize.Y/2, 0, false, game, 0)
+                local char = player.Character
+                local tool = char and char:FindFirstChildOfClass("Tool")
+                if tool then pcall(function() tool:Activate() end) end
             end
         end
     end
@@ -2038,9 +2042,8 @@ main_render_conn = RunService.Heartbeat:Connect(function(dt)
                     local hrp = murderer_char:FindFirstChild("HumanoidRootPart")
                     if hrp then
                         camera.CFrame = CFrame.lookAt(camera.CFrame.Position, hrp.Position)
-                        local vim = game:GetService("VirtualInputManager")
-                        vim:SendMouseButtonEvent(camera.ViewportSize.X/2, camera.ViewportSize.Y/2, 0, true, game, 0)
-                        vim:SendMouseButtonEvent(camera.ViewportSize.X/2, camera.ViewportSize.Y/2, 0, false, game, 0)
+                        local tool = char and char:FindFirstChildOfClass("Tool")
+                        if tool then pcall(function() tool:Activate() end) end
                     end
                 end
             end
