@@ -7,6 +7,7 @@ local HttpService = game:GetService("HttpService")
 local Lighting = game:GetService("Lighting")
 local TweenService = game:GetService("TweenService")
 local VirtualUser = game:GetService("VirtualUser")
+local VirtualInputManager = game:GetService("VirtualInputManager")
 local player = Players.LocalPlayer
 local camera = Workspace.CurrentCamera
 local orig_fov = camera.FieldOfView
@@ -113,6 +114,7 @@ local state = {
     anti_afk = false, fullbright = false, click_tp = false, anti_fling = false, float = false, swim = false, under_map = false, auto_farm = false, safe_fly = false, mm2_auto_shoot = false, mm2_auto_grab = false, grabbing_gun = false,
     rapid_fire = false, rapid_fire_delay = 0.1,
     xray_enabled = false, chams_enabled = false, rainbow_enabled = false, forcefield_enabled = false,
+    jb_auto_rob = false, jb_auto_arrest = false,
 }
 
 local locked_target = nil
@@ -916,7 +918,6 @@ local function keybind_button(parent, label, slot, order)
         b.Text = label .. ":  ..."
         local conn
         conn = UserInputService.InputBegan:Connect(function(io, gp)
-            -- Ignore ESC to cancel binding
             if io.KeyCode == Enum.KeyCode.Escape then
                 b.Text = label .. ":  " .. bind_label(slot)
                 conn:Disconnect()
@@ -1160,6 +1161,130 @@ update_loading("Building Exploits", 90)
 local exLeft, exRight = split_two(tabPages["Exploits"])
 section(exLeft, "Targeted Exploits", 1)
 local exTargetBox = textbox(exLeft, "target player name...", 2, "")
+
+-- Helper function for Velocity Flying
+local function fly_to_position(target_pos, speed)
+    local hrp = get_root()
+    if not hrp then return end
+    
+    local bv = Instance.new("BodyVelocity")
+    bv.Name = "BSS_AutoMove"
+    bv.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+    bv.Parent = hrp
+    
+    local timeout = tick() + 10
+    while (hrp.Position - target_pos).Magnitude > 8 and tick() < timeout do
+        if not hrp or not hrp.Parent then 
+            bv:Destroy() 
+            return 
+        end
+        local dir = (target_pos - hrp.Position).Unit
+        bv.Velocity = dir * speed
+        task.wait(0.05)
+    end
+    
+    if bv then bv.Velocity = Vector3.zero; task.wait(0.1); bv:Destroy() end
+end
+
+-- JAILBREAK AUTO ROB (HARDCODED COORDINATES)
+local DIAMOND_CFRAME = CFrame.new(111.998154, 17.5156422, 1294.89917, 0.173624337, -0, -0.984811902, 0, 1, -0, 0.984811902, 0, 0.173624337)
+local DROPOFF_CFRAME = CFrame.new(-300.185577, 20.6801224, 1594.45862, -0.29079634, 6.13783641e-06, -0.956784964, 0.00014125774, 1, -3.65175038e-05, 0.956784964, -0.000145772443, -0.29079634)
+
+toggle(exLeft, "Auto Rob Jewelry (Speed 300)", false, function(on)
+    state.jb_auto_rob = on
+    if on then
+        task.spawn(function()
+            while state.jb_auto_rob do
+                local hrp = get_root()
+                if not hrp then break end
+                
+                fly_to_position(DIAMOND_CFRAME.Position, 300)
+                
+                local vim = game:GetService("VirtualInputManager")
+                for i = 1, 20 do
+                    if not state.jb_auto_rob then break end
+                    vim:SendMouseButtonEvent(camera.ViewportSize.X/2, camera.ViewportSize.Y/2, 0, true, game, 0)
+                    vim:SendMouseButtonEvent(camera.ViewportSize.X/2, camera.ViewportSize.Y/2, 0, false, game, 0)
+                    task.wait(0.05)
+                end
+                
+                fly_to_position(DROPOFF_CFRAME.Position, 300)
+                task.wait(2)
+            end
+        end)
+    end
+end, 3)
+
+-- JAILBREAK AUTO ARREST
+toggle(exLeft, "Auto Arrest (Speed 300)", false, function(on)
+    state.jb_auto_arrest = on
+    if on then
+        task.spawn(function()
+            while state.jb_auto_arrest do
+                local hrp = get_root()
+                local char = player.Character
+                if not hrp or not char then break end
+                
+                local target = nil
+                for _, p in ipairs(Players:GetPlayers()) do
+                    if p ~= player and p.Character then
+                        local wanted = p:FindFirstChild("Wanted")
+                        if wanted and wanted.Value > 0 then
+                            target = p
+                            break
+                        end
+                    end
+                end
+                
+                if target and target.Character then
+                    local t_hrp = target.Character:FindFirstChild("HumanoidRootPart")
+                    if t_hrp then
+                        fly_to_position(t_hrp.Position, 300)
+                        
+                        local backpack = player:FindFirstChild("Backpack")
+                        local cuffs = backpack and (backpack:FindFirstChild("Handcuffs") or backpack:FindFirstChild("Arrest"))
+                        if cuffs then
+                            cuffs.Parent = char
+                            task.wait(0.1)
+                            local vim = game:GetService("VirtualInputManager")
+                            vim:SendMouseButtonEvent(camera.ViewportSize.X/2, camera.ViewportSize.Y/2, 0, true, game, 0)
+                            vim:SendMouseButtonEvent(camera.ViewportSize.X/2, camera.ViewportSize.Y/2, 0, false, game, 0)
+                        end
+                    end
+                end
+                task.wait(0.5)
+            end
+        end)
+    end
+end, 5)
+
+local loop_tp_target = nil
+toggle(exLeft, "Loop Teleport to Target", false, function(on)
+    if on then
+        local targetName = exTargetBox.Text
+        if targetName == "" then return end
+        local target = nil
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p.Name:lower():find(targetName:lower()) then target = p break end
+        end
+        if target then
+            loop_tp_target = target
+            if loop_tp_conn then loop_tp_conn:Disconnect() end
+            loop_tp_conn = RunService.Heartbeat:Connect(function()
+                local hrp = get_root()
+                local t_hrp = get_root(loop_tp_target)
+                if hrp and t_hrp then
+                    hrp.CFrame = t_hrp.CFrame * CFrame.new(0, 0, 2)
+                end
+            end)
+        end
+    else
+        if loop_tp_conn then loop_tp_conn:Disconnect(); loop_tp_conn = nil end
+        loop_tp_target = nil
+    end
+end, 4)
+
+-- THE REST OF THE EXPLOITS TAB
 button(exLeft, "Invalid Avatar Rig Break", COL_DANGER, function()
     local targetName = exTargetBox.Text
     if targetName == "" then return end
@@ -1191,30 +1316,8 @@ button(exLeft, "Invalid Avatar Rig Break", COL_DANGER, function()
             task.delay(1.5, function() if breaker then breaker:Destroy() end end)
         end
     end
-end, 3)
-local loop_tp_target = nil
-toggle(exLeft, "Loop Teleport to Target", false, function(on)
-    if on then
-        local targetName = exTargetBox.Text
-        if targetName == "" then return end
-        local target = nil
-        for _, p in ipairs(Players:GetPlayers()) do
-            if p.Name:lower():find(targetName:lower()) then target = p break end
-        end
-        if target then
-            loop_tp_target = target
-            if loop_tp_conn then loop_tp_conn:Disconnect() end
-            loop_tp_conn = RunService.Heartbeat:Connect(function()
-                local hrp = get_root()
-                local t_hrp = get_root(loop_tp_target)
-                if hrp and t_hrp then hrp.CFrame = t_hrp.CFrame * CFrame.new(0, 0, 2) end
-            end)
-        end
-    else
-        if loop_tp_conn then loop_tp_conn:Disconnect(); loop_tp_conn = nil end
-        loop_tp_target = nil
-    end
-end, 4)
+end, 6)
+
 section(exLeft, "Rage Visuals", 10)
 toggle(exLeft, "Wall Transparency (X-Ray)", false, function(on)
     state.xray_enabled = on
@@ -1240,6 +1343,7 @@ toggle(exLeft, "Wall Transparency (X-Ray)", false, function(on)
         xray_originals = {}
     end
 end, 11)
+
 local function apply_chams(p)
     if p == player then return end
     local char = p.Character
@@ -1256,6 +1360,7 @@ local function apply_chams(p)
     hl.Parent = char
     chams_highlights[p] = hl
 end
+
 toggle(exLeft, "Enemy Chams (Through Walls)", false, function(on)
     state.chams_enabled = on
     if on then
@@ -1265,6 +1370,7 @@ toggle(exLeft, "Enemy Chams (Through Walls)", false, function(on)
         chams_highlights = {}
     end
 end, 12)
+
 toggle(exLeft, "Rainbow Character", false, function(on)
     state.rainbow_enabled = on
     if on then
@@ -1300,6 +1406,7 @@ toggle(exLeft, "Rainbow Character", false, function(on)
         rainbow_originals = {}
     end
 end, 13)
+
 toggle(exLeft, "Forcefield Aura (Enemies)", false, function(on)
     state.forcefield_enabled = on
     if on then
@@ -1324,6 +1431,7 @@ toggle(exLeft, "Forcefield Aura (Enemies)", false, function(on)
         end
     end
 end, 14)
+
 section(exRight, "Server Exploits", 1)
 button(exRight, "Global Server Fling (Mass Parts)", COL_DANGER, function()
     local hrp = get_root()
@@ -1354,6 +1462,7 @@ button(exRight, "Global Server Fling (Mass Parts)", COL_DANGER, function()
         end
     end
 end, 2)
+
 button(exRight, "Spawn Lag Parts (Crash Server)", COL_DANGER, function()
     local char = player.Character
     local hrp = get_root()
@@ -1614,8 +1723,15 @@ toggle(uScroll, "Noclip", false, function(on)
         noclip_conn = RunService.Stepped:Connect(function()
             local char = player.Character
             if char then
+                -- Force Network Ownership
+                local hrp = char:FindFirstChild("HumanoidRootPart")
+                if hrp then pcall(function() hrp:SetNetworkOwner(player) end) end
+                
                 for _, part in ipairs(char:GetDescendants()) do
-                    if part:IsA("BasePart") and part.CanCollide then part.CanCollide = false end
+                    if part:IsA("BasePart") then
+                        part.CanCollide = false
+                        part.CanQuery = false
+                    end
                 end
             end
         end)
@@ -1737,19 +1853,34 @@ toggle(uScroll, "Vehicle Noclip", false, function(on)
     state.vehicle_noclip = on
     if on then
         if vehicle_noclip_conn then vehicle_noclip_conn:Disconnect() end
-        vehicle_noclip_conn = RunService.Stepped:Connect(function()
+        vehicle_noclip_conn = RunService.Heartbeat:Connect(function()
             local char = player.Character
             local hum = char and char:FindFirstChildOfClass("Humanoid")
             local seat = hum and hum.SeatPart
             if seat then
                 local vehicle = seat.Parent
-                for _, part in ipairs(vehicle:GetDescendants()) do
-                    if part:IsA("BasePart") and part.CanCollide then part.CanCollide = false end
+                if vehicle then
+                    local primary = vehicle.PrimaryPart or vehicle:FindFirstChildWhichIsA("BasePart")
+                    if primary then pcall(function() primary:SetNetworkOwner(player) end) end
+                    for _, part in ipairs(vehicle:GetDescendants()) do
+                        if part:IsA("BasePart") then
+                            part.CanCollide = false
+                            part.CanQuery = false
+                        end
+                    end
                 end
             end
         end)
     else
         if vehicle_noclip_conn then vehicle_noclip_conn:Disconnect(); vehicle_noclip_conn = nil end
+        local char = player.Character
+        local hum = char and char:FindFirstChildOfClass("Humanoid")
+        local seat = hum and hum.SeatPart
+        if seat and seat.Parent then
+            for _, part in ipairs(seat.Parent:GetDescendants()) do
+                if part:IsA("BasePart") then part.CanCollide = true; part.CanQuery = true end
+            end
+        end
     end
 end, 26)
 section(uScroll, "Farm & Bypass", 30)
@@ -1818,7 +1949,6 @@ toggle(uScroll, "Anti-Fling", false, function(on)
         if anti_fling_conn then anti_fling_conn:Disconnect(); anti_fling_conn = nil end
     end
 end, 45)
-
 section(uScroll, "Config", 50)
 local configOut = make("TextBox", {Size = UDim2.new(1, 0, 0, 60), BackgroundColor3 = COL_PANEL, BorderSizePixel = 0, TextColor3 = COL_TEXT, PlaceholderText = "config code appears here...", PlaceholderColor3 = COL_TEXT_DIM, Text = "", TextWrapped = true, TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top, Font = Enum.Font.Code, TextSize = 10, ClearTextOnFocus = false, LayoutOrder = 51}, uScroll)
 corner(configOut, 6)
@@ -1854,7 +1984,6 @@ button(uScroll, "Load Config from File", COL_PANEL_ALT, function()
         configOut.Text = "Executor doesn't support file loading."
     end
 end, 56)
-
 section(uScroll, "Character", 60)
 button(uScroll, "Reset character", COL_PANEL_ALT, function()
     local char = player.Character
@@ -1864,16 +1993,25 @@ end, 61)
 button(uScroll, "Rejoin server", COL_DANGER, function()
     game:GetService("TeleportService"):Teleport(game.PlaceId, player)
 end, 62)
+section(uScroll, "External Tools", 70)
+button(uScroll, "Launch Infinite Yield", COL_ACCENT, function()
+    pcall(function()
+        loadstring(game:HttpGet('https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source'))()
+    end)
+end, 71)
+button(uScroll, "Launch Dex", COL_ACCENT, function()
+    pcall(function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/Balakeuse/Dex/main/Dex.lua"))()
+    end)
+end, 72)
 
 -- ==========================================
 -- FINAL INITIALIZATION
 -- ==========================================
 update_loading("Starting services", 98)
 
--- SAFE INPUT HOOKS
 track(UserInputService.InputBegan:Connect(function(io, gp)
     if gp then return end
-    -- Ensure keybinds don't fire if you are typing in a textbox
     if UserInputService:GetFocusedTextBox() then return end
     
     if state.click_tp and io.KeyCode == Enum.KeyCode.LeftAlt and io.UserInputType == Enum.UserInputType.Keyboard then
