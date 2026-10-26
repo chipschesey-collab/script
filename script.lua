@@ -437,7 +437,7 @@ make("UICorner", {CornerRadius = UDim.new(1, 0)}, fovCircle)
 make("UIStroke", {Color = COL_ACCENT, Thickness = 1.5, Transparency = 0.35}, fovCircle)
 local function update_fov_circle()
     local d = state.aimbot_fov * 2
-    tween(fovCircle, {Size = UDim2.new(0, d, 0, d)}, 0.2)
+    fovCircle.Size = UDim2.new(0, d, 0, d) -- REMOVED TWEEN HERE (was leaking memory)
     fovCircle.Visible = state.aimbot_enabled or state.object_aimbot_enabled
 end
 update_fov_circle()
@@ -470,7 +470,6 @@ local function char_bounds(char)
     
     local dist = (cam.CFrame.Position - hrp.Position).Magnitude
     
-    -- Stable distance scaling
     local h = 1200 / math.max(dist, 1)
     local w = h * 0.6
     
@@ -594,7 +593,8 @@ local function update_object_esp()
     local name = state.object_name
     local seen = {}
     local my_pos = get_root() and get_root().Position or Vector3.zero
-    for _, obj in ipairs(Workspace:GetDescendants()) do
+    -- Throttle this heavy loop so it doesn't freeze the game
+    for _, obj in ipairs(Workspace:GetChildren()) do
         if obj.Name == name and obj:IsA("BasePart") then
             local dist = (obj.Position - my_pos).Magnitude
             if dist <= state.object_range then
@@ -1991,81 +1991,87 @@ track(UserInputService.WindowFocusReleased:Connect(function()
     key_state.fly = false
 end))
 main_render_conn = RunService.RenderStepped:Connect(function(dt)
-    camera = Workspace.CurrentCamera
-    if not gui.Parent then return end
-    if state.chams_enabled then
-        for _, p in ipairs(Players:GetPlayers()) do
-            if p ~= player then apply_chams(p) end
-        end
-    end
-    if state.forcefield_enabled then
-        for _, p in ipairs(Players:GetPlayers()) do
-            if p ~= player and p.Character then
-                local hrp = p.Character:FindFirstChild("HumanoidRootPart")
-                if hrp and not hrp:FindFirstChild("BSS_FF") then
-                    local ff = Instance.new("ForceField")
-                    ff.Name = "BSS_FF"
-                    ff.Visible = true
-                    ff.Parent = hrp
-                end
-            end
-        end
-    end
-    update_esp()
-    update_object_esp()
-    update_fov_circle()
-    triggerbot_step()
-    if state.hitbox_enabled then
-        for _, p in ipairs(Players:GetPlayers()) do if p ~= player then apply_hitbox_to(p) end end
-    end
-    if state.mm2_auto_shoot and is_mm2 then
-        local char = player.Character
-        local backpack = player:FindFirstChild("Backpack")
-        local hasGun = false
-        if backpack then for _, tool in ipairs(backpack:GetChildren()) do if tool.Name == "Gun" then hasGun = true end end end
-        if hasGun then
-            local murderer_char = nil
+    pcall(function()
+        camera = Workspace.CurrentCamera
+        if not gui.Parent then return end
+        
+        if state.chams_enabled then
             for _, p in ipairs(Players:GetPlayers()) do
-                local b = p:FindFirstChild("Backpack")
-                if b then for _, t in ipairs(b:GetChildren()) do if t.Name == "Knife" then murderer_char = p.Character end end end
-            end
-            if murderer_char then
-                local hrp = murderer_char:FindFirstChild("HumanoidRootPart")
-                if hrp then
-                    camera.CFrame = CFrame.lookAt(camera.CFrame.Position, hrp.Position)
-                    local vim = game:GetService("VirtualInputManager")
-                    vim:SendMouseButtonEvent(camera.ViewportSize.X/2, camera.ViewportSize.Y/2, 0, true, game, 0)
-                    vim:SendMouseButtonEvent(camera.ViewportSize.X/2, camera.ViewportSize.Y/2, 0, false, game, 0)
-                end
+                if p ~= player then apply_chams(p) end
             end
         end
-    end
-    if state.mm2_auto_grab and is_mm2 and not state.grabbing_gun then
-        local backpack = player:FindFirstChild("Backpack")
-        local gunInBackpack = backpack and backpack:FindFirstChild("Gun")
-        if gunInBackpack then
-            local char = player.Character
-            local hum = char and char:FindFirstChildOfClass("Humanoid")
-            if hum and not char:FindFirstChild("Gun") then hum:EquipTool(gunInBackpack) end
-        else
-            local droppedGun = Workspace:FindFirstChild("Gun")
-            if droppedGun then
-                local char = player.Character
-                local hrp = char and char:FindFirstChild("HumanoidRootPart")
-                if hrp then
-                    state.grabbing_gun = true
-                    local original_cf = hrp.CFrame
-                    local target_part = droppedGun:IsA("BasePart") and droppedGun or droppedGun:FindFirstChildWhichIsA("BasePart")
-                    if target_part then
-                        hrp.CFrame = target_part.CFrame
-                        task.wait(0.2)
-                        local newGun = backpack and backpack:FindFirstChild("Gun")
-                        if newGun then local hum = char:FindFirstChildOfClass("Humanoid"); if hum then hum:EquipTool(newGun) end end
-                        hrp.CFrame = original_cf
+        if state.forcefield_enabled then
+            for _, p in ipairs(Players:GetPlayers()) do
+                if p ~= player and p.Character then
+                    local hrp = p.Character:FindFirstChild("HumanoidRootPart")
+                    if hrp and not hrp:FindFirstChild("BSS_FF") then
+                        local ff = Instance.new("ForceField")
+                        ff.Name = "BSS_FF"
+                        ff.Visible = true
+                        ff.Parent = hrp
                     end
-                    state.grabbing_gun = false
                 end
             end
         end
-    end
+        
+        update_esp()
+        update_object_esp()
+        triggerbot_step()
+        
+        if state.hitbox_enabled then
+            for _, p in ipairs(Players:GetPlayers()) do if p ~= player then apply_hitbox_to(p) end end
+        end
+        
+        -- MM2 specific loop
+        if state.mm2_auto_shoot and is_mm2 then
+            local char = player.Character
+            local backpack = player:FindFirstChild("Backpack")
+            local hasGun = false
+            if backpack then for _, tool in ipairs(backpack:GetChildren()) do if tool.Name == "Gun" then hasGun = true end end end
+            if hasGun then
+                local murderer_char = nil
+                for _, p in ipairs(Players:GetPlayers()) do
+                    local b = p:FindFirstChild("Backpack")
+                    if b then for _, t in ipairs(b:GetChildren()) do if t.Name == "Knife" then murderer_char = p.Character end end end
+                end
+                if murderer_char then
+                    local hrp = murderer_char:FindFirstChild("HumanoidRootPart")
+                    if hrp then
+                        camera.CFrame = CFrame.lookAt(camera.CFrame.Position, hrp.Position)
+                        local vim = game:GetService("VirtualInputManager")
+                        vim:SendMouseButtonEvent(camera.ViewportSize.X/2, camera.ViewportSize.Y/2, 0, true, game, 0)
+                        vim:SendMouseButtonEvent(camera.ViewportSize.X/2, camera.ViewportSize.Y/2, 0, false, game, 0)
+                    end
+                end
+            end
+        end
+        if state.mm2_auto_grab and is_mm2 and not state.grabbing_gun then
+            local backpack = player:FindFirstChild("Backpack")
+            local gunInBackpack = backpack and backpack:FindFirstChild("Gun")
+            if gunInBackpack then
+                local char = player.Character
+                local hum = char and char:FindFirstChildOfClass("Humanoid")
+                if hum and not char:FindFirstChild("Gun") then hum:EquipTool(gunInBackpack) end
+            else
+                local droppedGun = Workspace:FindFirstChild("Gun")
+                if droppedGun then
+                    local char = player.Character
+                    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+                    if hrp then
+                        state.grabbing_gun = true
+                        local original_cf = hrp.CFrame
+                        local target_part = droppedGun:IsA("BasePart") and droppedGun or droppedGun:FindFirstChildWhichIsA("BasePart")
+                        if target_part then
+                            hrp.CFrame = target_part.CFrame
+                            task.wait(0.2)
+                            local newGun = backpack and backpack:FindFirstChild("Gun")
+                            if newGun then local hum = char:FindFirstChildOfClass("Humanoid"); if hum then hum:EquipTool(newGun) end end
+                            hrp.CFrame = original_cf
+                        end
+                        state.grabbing_gun = false
+                    end
+                end
+            end
+        end
+    end)
 end)
