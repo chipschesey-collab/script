@@ -159,6 +159,7 @@ local orig_lighting = {
     Brightness = Lighting.Brightness, ClockTime = Lighting.ClockTime, GlobalShadows = Lighting.GlobalShadows, FogEnd = Lighting.FogEnd,
 }
 local is_mm2 = game.PlaceId == 142823291
+local wallbang_conn = nil
 
 local function import_config(code)
     local ok, data = pcall(function() return HttpService:JSONDecode(code) end)
@@ -302,6 +303,7 @@ local function full_cleanup()
     if rapid_fire_task then pcall(function() task.cancel(rapid_fire_task) end); rapid_fire_task = nil end
     if loop_tp_conn then loop_tp_conn:Disconnect(); loop_tp_conn = nil end
     if rainbow_task then pcall(function() task.cancel(rainbow_task) end); rainbow_task = nil end
+    if wallbang_conn then wallbang_conn:Disconnect(); wallbang_conn = nil end
     for obj, orig in pairs(xray_originals) do if obj and obj.Parent then obj.Transparency = orig end end
     xray_originals = {}
     for p, hl in pairs(chams_highlights) do if hl and hl.Parent then pcall(function() hl:Destroy() end) end end
@@ -366,29 +368,29 @@ local function export_config()
 end
 
 -- ==========================================
--- WALLBANG HOOK
+-- WALLBANG AUTO-CLIP
 -- ==========================================
-local hooked_raycast = false
-local function hook_wallbang()
-    if hooked_raycast or not hookfunction then return end
-    hooked_raycast = true
-    local old_raycast = Workspace.Raycast
-    hookfunction(old_raycast, newcclosure(function(self, origin, direction, params)
-        if state.wallbang then
-            local targets = {}
-            for _, p in ipairs(Players:GetPlayers()) do
-                if p.Character then
-                    table.insert(targets, p.Character)
+local function update_wallbang()
+    if wallbang_conn then wallbang_conn:Disconnect(); wallbang_conn = nil end
+    if state.wallbang then
+        wallbang_conn = UserInputService.InputBegan:Connect(function(io, gp)
+            if io.UserInputType == Enum.UserInputType.MouseButton1 and not gp then
+                local char = player.Character
+                local hrp = char and char:FindFirstChild("HumanoidRootPart")
+                if hrp then
+                    local old_cf = hrp.CFrame
+                    -- Teleport 5 studs forward into the wall
+                    hrp.CFrame = hrp.CFrame * CFrame.new(0, 0, -5)
+                    -- Snap back after 0.1 seconds to let the shot register
+                    task.delay(0.1, function()
+                        if hrp and hrp.Parent then
+                            hrp.CFrame = old_cf
+                        end
+                    end)
                 end
             end
-            local new_params = RaycastParams.new()
-            new_params.FilterType = Enum.RaycastFilterType.Include
-            new_params.FilterDescendantsInstances = targets
-            new_params.IgnoreWater = true
-            return old_raycast(self, origin, direction, new_params)
-        end
-        return old_raycast(self, origin, direction, params)
-    end))
+        end)
+    end
 end
 
 -- ==========================================
@@ -932,9 +934,9 @@ toggle(aimLeft, "Triggerbot", false, function(on) state.triggerbot = on end, 8, 
 toggle(aimLeft, "Instant Snap (Lock-on)", false, function(on) state.aimbot_snap = on end, 9, "aimbot_snap")
 
 -- NEW WALLBANG TOGGLE
-toggle(aimLeft, "Wallbang (Shoot Through Walls)", false, function(on) 
+toggle(aimLeft, "Wallbang (Auto-Clip)", false, function(on) 
     state.wallbang = on 
-    if on then hook_wallbang() end
+    update_wallbang()
 end, 10, "wallbang")
 
 section(aimLeft, "Target part", 11)
