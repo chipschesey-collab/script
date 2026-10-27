@@ -119,6 +119,8 @@ local state = {
     jb_auto_rob = false, jb_auto_arrest = false, inf_jump = false, config_filename = "BSSToolkit_Config.json",
     melee_aura = false, melee_aura_range = 15, orbit_aura = false, orbit_radius = 6, orbit_height = 6, orbit_speed = 10,
     third_person = false,
+    -- BSS Farm States
+    auto_collect = false, auto_convert = false, auto_sprinkler = false, auto_loot = false, auto_quest = false, auto_dispenser = false, mob_farm_enabled = false, farm_field = "Dandelion Field", mob_target = "Ladybug"
 }
 
 local ui_refs = { toggles = {}, sliders = {}, textboxes = {} }
@@ -589,7 +591,7 @@ end))
 -- ==========================================
 update_loading("Building tabs", 35)
 
-local tabs = {"Rage", "ESP", "Teleport", "Aimbot", "Fling", "Hitbox", "Exploits", "Fun", "Utility"}
+local tabs = {"Rage", "ESP", "Teleport", "Aimbot", "Fling", "Hitbox", "Exploits", "BSS Farm", "Fun", "Utility"}
 if is_mm2 then table.insert(tabs, "MM2") end
 local tabBar = make("Frame", {Size = UDim2.new(1, -20, 0, 34), Position = UDim2.new(0, 10, 0, 38), BackgroundColor3 = COL_BG, BorderSizePixel = 0}, main)
 make("UIListLayout", {FillDirection = Enum.FillDirection.Horizontal, SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 4)}, tabBar)
@@ -735,6 +737,47 @@ local function split_two(parent)
     local rs = scroll_col(right)
     return ls, rs
 end
+
+-- ==========================================
+-- TAB BUILDER: BSS FARM
+-- ==========================================
+update_loading("Building BSS Farm UI", 40)
+
+local farmLeft, farmRight = split_two(tabPages["BSS Farm"])
+section(farmLeft, "Field & Collect", 1)
+local fieldBox = textbox(farmLeft, "Field Name (e.g. Dandelion Field)", 2, "Dandelion Field", "farm_field")
+fieldBox:GetPropertyChangedSignal("Text"):Connect(function() state.farm_field = fieldBox.Text end)
+toggle(farmLeft, "Auto Collect Pollen", false, function(on) state.auto_collect = on end, 3, "auto_collect")
+toggle(farmLeft, "Auto Convert", false, function(on) state.auto_convert = on end, 4, "auto_convert")
+toggle(farmLeft, "Auto Sprinklers", false, function(on) state.auto_sprinkler = on end, 5, "auto_sprinkler")
+
+section(farmRight, "Mobs & Utility", 1)
+local mobBox = textbox(farmRight, "Mob Name (e.g. Ladybug)", 2, "Ladybug", "mob_target")
+mobBox:GetPropertyChangedSignal("Text"):Connect(function() state.mob_target = mobBox.Text end)
+toggle(farmRight, "Mob Farm", false, function(on) state.mob_farm_enabled = on end, 3, "mob_farm_enabled")
+toggle(farmRight, "Auto Loot Tokens", false, function(on) state.auto_loot = on end, 4, "auto_loot")
+toggle(farmRight, "Auto Dispenser Claim", false, function(on) state.auto_dispenser = on end, 5, "auto_dispenser")
+toggle(farmRight, "Auto Quest", false, function(on) state.auto_quest = on end, 6, "auto_quest")
+
+button(farmRight, "Teleport to Field", COL_ACCENT, function()
+    local field = Workspace:FindFirstChild(state.farm_field) or Workspace.FlowerFields:FindFirstChild(state.farm_field)
+    local hrp = get_root()
+    if field and hrp then
+        if field:IsA("BasePart") then
+            hrp.CFrame = field.CFrame + Vector3.new(0, 5, 0)
+        else
+            local parts = {}
+            for _, v in ipairs(field:GetDescendants()) do
+                if v:IsA("BasePart") then table.insert(parts, v) end
+            end
+            if #parts > 0 then
+                local sum = Vector3.zero
+                for _, p in ipairs(parts) do sum = sum + p.Position end
+                hrp.CFrame = CFrame.new(sum / #parts + Vector3.new(0, 5, 0))
+            end
+        end
+    end
+end, 7)
 
 -- ==========================================
 -- TAB BUILDER: RAGE
@@ -1008,10 +1051,8 @@ local function update_object_esp()
     local name = state.object_name
     local seen = {}
     local my_pos = get_root() and get_root().Position or Vector3.zero
-    -- FIXED: Changed from Workspace:GetChildren() to Workspace:GetDescendants()
     for _, obj in ipairs(Workspace:GetDescendants()) do
         if obj.Name == name and obj:IsA("BasePart") then
-            -- Ensure we don't ESP player character parts
             local is_char_part = false
             for _, p in ipairs(Players:GetPlayers()) do
                 if p.Character and obj:IsDescendantOf(p.Character) then
@@ -2487,6 +2528,103 @@ main_render_conn = RunService.Heartbeat:Connect(function(dt)
             hitMarker.Visible = false
         end
     end)
+end)
+
+-- BSS FARM LOOP
+task.spawn(function()
+    while task.wait(0.2) do
+        if not gui.Parent then break end
+        local char = player.Character
+        local hrp = get_root()
+        if char and hrp then
+            if state.auto_loot then
+                for _, v in ipairs(Workspace:GetDescendants()) do
+                    if v.Name == "Token" and v:IsA("BasePart") then
+                        if (v.Position - hrp.Position).Magnitude < 50 then
+                            pcall(function() firetouchinterest(hrp, v, 0); firetouchinterest(hrp, v, 1) end)
+                        end
+                    end
+                end
+            end
+            if state.auto_collect then
+                local field = Workspace:FindFirstChild(state.farm_field) or Workspace.FlowerFields:FindFirstChild(state.farm_field)
+                if field then
+                    local flowers = {}
+                    for _, v in ipairs(field:GetDescendants()) do
+                        if v.Name == "Flower" and v:IsA("BasePart") then table.insert(flowers, v) end
+                    end
+                    if #flowers > 0 then
+                        local flower = flowers[math.random(#flowers)]
+                        hrp.CFrame = flower.CFrame + Vector3.new(0, 2, 0)
+                        local tool = char:FindFirstChildOfClass("Tool")
+                        if tool then pcall(function() tool:Activate() end) end
+                    end
+                end
+            end
+            if state.auto_convert then
+                local hive = Workspace.Hives:FindFirstChild(player.Name) or Workspace:FindFirstChild(player.Name.."'s Hive")
+                if hive then
+                    local pad = hive:FindFirstChild("Convert") or hive:FindFirstChildWhichIsA("BasePart")
+                    if pad then
+                        hrp.CFrame = pad.CFrame + Vector3.new(0, 3, 0)
+                        local vim = game:GetService("VirtualInputManager")
+                        vim:SendKeyEvent(true, Enum.KeyCode.E, false, game)
+                        task.wait(0.1)
+                        vim:SendKeyEvent(false, Enum.KeyCode.E, false, game)
+                    end
+                end
+            end
+            if state.auto_sprinkler then
+                local backpack = player:FindFirstChild("Backpack")
+                local sprinkler = backpack and (backpack:FindFirstChild("Sprinkler") or backpack:FindFirstChild("Super Sprinkler"))
+                if sprinkler then
+                    sprinkler.Parent = char
+                    task.wait(0.1)
+                    local vim = game:GetService("VirtualInputManager")
+                    vim:SendKeyEvent(true, Enum.KeyCode.One, false, game)
+                    task.wait(0.1)
+                    vim:SendKeyEvent(false, Enum.KeyCode.One, false, game)
+                end
+            end
+            if state.mob_farm_enabled then
+                local mobs = Workspace:FindFirstChild("Mobs") or Workspace:FindFirstChild("Entities") or Workspace
+                for _, v in ipairs(mobs:GetDescendants()) do
+                    if v.Name == state.mob_target and v:FindFirstChild("Humanoid") then
+                        local t_hrp = v:FindFirstChild("HumanoidRootPart")
+                        if t_hrp then
+                            hrp.CFrame = t_hrp.CFrame + Vector3.new(0, 2, 2)
+                            local tool = char:FindFirstChildOfClass("Tool")
+                            if tool then pcall(function() tool:Activate() end) end
+                            break
+                        end
+                    end
+                end
+            end
+            if state.auto_dispenser then
+                for _, v in ipairs(Workspace:GetDescendants()) do
+                    if v.Name == "Dispenser" and v:IsA("BasePart") then
+                        if (v.Position - hrp.Position).Magnitude < 20 then
+                            pcall(function() firetouchinterest(hrp, v, 0); firetouchinterest(hrp, v, 1) end)
+                        end
+                    end
+                end
+            end
+            if state.auto_quest then
+                local bears = Workspace:FindFirstChild("Bears")
+                if bears then
+                    for _, v in ipairs(bears:GetChildren()) do
+                        local part = v:FindFirstChildWhichIsA("BasePart")
+                        if part and (part.Position - hrp.Position).Magnitude < 50 then
+                            local vim = game:GetService("VirtualInputManager")
+                            vim:SendKeyEvent(true, Enum.KeyCode.E, false, game)
+                            task.wait(0.1)
+                            vim:SendKeyEvent(false, Enum.KeyCode.E, false, game)
+                        end
+                    end
+                end
+            end
+        end
+    end
 end)
 
 -- AIMBOT BIND
