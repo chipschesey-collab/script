@@ -7,7 +7,6 @@ local HttpService = game:GetService("HttpService")
 local Lighting = game:GetService("Lighting")
 local TweenService = game:GetService("TweenService")
 local VirtualUser = game:GetService("VirtualUser")
-local VirtualInputManager = game:GetService("VirtualInputManager")
 local player = Players.LocalPlayer
 local camera = Workspace.CurrentCamera
 local orig_fov = camera.FieldOfView
@@ -389,9 +388,7 @@ local function update_wallbang()
                 local hrp = char and char:FindFirstChild("HumanoidRootPart")
                 if hrp then
                     local old_cf = hrp.CFrame
-                    -- Teleport 5 studs forward into the wall
                     hrp.CFrame = hrp.CFrame * CFrame.new(0, 0, -5)
-                    -- Snap back after 0.1 seconds to let the shot register
                     task.delay(0.1, function()
                         if hrp and hrp.Parent then
                             hrp.CFrame = old_cf
@@ -404,8 +401,55 @@ local function update_wallbang()
 end
 
 -- ==========================================
--- MELEE & ORBIT AURAS
+-- MELEE & ORBIT AURAS (Fixed to use tool:Activate)
 -- ==========================================
+local function get_closest_player(max_dist)
+    local my_hrp = get_root()
+    if not my_hrp then return nil end
+    local closest = nil
+    local min_dist = max_dist or math.huge
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= player and player_in_game(p) then
+            local t_hrp = get_root(p)
+            if t_hrp then
+                local dist = (t_hrp.Position - my_hrp.Position).Magnitude
+                if dist < min_dist then
+                    min_dist = dist
+                    closest = t_hrp
+                end
+            end
+        end
+    end
+    return closest
+end
+
+local function auto_swing(char)
+    local tool = char:FindFirstChildOfClass("Tool")
+    if not tool and char:FindFirstChild("Backpack") then
+        -- If unarmed, try to equip the first tool in backpack
+        local backpack = player:FindFirstChild("Backpack")
+        if backpack then
+            for _, item in ipairs(backpack:GetChildren()) do
+                if item:IsA("Tool") then
+                    item.Parent = char
+                    task.wait(0.1)
+                    tool = item
+                    break
+                end
+            end
+        end
+    end
+    
+    if tool then
+        tool:Activate()
+    else
+        -- If no tool exists, just click for fists
+        local vim = game:GetService("VirtualInputManager")
+        vim:SendMouseButtonEvent(camera.ViewportSize.X/2, camera.ViewportSize.Y/2, 0, true, game, 0)
+        vim:SendMouseButtonEvent(camera.ViewportSize.X/2, camera.ViewportSize.Y/2, 0, false, game, 0)
+    end
+end
+
 local function update_melee_aura()
     if melee_aura_conn then melee_aura_conn:Disconnect(); melee_aura_conn = nil end
     if state.melee_aura then
@@ -418,10 +462,7 @@ local function update_melee_aura()
                 if p ~= player and player_in_game(p) then
                     local t_hrp = get_root(p)
                     if t_hrp and (t_hrp.Position - hrp.Position).Magnitude <= state.melee_aura_range then
-                        local vim = game:GetService("VirtualInputManager")
-                        -- Spam click
-                        vim:SendMouseButtonEvent(camera.ViewportSize.X/2, camera.ViewportSize.Y/2, 0, true, game, 0)
-                        vim:SendMouseButtonEvent(camera.ViewportSize.X/2, camera.ViewportSize.Y/2, 0, false, game, 0)
+                        auto_swing(char)
                         task.wait(0.05)
                     end
                 end
@@ -434,25 +475,20 @@ local function update_orbit_aura()
     if orbit_aura_conn then orbit_aura_conn:Disconnect(); orbit_aura_conn = nil end
     if state.orbit_aura then
         orbit_aura_conn = RunService.RenderStepped:Connect(function(dt)
+            local char = player.Character
             local hrp = get_root()
-            if not hrp then return end
+            if not hrp or not char then return end
             
-            local target_part = nearest_target()
-            if target_part and target_part.Parent then
-                local t_hrp = target_part.Parent:FindFirstChild("HumanoidRootPart")
-                if t_hrp then
-                    local t = tick()
-                    local angle = t * 50 -- very fast
-                    local y_offset = math.sin(t * 15) * state.orbit_height
-                    local x_offset = math.cos(angle) * state.orbit_radius
-                    local z_offset = math.sin(angle) * state.orbit_radius
-                    
-                    hrp.CFrame = t_hrp.CFrame * CFrame.new(x_offset, y_offset, z_offset)
-                    
-                    local vim = game:GetService("VirtualInputManager")
-                    vim:SendMouseButtonEvent(camera.ViewportSize.X/2, camera.ViewportSize.Y/2, 0, true, game, 0)
-                    vim:SendMouseButtonEvent(camera.ViewportSize.X/2, camera.ViewportSize.Y/2, 0, false, game, 0)
-                end
+            local t_hrp = get_closest_player(1000)
+            if t_hrp then
+                local t = tick()
+                local angle = t * 50 
+                local y_offset = math.sin(t * 15) * state.orbit_height
+                local x_offset = math.cos(angle) * state.orbit_radius
+                local z_offset = math.sin(angle) * state.orbit_radius
+                
+                hrp.CFrame = t_hrp.CFrame * CFrame.new(x_offset, y_offset, z_offset)
+                auto_swing(char)
             end
         end)
     end
@@ -465,14 +501,11 @@ local function update_shadow_step()
             local hrp = get_root()
             if not hrp then return end
             
-            local target_part = nearest_target()
-            if target_part and target_part.Parent then
-                local t_hrp = target_part.Parent:FindFirstChild("HumanoidRootPart")
-                if t_hrp then
-                    -- Lock 3 studs behind them
-                    hrp.CFrame = t_hrp.CFrame * CFrame.new(0, 0, 3)
-                    hrp.AssemblyLinearVelocity = Vector3.zero
-                end
+            local t_hrp = get_closest_player(1000)
+            if t_hrp then
+                hrp.CFrame = t_hrp.CFrame * CFrame.new(0, 0, 3)
+                hrp.AssemblyLinearVelocity = Vector3.zero
+                hrp.AssemblyAngularVelocity = Vector3.zero
             end
         end)
     end
