@@ -115,7 +115,9 @@ local state = {
     anti_afk = false, fullbright = false, click_tp = false, anti_fling = false, float = false, swim = false, under_map = false, auto_farm = false, safe_fly = false, mm2_auto_shoot = false, mm2_auto_grab = false, grabbing_gun = false,
     rapid_fire = false, rapid_fire_delay = 0.1,
     xray_enabled = false, chams_enabled = false, rainbow_enabled = false, forcefield_enabled = false,
-    jb_auto_rob = false, jb_auto_arrest = false, inf_jump = false, config_filename = "BSSToolkit_Config.json"
+    jb_auto_rob = false, jb_auto_arrest = false, inf_jump = false, config_filename = "BSSToolkit_Config.json",
+    melee_aura = false, melee_aura_range = 15,
+    orbit_aura = false, orbit_radius = 6, orbit_height = 6,
 }
 
 local ui_refs = { toggles = {}, sliders = {}, textboxes = {} }
@@ -126,8 +128,9 @@ local keybinds = {
     fling = {input = Enum.UserInputType.Keyboard, key = Enum.KeyCode.F},
     hide = {input = Enum.UserInputType.Keyboard, key = Enum.KeyCode.RightShift},
     fly = {input = Enum.UserInputType.Keyboard, key = Enum.KeyCode.G},
+    shadow_step = {input = Enum.UserInputType.Keyboard, key = Enum.KeyCode.V},
 }
-local key_state = {aimbot = false, fling = false, fly = false}
+local key_state = {aimbot = false, fling = false, fly = false, shadow_step = false}
 local fling_active = false
 local fling_target = nil
 local fling_return_cf = nil
@@ -155,6 +158,9 @@ local xray_originals = {}
 local chams_highlights = {}
 local rainbow_task = nil
 local rainbow_originals = {}
+local melee_aura_conn = nil
+local orbit_aura_conn = nil
+local shadow_step_conn = nil
 local orig_lighting = {
     Brightness = Lighting.Brightness, ClockTime = Lighting.ClockTime, GlobalShadows = Lighting.GlobalShadows, FogEnd = Lighting.FogEnd,
 }
@@ -304,6 +310,9 @@ local function full_cleanup()
     if loop_tp_conn then loop_tp_conn:Disconnect(); loop_tp_conn = nil end
     if rainbow_task then pcall(function() task.cancel(rainbow_task) end); rainbow_task = nil end
     if wallbang_conn then wallbang_conn:Disconnect(); wallbang_conn = nil end
+    if melee_aura_conn then melee_aura_conn:Disconnect(); melee_aura_conn = nil end
+    if orbit_aura_conn then orbit_aura_conn:Disconnect(); orbit_aura_conn = nil end
+    if shadow_step_conn then shadow_step_conn:Disconnect(); shadow_step_conn = nil end
     for obj, orig in pairs(xray_originals) do if obj and obj.Parent then obj.Transparency = orig end end
     xray_originals = {}
     for p, hl in pairs(chams_highlights) do if hl and hl.Parent then pcall(function() hl:Destroy() end) end end
@@ -347,6 +356,7 @@ local function full_cleanup()
     key_state.aimbot = false
     key_state.fling = false
     key_state.fly = false
+    key_state.shadow_step = false
     fling_active = false
 end
 
@@ -387,6 +397,81 @@ local function update_wallbang()
                             hrp.CFrame = old_cf
                         end
                     end)
+                end
+            end
+        end)
+    end
+end
+
+-- ==========================================
+-- MELEE & ORBIT AURAS
+-- ==========================================
+local function update_melee_aura()
+    if melee_aura_conn then melee_aura_conn:Disconnect(); melee_aura_conn = nil end
+    if state.melee_aura then
+        melee_aura_conn = RunService.Heartbeat:Connect(function()
+            local char = player.Character
+            local hrp = get_root()
+            if not char or not hrp then return end
+            
+            for _, p in ipairs(Players:GetPlayers()) do
+                if p ~= player and player_in_game(p) then
+                    local t_hrp = get_root(p)
+                    if t_hrp and (t_hrp.Position - hrp.Position).Magnitude <= state.melee_aura_range then
+                        local vim = game:GetService("VirtualInputManager")
+                        -- Spam click
+                        vim:SendMouseButtonEvent(camera.ViewportSize.X/2, camera.ViewportSize.Y/2, 0, true, game, 0)
+                        vim:SendMouseButtonEvent(camera.ViewportSize.X/2, camera.ViewportSize.Y/2, 0, false, game, 0)
+                        task.wait(0.05)
+                    end
+                end
+            end
+        end)
+    end
+end
+
+local function update_orbit_aura()
+    if orbit_aura_conn then orbit_aura_conn:Disconnect(); orbit_aura_conn = nil end
+    if state.orbit_aura then
+        orbit_aura_conn = RunService.RenderStepped:Connect(function(dt)
+            local hrp = get_root()
+            if not hrp then return end
+            
+            local target_part = nearest_target()
+            if target_part and target_part.Parent then
+                local t_hrp = target_part.Parent:FindFirstChild("HumanoidRootPart")
+                if t_hrp then
+                    local t = tick()
+                    local angle = t * 50 -- very fast
+                    local y_offset = math.sin(t * 15) * state.orbit_height
+                    local x_offset = math.cos(angle) * state.orbit_radius
+                    local z_offset = math.sin(angle) * state.orbit_radius
+                    
+                    hrp.CFrame = t_hrp.CFrame * CFrame.new(x_offset, y_offset, z_offset)
+                    
+                    local vim = game:GetService("VirtualInputManager")
+                    vim:SendMouseButtonEvent(camera.ViewportSize.X/2, camera.ViewportSize.Y/2, 0, true, game, 0)
+                    vim:SendMouseButtonEvent(camera.ViewportSize.X/2, camera.ViewportSize.Y/2, 0, false, game, 0)
+                end
+            end
+        end)
+    end
+end
+
+local function update_shadow_step()
+    if shadow_step_conn then shadow_step_conn:Disconnect(); shadow_step_conn = nil end
+    if key_state.shadow_step then
+        shadow_step_conn = RunService.RenderStepped:Connect(function()
+            local hrp = get_root()
+            if not hrp then return end
+            
+            local target_part = nearest_target()
+            if target_part and target_part.Parent then
+                local t_hrp = target_part.Parent:FindFirstChild("HumanoidRootPart")
+                if t_hrp then
+                    -- Lock 3 studs behind them
+                    hrp.CFrame = t_hrp.CFrame * CFrame.new(0, 0, 3)
+                    hrp.AssemblyLinearVelocity = Vector3.zero
                 end
             end
         end)
@@ -1008,11 +1093,12 @@ local function keybind_button(parent, label, slot, order)
     return b
 end
 function update_keybind_label()
-    keybindLabel.Text = "aim:" .. bind_label("aimbot") .. "  fling:" .. bind_label("fling")
+    keybindLabel.Text = "aim:" .. bind_label("aimbot") .. " step:" .. bind_label("shadow_step")
 end
 keybind_button(aimRight, "Aimbot hold", "aimbot", 2)
 keybind_button(aimRight, "Fling hold", "fling", 3)
 keybind_button(aimRight, "Fly toggle", "fly", 4)
+keybind_button(aimRight, "Shadow Step (Backstab)", "shadow_step", 5)
 update_keybind_label()
 section(aimRight, "Object aimbot", 10)
 toggle(aimRight, "Enable object aimbot", false, function(on) state.object_aimbot_enabled = on; update_fov_circle() end, 11, "object_aimbot_enabled")
@@ -1383,6 +1469,20 @@ button(exLeft, "Invalid Avatar Rig Break", COL_DANGER, function()
         end
     end
 end, 6)
+
+section(exLeft, "Melee Rage", 20)
+toggle(exLeft, "Kill Aura (Fists)", false, function(on) 
+    state.melee_aura = on 
+    update_melee_aura()
+end, 21, "melee_aura")
+slider(exLeft, "Kill Aura Range", 5, 50, 15, function(v) state.melee_aura_range = v end, 22, "melee_aura_range")
+
+toggle(exLeft, "Orbit Aura (Rage)", false, function(on) 
+    state.orbit_aura = on 
+    update_orbit_aura()
+end, 23, "orbit_aura")
+slider(exLeft, "Orbit Radius", 2, 30, 6, function(v) state.orbit_radius = v end, 24, "orbit_radius")
+slider(exLeft, "Orbit Height", 1, 20, 6, function(v) state.orbit_height = v end, 25, "orbit_height")
 
 section(exLeft, "Rage Visuals", 10)
 toggle(exLeft, "Wall Transparency (X-Ray)", false, function(on)
@@ -2111,7 +2211,7 @@ track(UserInputService.InputBegan:Connect(function(io, gp)
             if hrp then hrp.CFrame = CFrame.new(mouse.Hit.Position + Vector3.new(0, 3, 0)) end
         end
     end
-    local aim_bind = keybinds.aimbot; local fling_bind = keybinds.fling; local fly_bind = keybinds.fly; local hide_bind = keybinds.hide
+    local aim_bind = keybinds.aimbot; local fling_bind = keybinds.fling; local fly_bind = keybinds.fly; local hide_bind = keybinds.hide; local step_bind = keybinds.shadow_step
     if aim_bind.key and io.UserInputType == aim_bind.input and io.KeyCode == aim_bind.key then
         key_state.aimbot = true
     elseif fling_bind.key and io.UserInputType == fling_bind.input and io.KeyCode == fling_bind.key then
@@ -2126,6 +2226,9 @@ track(UserInputService.InputBegan:Connect(function(io, gp)
     elseif fly_bind.key and io.UserInputType == fly_bind.input and io.KeyCode == fly_bind.key then
         key_state.fly = not key_state.fly
         if key_state.fly then start_fly(false) else stop_fly() end
+    elseif step_bind.key and io.UserInputType == step_bind.input and io.KeyCode == step_bind.key then
+        key_state.shadow_step = true
+        update_shadow_step()
     elseif hide_bind.key and io.UserInputType == hide_bind.input and io.KeyCode == hide_bind.key then
         main.Visible = not main.Visible
         shadow.Visible = main.Visible
@@ -2133,15 +2236,21 @@ track(UserInputService.InputBegan:Connect(function(io, gp)
 end))
 
 track(UserInputService.InputEnded:Connect(function(io)
-    local aim_bind = keybinds.aimbot; local fling_bind = keybinds.fling
+    local aim_bind = keybinds.aimbot; local fling_bind = keybinds.fling; local step_bind = keybinds.shadow_step
     if aim_bind.key and io.UserInputType == aim_bind.input and io.KeyCode == aim_bind.key then key_state.aimbot = false end
     if fling_bind.key and io.UserInputType == fling_bind.input and io.KeyCode == fling_bind.key then key_state.fling = false end
+    if step_bind.key and io.UserInputType == step_bind.input and io.KeyCode == step_bind.key then 
+        key_state.shadow_step = false
+        update_shadow_step()
+    end
 end))
 
 track(UserInputService.WindowFocusReleased:Connect(function()
     key_state.aimbot = false
     key_state.fling = false
     key_state.fly = false
+    key_state.shadow_step = false
+    update_shadow_step()
 end))
 
 -- MAIN LOOP
