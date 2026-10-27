@@ -9,19 +9,18 @@ local TweenService = game:GetService("TweenService")
 local VirtualUser = game:GetService("VirtualUser")
 local VirtualInputManager = game:GetService("VirtualInputManager")
 
--- Wait for player and camera to load to prevent silent execution crashes
+-- Safe initialization to ensure script doesn't hang
 local player = Players.LocalPlayer
-while not player do task.wait(0.1) player = Players.LocalPlayer end
+if not player then repeat wait(0.1) until Players.LocalPlayer player = Players.LocalPlayer end
 local camera = Workspace.CurrentCamera
-while not camera do task.wait(0.1) camera = Workspace.CurrentCamera end
+if not camera then repeat wait(0.1) until Workspace.CurrentCamera camera = Workspace.CurrentCamera end
 local orig_fov = camera.FieldOfView
 
--- Safe GUI parenting
-local function get_gui()
-    local success, hui = pcall(function() return gethui and gethui() or CoreGui end)
-    return success and hui or CoreGui
+local parentGui = CoreGui
+if gethui then
+    local ok, hui = pcall(gethui)
+    if ok and hui then parentGui = hui end
 end
-local parentGui = get_gui()
 
 local COL_BG = Color3.fromRGB(14, 14, 20)
 local COL_PANEL = Color3.fromRGB(22, 22, 32)
@@ -2765,3 +2764,4 @@ task.wait(0.2)
 loadingGui:Destroy()
 main.Visible = true
 tween(main_scale, {Scale = 1}, 0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+print("BSSToolkit Loaded Successfully!")
