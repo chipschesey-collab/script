@@ -108,7 +108,7 @@ end
 
 local state = {
     esp_enabled = false, esp_box = true, esp_name = true, esp_distance = true, esp_tracers = false, esp_skeleton = false, esp_color = Color3.fromRGB(255, 80, 80), esp_team_color = false, esp_range = 500,
-    fov_enabled = false, fov_value = 70, saved_spots = {}, aimbot_enabled = false, aimbot_fov = 150, aimbot_smooth = 0.35, aimbot_part = "Head", aimbot_teamcheck = true, aimbot_range = 500, aimbot_prediction = 0.05, aimbot_snap = false,
+    fov_enabled = false, fov_value = 70, saved_spots = {}, aimbot_enabled = false, aimbot_fov = 150, aimbot_smooth = 0.35, aimbot_part = "Head", aimbot_teamcheck = true, aimbot_range = 500, aimbot_prediction = 0.05, aimbot_snap = false, wallbang = false,
     triggerbot = false, hit_sound = false, fling_return = true, use_walkfling = false, hitbox_enabled = false, hitbox_part = "HumanoidRootPart", hitbox_look = "Box", hitbox_size = 6, hitbox_transparency = 0.5,
     object_name = "", object_esp_enabled = false, object_aimbot_enabled = false, object_box = true, object_name_lbl = true, object_range = 500, fly_enabled = false, fly_speed = 60, fly_mode = "Velocity",
     vehiclefly_enabled = false, vehicle_noclip = false, jb_fly_enabled = false, spinbot = false, spinbot_speed = 50, mask_enabled = false, mask_display = "", noclip = false, cf_speed = false, cf_speed_val = 50,
@@ -363,6 +363,32 @@ local function export_config()
         data[k] = {keyName = v.key and v.key.Name or "None", inputName = v.input.Name, __keybind = true}
     end
     return HttpService:JSONEncode(data)
+end
+
+-- ==========================================
+-- WALLBANG HOOK
+-- ==========================================
+local hooked_raycast = false
+local function hook_wallbang()
+    if hooked_raycast or not hookfunction then return end
+    hooked_raycast = true
+    local old_raycast = Workspace.Raycast
+    hookfunction(old_raycast, newcclosure(function(self, origin, direction, params)
+        if state.wallbang then
+            local targets = {}
+            for _, p in ipairs(Players:GetPlayers()) do
+                if p.Character then
+                    table.insert(targets, p.Character)
+                end
+            end
+            local new_params = RaycastParams.new()
+            new_params.FilterType = Enum.RaycastFilterType.Include
+            new_params.FilterDescendantsInstances = targets
+            new_params.IgnoreWater = true
+            return old_raycast(self, origin, direction, new_params)
+        end
+        return old_raycast(self, origin, direction, params)
+    end))
 end
 
 -- ==========================================
@@ -905,9 +931,15 @@ toggle(aimLeft, "Team check", true, function(on) state.aimbot_teamcheck = on end
 toggle(aimLeft, "Triggerbot", false, function(on) state.triggerbot = on end, 8, "triggerbot")
 toggle(aimLeft, "Instant Snap (Lock-on)", false, function(on) state.aimbot_snap = on end, 9, "aimbot_snap")
 
-section(aimLeft, "Target part", 10)
-toggle(aimLeft, "Head", true, function(on) state.aimbot_part = "Head" end, 11)
-toggle(aimLeft, "HumanoidRootPart", false, function(on) state.aimbot_part = "HumanoidRootPart" end, 12)
+-- NEW WALLBANG TOGGLE
+toggle(aimLeft, "Wallbang (Shoot Through Walls)", false, function(on) 
+    state.wallbang = on 
+    if on then hook_wallbang() end
+end, 10, "wallbang")
+
+section(aimLeft, "Target part", 11)
+toggle(aimLeft, "Head", true, function(on) state.aimbot_part = "Head" end, 12)
+toggle(aimLeft, "HumanoidRootPart", false, function(on) state.aimbot_part = "HumanoidRootPart" end, 13)
 
 section(aimLeft, "Exploits", 20)
 toggle(aimLeft, "Rapid Fire (Remote)", false, function(on)
