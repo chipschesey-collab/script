@@ -107,7 +107,9 @@ end
 
 local state = {
     esp_enabled = false, esp_box = true, esp_name = true, esp_distance = true, esp_tracers = false, esp_skeleton = false, esp_color = Color3.fromRGB(255, 80, 80), esp_team_color = false, esp_range = 500,
+    esp_health = true, radar_enabled = false, offscreen_arrows = false,
     fov_enabled = false, fov_value = 70, saved_spots = {}, aimbot_enabled = false, aimbot_fov = 150, aimbot_smooth = 0.35, aimbot_part = "Head", aimbot_teamcheck = true, aimbot_range = 500, aimbot_prediction = 0.05, aimbot_snap = false, wallbang = false,
+    aimbot_hit_chance = 100, aimbot_pause_kill = false, aimbot_random_part = false, aimbot_god_check = true,
     triggerbot = false, hit_sound = false, fling_return = true, use_walkfling = false, hitbox_enabled = false, hitbox_part = "HumanoidRootPart", hitbox_look = "Box", hitbox_size = 6, hitbox_transparency = 0.5,
     object_name = "", object_esp_enabled = false, object_aimbot_enabled = false, object_box = true, object_name_lbl = true, object_range = 500, fly_enabled = false, fly_speed = 60, fly_mode = "Velocity",
     vehiclefly_enabled = false, vehicle_noclip = false, jb_fly_enabled = false, spinbot = false, spinbot_speed = 50, mask_enabled = false, mask_display = "", noclip = false, cf_speed = false, cf_speed_val = 50,
@@ -115,13 +117,14 @@ local state = {
     rapid_fire = false, rapid_fire_delay = 0.1,
     xray_enabled = false, chams_enabled = false, rainbow_enabled = false, forcefield_enabled = false,
     jb_auto_rob = false, jb_auto_arrest = false, inf_jump = false, config_filename = "BSSToolkit_Config.json",
-    melee_aura = false, melee_aura_range = 15,
-    orbit_aura = false, orbit_radius = 6, orbit_height = 6,
+    melee_aura = false, melee_aura_range = 15, orbit_aura = false, orbit_radius = 6, orbit_height = 6, orbit_speed = 10,
+    third_person = false,
 }
 
 local ui_refs = { toggles = {}, sliders = {}, textboxes = {} }
 
 local locked_target = nil
+local aim_pause_until = 0
 local keybinds = {
     aimbot = {input = Enum.UserInputType.Keyboard, key = Enum.KeyCode.E},
     fling = {input = Enum.UserInputType.Keyboard, key = Enum.KeyCode.F},
@@ -332,6 +335,8 @@ local function full_cleanup()
     Lighting.ClockTime = orig_lighting.ClockTime
     Lighting.GlobalShadows = orig_lighting.GlobalShadows
     Lighting.FogEnd = orig_lighting.FogEnd
+    player.CameraMaxZoomDistance = 128
+    player.CameraMinZoomDistance = 0.5
     local char = player.Character
     local hum = char and char:FindFirstChildOfClass("Humanoid")
     if hum then
@@ -432,7 +437,7 @@ local function auto_swing(char)
         if backpack then
             for _, item in ipairs(backpack:GetChildren()) do
                 if item:IsA("Tool") then
-                    task.spawn(function() item.Parent = char end) -- Spawned to prevent render blocking
+                    task.spawn(function() item.Parent = char end)
                     break
                 end
             end
@@ -480,7 +485,7 @@ local function update_orbit_aura()
             local t_hrp = get_closest_player(1000)
             if t_hrp then
                 local t = tick()
-                local angle = t * 50 
+                local angle = t * state.orbit_speed
                 local y_offset = math.sin(t * 15) * state.orbit_height
                 local x_offset = math.cos(angle) * state.orbit_radius
                 local z_offset = math.sin(angle) * state.orbit_radius
@@ -494,7 +499,6 @@ end
 
 local function start_orbit_rage()
     if state.orbit_aura then
-        -- If already running, reset the timer
         if orbit_timer then task.cancel(orbit_timer) end
     else
         state.orbit_aura = true
@@ -585,7 +589,7 @@ end))
 -- ==========================================
 update_loading("Building tabs", 35)
 
-local tabs = {"ESP", "Teleport", "Aimbot", "Fling", "Hitbox", "Exploits", "Fun", "Utility"}
+local tabs = {"Rage", "ESP", "Teleport", "Aimbot", "Fling", "Hitbox", "Exploits", "Fun", "Utility"}
 if is_mm2 then table.insert(tabs, "MM2") end
 local tabBar = make("Frame", {Size = UDim2.new(1, -20, 0, 34), Position = UDim2.new(0, 10, 0, 38), BackgroundColor3 = COL_BG, BorderSizePixel = 0}, main)
 make("UIListLayout", {FillDirection = Enum.FillDirection.Horizontal, SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 4)}, tabBar)
@@ -609,7 +613,7 @@ local function switch_tab(name)
     end
 end
 for n, btn in pairs(tabButtons) do btn.MouseButton1Click:Connect(function() switch_tab(n) end) end
-switch_tab("ESP")
+switch_tab("Rage")
 
 local function section(parent, text, order)
     local row = make("Frame", {Size = UDim2.new(1, 0, 0, 24), BackgroundTransparency = 1, LayoutOrder = order or 0}, parent)
@@ -733,6 +737,44 @@ local function split_two(parent)
 end
 
 -- ==========================================
+-- TAB BUILDER: RAGE
+-- ==========================================
+update_loading("Building Rage UI", 45)
+
+local rageLeft, rageRight = split_two(tabPages["Rage"])
+section(rageLeft, "Melee Rage", 1)
+toggle(rageLeft, "Orbit Aura (Rage)", false, function(on) 
+    state.orbit_aura = on 
+    update_orbit_aura()
+end, 2, "orbit_aura")
+slider(rageLeft, "Orbit Speed", 1, 50, 10, function(v) state.orbit_speed = v end, 3, "orbit_speed")
+slider(rageLeft, "Orbit Radius", 2, 30, 6, function(v) state.orbit_radius = v end, 4, "orbit_radius")
+slider(rageLeft, "Orbit Height", 1, 20, 6, function(v) state.orbit_height = v end, 5, "orbit_height")
+toggle(rageLeft, "Kill Aura (Fists)", false, function(on) 
+    state.melee_aura = on 
+    update_melee_aura()
+end, 6, "melee_aura")
+slider(rageLeft, "Kill Aura Range", 5, 50, 15, function(v) state.melee_aura_range = v end, 7, "melee_aura_range")
+
+section(rageRight, "Combat Rage", 1)
+toggle(rageRight, "Enable Aimbot", false, function(on)
+    state.aimbot_enabled = on
+    update_fov_circle()
+end, 2, "aimbot_enabled")
+toggle(rageRight, "Instant Snap (Lock-on)", false, function(on) state.aimbot_snap = on end, 3, "aimbot_snap")
+toggle(rageRight, "Triggerbot", false, function(on) state.triggerbot = on end, 4, "triggerbot")
+toggle(rageRight, "Wallbang (Auto-Clip)", false, function(on) 
+    state.wallbang = on 
+    update_wallbang()
+end, 5, "wallbang")
+toggle(rageRight, "Hitbox Expander", false, function(on)
+    state.hitbox_enabled = on
+    if not on then for p, _ in pairs(hitbox_expanded) do remove_hitbox(p) end end
+end, 6, "hitbox_enabled")
+toggle(rageRight, "Enable ESP", false, function(on) state.esp_enabled = on end, 7, "esp_enabled")
+toggle(rageRight, "ESP Box", true, function(on) state.esp_box = on end, 8, "esp_box")
+
+-- ==========================================
 -- ESP & DRAWING
 -- ==========================================
 update_loading("Building ESP elements", 50)
@@ -747,23 +789,39 @@ local function update_fov_circle()
     fovCircle.Visible = state.aimbot_enabled or state.object_aimbot_enabled
 end
 update_fov_circle()
+
+local radarFrame = make("Frame", {Size = UDim2.new(0, 150, 0, 150), AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -20, 0, 20), BackgroundColor3 = COL_BG, BackgroundTransparency = 0.5, BorderSizePixel = 0, Visible = false, ZIndex = 4}, draw_holder)
+corner(radarFrame, 75)
+stroke(radarFrame, COL_STROKE, 2)
+local radarDots = {}
+
+local hitMarker = make("TextLabel", {Size = UDim2.new(0, 50, 0, 50), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0.5, 0), BackgroundTransparency = 1, Text = "X", TextColor3 = COL_BAD, Font = Enum.Font.GothamBlack, TextSize = 24, Visible = false, ZIndex = 10}, draw_holder)
+local hitMarkerTime = 0
+
 local esp_objects = {}
 local function make_esp_for(p)
     local frame = make("Frame", {BackgroundTransparency = 1, Visible = false}, draw_holder)
     local box = make("Frame", {BackgroundTransparency = 1, Visible = false, AnchorPoint = Vector2.new(0.5, 0.5)}, frame)
     local box_stroke = make("UIStroke", {Color = state.esp_color, Thickness = 1}, box)
+    local healthBg = make("Frame", {Size = UDim2.new(0, 3, 1, 0), Position = UDim2.new(-0.1, 0, 0, 0), BackgroundColor3 = Color3.fromRGB(0, 0, 0), BorderSizePixel = 0, Visible = false}, box)
+    local healthBar = make("Frame", {Size = UDim2.new(1, 0, 1, 0), BackgroundColor3 = COL_OK, BorderSizePixel = 0, Visible = false}, healthBg)
+    
     local nameLbl = make("TextLabel", {BackgroundTransparency = 1, TextColor3 = state.esp_color, Font = Enum.Font.GothamBold, TextSize = 12, TextStrokeTransparency = 0.4, AnchorPoint = Vector2.new(0.5, 0.5)}, frame)
     local distLbl = make("TextLabel", {BackgroundTransparency = 1, TextColor3 = state.esp_color, Font = Enum.Font.Gotham, TextSize = 11, TextStrokeTransparency = 0.4, AnchorPoint = Vector2.new(0.5, 0.5)}, frame)
     local tracer = make("Frame", {BackgroundColor3 = state.esp_color, BorderSizePixel = 0, Visible = false, AnchorPoint = Vector2.new(0, 0.5)}, frame)
+    local arrow = make("Frame", {Size = UDim2.new(0, 20, 0, 20), BackgroundColor3 = state.esp_color, BackgroundTransparency = 0.3, AnchorPoint = Vector2.new(0.5, 0.5), Visible = false}, draw_holder)
+    corner(arrow, 10)
+    
     local skel = {}
     for i = 1, 16 do
         skel[i] = make("Frame", {BackgroundColor3 = Color3.fromRGB(200, 200, 210), BorderSizePixel = 0, Visible = false, AnchorPoint = Vector2.new(0, 0.5)}, frame)
     end
-    esp_objects[p] = {root = frame, box = box, box_stroke = box_stroke, name = nameLbl, dist = distLbl, tracer = tracer, skel = skel}
+    esp_objects[p] = {root = frame, box = box, box_stroke = box_stroke, name = nameLbl, dist = distLbl, tracer = tracer, skel = skel, healthBg = healthBg, healthBar = healthBar, arrow = arrow}
 end
 local function remove_esp_for(p)
     local o = esp_objects[p]
     if o and o.root then o.root:Destroy() end
+    if o and o.arrow then o.arrow:Destroy() end
     esp_objects[p] = nil
 end
 local function char_bounds(char)
@@ -817,6 +875,35 @@ local function update_esp()
     for p, _ in pairs(esp_objects) do
         if not p.Parent or not p.Character then remove_esp_for(p) end
     end
+    if state.radar_enabled then
+        radarFrame.Visible = true
+        local my_pos = get_root() and get_root().Position or Vector3.zero
+        local my_look = camera.CFrame.LookVector
+        for p, o in pairs(esp_objects) do
+            if player_in_game(p) then
+                local hrp = get_root(p)
+                if hrp then
+                    local rel = hrp.Position - my_pos
+                    local dist = rel.Magnitude
+                    if dist <= 500 then
+                        local angle = math.atan2(rel.X, rel.Z) - math.atan2(my_look.X, my_look.Z)
+                        local px = math.sin(angle) * (dist / 5)
+                        local py = math.cos(angle) * (dist / 5)
+                        if not radarDots[p] then
+                            radarDots[p] = make("Frame", {Size = UDim2.new(0, 4, 0, 4), AnchorPoint = Vector2.new(0.5, 0.5), BackgroundColor3 = COL_BAD, BorderSizePixel = 0, ZIndex = 5}, radarFrame)
+                            corner(radarDots[p], 2)
+                        end
+                        radarDots[p].Visible = true
+                        radarDots[p].Position = UDim2.new(0.5, px, 0.5, -py)
+                    end
+                end
+            end
+        end
+    else
+        radarFrame.Visible = false
+        for _, dot in pairs(radarDots) do dot.Visible = false end
+    end
+
     for _, p in ipairs(Players:GetPlayers()) do
         if p ~= player then
             if not esp_objects[p] then make_esp_for(p) end
@@ -828,15 +915,38 @@ local function update_esp()
             o.name.TextColor3 = use_color
             o.dist.TextColor3 = use_color
             o.tracer.BackgroundColor3 = use_color
+            o.arrow.BackgroundColor3 = use_color
+            
             if state.esp_enabled and char and player_in_game(p) then
                 local pos, w, h, dist = char_bounds(char)
+                local hrp = get_root(p)
                 if pos and dist and dist <= state.esp_range then
                     o.root.Visible = true
+                    o.arrow.Visible = false
                     if state.esp_box then
                         o.box.Visible = true
                         o.box.Size = UDim2.new(0, w, 0, h)
                         o.box.Position = UDim2.new(0, pos.X, 0, pos.Y)
-                    else o.box.Visible = false end
+                        
+                        if state.esp_health then
+                            local hum = char:FindFirstChildOfClass("Humanoid")
+                            if hum then
+                                local pct = math.clamp(hum.Health / hum.MaxHealth, 0, 1)
+                                o.healthBg.Visible = true
+                                o.healthBar.Visible = true
+                                o.healthBar.Size = UDim2.new(1, 0, pct, 0)
+                                o.healthBar.Position = UDim2.new(0, 0, 1 - pct, 0)
+                                o.healthBar.BackgroundColor3 = Color3.fromRGB(255 * (1-pct), 255 * pct, 0)
+                            end
+                        else
+                            o.healthBg.Visible = false
+                            o.healthBar.Visible = false
+                        end
+                    else 
+                        o.box.Visible = false 
+                        o.healthBg.Visible = false
+                        o.healthBar.Visible = false
+                    end
                     if state.esp_name then
                         o.name.Visible = true
                         o.name.Text = p.Name
@@ -867,9 +977,21 @@ local function update_esp()
                     end
                 else
                     o.root.Visible = false
+                    if state.offscreen_arrows and hrp then
+                        local sp, onscreen = camera:WorldToViewportPoint(hrp.Position)
+                        if not onscreen or sp.Z <= 0 then
+                            local vp = camera.ViewportSize
+                            local center = Vector2.new(vp.X/2, vp.Y/2)
+                            local dir = (Vector2.new(sp.X, sp.Y) - center).Unit
+                            local edge_pos = center + dir * (vp.Y * 0.4)
+                            o.arrow.Visible = true
+                            o.arrow.Position = UDim2.new(0, edge_pos.X, 0, edge_pos.Y)
+                        end
+                    end
                 end
             else
                 o.root.Visible = false
+                o.arrow.Visible = false
             end
         end
     end
@@ -886,35 +1008,47 @@ local function update_object_esp()
     local name = state.object_name
     local seen = {}
     local my_pos = get_root() and get_root().Position or Vector3.zero
-    for _, obj in ipairs(Workspace:GetChildren()) do
+    -- FIXED: Changed from Workspace:GetChildren() to Workspace:GetDescendants()
+    for _, obj in ipairs(Workspace:GetDescendants()) do
         if obj.Name == name and obj:IsA("BasePart") then
-            local dist = (obj.Position - my_pos).Magnitude
-            if dist <= state.object_range then
-                seen[obj] = true
-                if not obj_esp_objs[obj] then
-                    local frame = make("Frame", {BackgroundTransparency = 1, Visible = false}, draw_holder)
-                    local box = make("Frame", {BackgroundTransparency = 1, AnchorPoint = Vector2.new(0.5, 0.5)}, frame)
-                    stroke(box, Color3.fromRGB(80, 200, 255), 1)
-                    local label = make("TextLabel", {BackgroundTransparency = 1, TextColor3 = Color3.fromRGB(140, 220, 255), Font = Enum.Font.GothamBold, TextSize = 11, TextStrokeTransparency = 0.4, AnchorPoint = Vector2.new(0.5, 0.5)}, frame)
-                    obj_esp_objs[obj] = {frame = frame, box = box, label = label}
+            -- Ensure we don't ESP player character parts
+            local is_char_part = false
+            for _, p in ipairs(Players:GetPlayers()) do
+                if p.Character and obj:IsDescendantOf(p.Character) then
+                    is_char_part = true
+                    break
                 end
-                local o = obj_esp_objs[obj]
-                local cam = Workspace.CurrentCamera
-                local sp, onscreen = cam:WorldToViewportPoint(obj.Position)
-                if onscreen then
-                    local scale = 800 / math.max(dist, 1)
-                    local h = math.clamp(scale, 8, 300)
-                    local w = h
-                    o.frame.Visible = true
-                    o.box.Visible = state.object_box
-                    o.box.Size = UDim2.new(0, w, 0, h)
-                    o.box.Position = UDim2.new(0, sp.X, 0, sp.Y)
-                    o.label.Visible = state.object_name_lbl
-                    o.label.Text = obj.Name
-                    o.label.Size = UDim2.new(0, 150, 0, 14)
-                    o.label.Position = UDim2.new(0, sp.X, 0, sp.Y - h/2 - 10)
-                else
-                    o.frame.Visible = false
+            end
+            
+            if not is_char_part then
+                local dist = (obj.Position - my_pos).Magnitude
+                if dist <= state.object_range then
+                    seen[obj] = true
+                    if not obj_esp_objs[obj] then
+                        local frame = make("Frame", {BackgroundTransparency = 1, Visible = false}, draw_holder)
+                        local box = make("Frame", {BackgroundTransparency = 1, AnchorPoint = Vector2.new(0.5, 0.5)}, frame)
+                        stroke(box, Color3.fromRGB(80, 200, 255), 1)
+                        local label = make("TextLabel", {BackgroundTransparency = 1, TextColor3 = Color3.fromRGB(140, 220, 255), Font = Enum.Font.GothamBold, TextSize = 11, TextStrokeTransparency = 0.4, AnchorPoint = Vector2.new(0.5, 0.5)}, frame)
+                        obj_esp_objs[obj] = {frame = frame, box = box, label = label}
+                    end
+                    local o = obj_esp_objs[obj]
+                    local cam = Workspace.CurrentCamera
+                    local sp, onscreen = cam:WorldToViewportPoint(obj.Position)
+                    if onscreen then
+                        local scale = 800 / math.max(dist, 1)
+                        local h = math.clamp(scale, 8, 300)
+                        local w = h
+                        o.frame.Visible = true
+                        o.box.Visible = state.object_box
+                        o.box.Size = UDim2.new(0, w, 0, h)
+                        o.box.Position = UDim2.new(0, sp.X, 0, sp.Y)
+                        o.label.Visible = state.object_name_lbl
+                        o.label.Text = obj.Name
+                        o.label.Size = UDim2.new(0, 150, 0, 14)
+                        o.label.Position = UDim2.new(0, sp.X, 0, sp.Y - h/2 - 10)
+                    else
+                        o.frame.Visible = false
+                    end
                 end
             end
         end
@@ -936,19 +1070,23 @@ local espLeft, espRight = split_two(tabPages["ESP"])
 section(espLeft, "Player ESP", 1)
 toggle(espLeft, "Enable ESP", false, function(on) state.esp_enabled = on end, 2, "esp_enabled")
 toggle(espLeft, "Box", true, function(on) state.esp_box = on end, 3, "esp_box")
-toggle(espLeft, "Name", true, function(on) state.esp_name = on end, 4, "esp_name")
-toggle(espLeft, "Distance", true, function(on) state.esp_distance = on end, 5, "esp_distance")
-toggle(espLeft, "Tracers", false, function(on) state.esp_tracers = on end, 6, "esp_tracers")
-toggle(espLeft, "Skeleton", false, function(on) state.esp_skeleton = on end, 7, "esp_skeleton")
-slider(espLeft, "Max range", 50, 2000, 500, function(v) state.esp_range = v end, 8, "esp_range")
-toggle(espLeft, "Team color", false, function(on) state.esp_team_color = on end, 9, "esp_team_color")
-section(espLeft, "Color", 10)
-slider(espLeft, "Red", 0, 255, 255, function(v) state.esp_color = Color3.fromRGB(v, state.esp_color.G * 255, state.esp_color.B * 255) end, 11)
-slider(espLeft, "Green", 0, 255, 80, function(v) state.esp_color = Color3.fromRGB(state.esp_color.R * 255, v, state.esp_color.B * 255) end, 12)
-slider(espLeft, "Blue", 0, 255, 80, function(v) state.esp_color = Color3.fromRGB(state.esp_color.R * 255, state.esp_color.G * 255, v) end, 13)
-section(espLeft, "Camera", 20)
-toggle(espLeft, "Enable FOV override", false, function(on) state.fov_enabled = on end, 21, "fov_enabled")
-slider(espLeft, "FOV", 30, 120, 70, function(v) state.fov_value = v end, 22, "fov_value")
+toggle(espLeft, "Health Bar", true, function(on) state.esp_health = on end, 4, "esp_health")
+toggle(espLeft, "Name", true, function(on) state.esp_name = on end, 5, "esp_name")
+toggle(espLeft, "Distance", true, function(on) state.esp_distance = on end, 6, "esp_distance")
+toggle(espLeft, "Tracers", false, function(on) state.esp_tracers = on end, 7, "esp_tracers")
+toggle(espLeft, "Skeleton", false, function(on) state.esp_skeleton = on end, 8, "esp_skeleton")
+slider(espLeft, "Max range", 50, 2000, 500, function(v) state.esp_range = v end, 9, "esp_range")
+toggle(espLeft, "Team color", false, function(on) state.esp_team_color = on end, 10, "esp_team_color")
+section(espLeft, "Radar & Arrows", 11)
+toggle(espLeft, "Enable Radar", false, function(on) state.radar_enabled = on end, 12, "radar_enabled")
+toggle(espLeft, "Off-screen Arrows", false, function(on) state.offscreen_arrows = on end, 13, "offscreen_arrows")
+section(espLeft, "Color", 14)
+slider(espLeft, "Red", 0, 255, 255, function(v) state.esp_color = Color3.fromRGB(v, state.esp_color.G * 255, state.esp_color.B * 255) end, 15)
+slider(espLeft, "Green", 0, 255, 80, function(v) state.esp_color = Color3.fromRGB(state.esp_color.R * 255, v, state.esp_color.B * 255) end, 16)
+slider(espLeft, "Blue", 0, 255, 80, function(v) state.esp_color = Color3.fromRGB(state.esp_color.R * 255, state.esp_color.G * 255, v) end, 17)
+section(espLeft, "Camera", 18)
+toggle(espLeft, "Enable FOV override", false, function(on) state.fov_enabled = on end, 19, "fov_enabled")
+slider(espLeft, "FOV", 30, 120, 70, function(v) state.fov_value = v end, 20, "fov_value")
 section(espRight, "Object ESP", 1)
 toggle(espRight, "Enable object ESP", false, function(on)
     state.object_esp_enabled = on
@@ -1065,14 +1203,20 @@ toggle(aimLeft, "Team check", true, function(on) state.aimbot_teamcheck = on end
 toggle(aimLeft, "Triggerbot", false, function(on) state.triggerbot = on end, 8, "triggerbot")
 toggle(aimLeft, "Instant Snap (Lock-on)", false, function(on) state.aimbot_snap = on end, 9, "aimbot_snap")
 
+section(aimLeft, "Legit / Combat", 10)
+slider(aimLeft, "Hit Chance (%)", 10, 100, 100, function(v) state.aimbot_hit_chance = v end, 11, "aimbot_hit_chance")
+toggle(aimLeft, "Pause after kill", false, function(on) state.aimbot_pause_kill = on end, 12, "aimbot_pause_kill")
+toggle(aimLeft, "Random body part", false, function(on) state.aimbot_random_part = on end, 13, "aimbot_random_part")
+toggle(aimLeft, "God check (skip FF)", true, function(on) state.aimbot_god_check = on end, 14, "aimbot_god_check")
+
 toggle(aimLeft, "Wallbang (Auto-Clip)", false, function(on) 
     state.wallbang = on 
     update_wallbang()
-end, 10, "wallbang")
+end, 15, "wallbang")
 
-section(aimLeft, "Target part", 11)
-toggle(aimLeft, "Head", true, function(on) state.aimbot_part = "Head" end, 12)
-toggle(aimLeft, "HumanoidRootPart", false, function(on) state.aimbot_part = "HumanoidRootPart" end, 13)
+section(aimLeft, "Target part", 16)
+toggle(aimLeft, "Head", true, function(on) state.aimbot_part = "Head" end, 17)
+toggle(aimLeft, "HumanoidRootPart", false, function(on) state.aimbot_part = "HumanoidRootPart" end, 18)
 
 section(aimLeft, "Exploits", 20)
 toggle(aimLeft, "Rapid Fire (Remote)", false, function(on)
@@ -1160,7 +1304,13 @@ local function nearest_target()
         if p ~= player and not (state.aimbot_teamcheck and same_team(player, p)) and player_in_game(p) then
             local char = p.Character
             if char then
-                local part = char:FindFirstChild(state.aimbot_part)
+                if state.aimbot_god_check and char:FindFirstChildOfClass("ForceField") then continue end
+                local target_part_name = state.aimbot_part
+                if state.aimbot_random_part then
+                    local parts = {"Head", "HumanoidRootPart", "UpperTorso", "LowerTorso"}
+                    target_part_name = parts[math.random(#parts)]
+                end
+                local part = char:FindFirstChild(target_part_name) or char:FindFirstChild("HumanoidRootPart")
                 if part then
                     local world_dist = (part.Position - my_pos).Magnitude
                     if world_dist <= state.aimbot_range then
@@ -1516,17 +1666,6 @@ button(exLeft, "Invalid Avatar Rig Break", COL_DANGER, function()
         end
     end
 end, 6)
-
-section(exLeft, "Melee Rage", 20)
-toggle(exLeft, "Kill Aura (Fists)", false, function(on) 
-    state.melee_aura = on 
-    update_melee_aura()
-end, 21, "melee_aura")
-slider(exLeft, "Kill Aura Range", 5, 50, 15, function(v) state.melee_aura_range = v end, 22, "melee_aura_range")
-
-slider(exLeft, "Orbit Radius", 2, 30, 6, function(v) state.orbit_radius = v end, 23, "orbit_radius")
-slider(exLeft, "Orbit Height", 1, 20, 6, function(v) state.orbit_height = v end, 24, "orbit_height")
-make("TextLabel", {Size = UDim2.new(1, 0, 0, 20), BackgroundTransparency = 1, Text = "Orbit Rage is bound to a keybind", TextColor3 = COL_TEXT_DIM, Font = Enum.Font.Gotham, TextSize = 11, LayoutOrder = 25}, exLeft)
 
 section(exLeft, "Rage Visuals", 10)
 toggle(exLeft, "Wall Transparency (X-Ray)", false, function(on)
@@ -2093,6 +2232,17 @@ toggle(uScroll, "Vehicle Noclip", false, function(on)
         end
     end
 end, 26, "vehicle_noclip")
+section(uScroll, "Camera & View", 27)
+toggle(uScroll, "Third Person", false, function(on)
+    state.third_person = on
+    if on then
+        player.CameraMaxZoomDistance = 128
+        player.CameraMinZoomDistance = 12
+    else
+        player.CameraMaxZoomDistance = 128
+        player.CameraMinZoomDistance = 0.5
+    end
+end, 28, "third_person")
 section(uScroll, "Farm & Bypass", 30)
 toggle(uScroll, "Under Map (Immortal)", false, function(on)
     state.under_map = on
@@ -2330,6 +2480,12 @@ main_render_conn = RunService.Heartbeat:Connect(function(dt)
         if state.hitbox_enabled then
             for _, p in ipairs(Players:GetPlayers()) do if p ~= player then apply_hitbox_to(p) end end
         end
+
+        if tick() < hitMarkerTime then
+            hitMarker.Visible = true
+        else
+            hitMarker.Visible = false
+        end
     end)
 end)
 
@@ -2343,11 +2499,16 @@ RunService:BindToRenderStep("BSSToolkitAim", Enum.RenderPriority.Camera.Value + 
         return
     end
 
+    if tick() < aim_pause_until then return end
+
     if locked_target then
         local char = locked_target.Parent
         local hum = char and char:FindFirstChildOfClass("Humanoid")
         if not hum or hum.Health <= 0 then
             locked_target = nil
+            if state.aimbot_pause_kill then
+                aim_pause_until = tick() + 0.5
+            end
         end
     end
 
@@ -2382,15 +2543,19 @@ RunService:BindToRenderStep("BSSToolkitAim", Enum.RenderPriority.Camera.Value + 
         local dy = sp.Y - vp.Y * 0.5
         local strength = 1 - state.aimbot_smooth * 0.9
         if type(mousemoverel) == "function" then
-            mousemoverel(dx * strength, dy * strength)
+            if math.random(1, 100) <= state.aimbot_hit_chance then
+                mousemoverel(dx * strength, dy * strength)
+            end
         else
             local cam_pos = cam.CFrame.Position
             local target_cf = CFrame.lookAt(cam_pos, aim_pos)
-            if state.aimbot_smooth <= 0.01 then
-                cam.CFrame = target_cf
-            else
-                local alpha = 1 - (0.001 ^ (dt * 60))
-                cam.CFrame = cam.CFrame:Lerp(target_cf, alpha * (1 - state.aimbot_smooth * 0.7))
+            if math.random(1, 100) <= state.aimbot_hit_chance then
+                if state.aimbot_smooth <= 0.01 then
+                    cam.CFrame = target_cf
+                else
+                    local alpha = 1 - (0.001 ^ (dt * 60))
+                    cam.CFrame = cam.CFrame:Lerp(target_cf, alpha * (1 - state.aimbot_smooth * 0.7))
+                end
             end
             local char = player.Character
             local hrp = char and char:FindFirstChild("HumanoidRootPart")
@@ -2418,6 +2583,7 @@ RunService.Heartbeat:Connect(function()
                 local vim = game:GetService("VirtualInputManager")
                 vim:SendMouseButtonEvent(camera.ViewportSize.X/2, camera.ViewportSize.Y/2, 0, true, game, 0)
                 vim:SendMouseButtonEvent(camera.ViewportSize.X/2, camera.ViewportSize.Y/2, 0, false, game, 0)
+                hitMarkerTime = tick() + 0.1
             end
         end
     end
