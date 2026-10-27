@@ -7,9 +7,22 @@ local HttpService = game:GetService("HttpService")
 local Lighting = game:GetService("Lighting")
 local TweenService = game:GetService("TweenService")
 local VirtualUser = game:GetService("VirtualUser")
+local VirtualInputManager = game:GetService("VirtualInputManager")
+
+-- Wait for player and camera to load to prevent silent execution crashes
 local player = Players.LocalPlayer
+while not player do task.wait(0.1) player = Players.LocalPlayer end
 local camera = Workspace.CurrentCamera
+while not camera do task.wait(0.1) camera = Workspace.CurrentCamera end
 local orig_fov = camera.FieldOfView
+
+-- Safe GUI parenting
+local function get_gui()
+    local success, hui = pcall(function() return gethui and gethui() or CoreGui end)
+    return success and hui or CoreGui
+end
+local parentGui = get_gui()
+
 local COL_BG = Color3.fromRGB(14, 14, 20)
 local COL_PANEL = Color3.fromRGB(22, 22, 32)
 local COL_PANEL_ALT = Color3.fromRGB(30, 30, 44)
@@ -33,7 +46,7 @@ loadingGui.Name = "BSS_Loading"
 loadingGui.ResetOnSpawn = false
 loadingGui.IgnoreGuiInset = true
 loadingGui.DisplayOrder = 9999
-loadingGui.Parent = CoreGui
+loadingGui.Parent = parentGui
 
 local bg = Instance.new("Frame", loadingGui)
 bg.Size = UDim2.new(1, 0, 1, 0)
@@ -175,6 +188,7 @@ local orig_lighting = {
 }
 local is_mm2 = game.PlaceId == 142823291
 local wallbang_conn = nil
+local last_obj_esp_update = 0
 
 local function import_config(code)
     local ok, data = pcall(function() return HttpService:JSONDecode(code) end)
@@ -452,9 +466,11 @@ local function auto_swing(char)
     if tool then
         task.spawn(function() pcall(function() tool:Activate() end) end)
     else
-        local vim = game:GetService("VirtualInputManager")
-        vim:SendMouseButtonEvent(camera.ViewportSize.X/2, camera.ViewportSize.Y/2, 0, true, game, 0)
-        vim:SendMouseButtonEvent(camera.ViewportSize.X/2, camera.ViewportSize.Y/2, 0, false, game, 0)
+        task.spawn(function()
+            local vim = game:GetService("VirtualInputManager")
+            vim:SendMouseButtonEvent(camera.ViewportSize.X/2, camera.ViewportSize.Y/2, 0, true, game, 0)
+            vim:SendMouseButtonEvent(camera.ViewportSize.X/2, camera.ViewportSize.Y/2, 0, false, game, 0)
+        end)
     end
 end
 
@@ -538,7 +554,7 @@ end
 -- ==========================================
 update_loading("Building main window", 25)
 
-local gui = make("ScreenGui", {Name = "BSSToolkit", ResetOnSpawn = false, ZIndexBehavior = Enum.ZIndexBehavior.Sibling, IgnoreGuiInset = true}, CoreGui)
+local gui = make("ScreenGui", {Name = "BSSToolkit", ResetOnSpawn = false, ZIndexBehavior = Enum.ZIndexBehavior.Sibling, IgnoreGuiInset = true}, parentGui)
 local shadow = make("Frame", {Size = UDim2.new(0, 660, 0, 560), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 3, 0.5, 5), BackgroundColor3 = Color3.fromRGB(0, 0, 0), BackgroundTransparency = 0.55, BorderSizePixel = 0}, gui)
 corner(shadow, 12)
 local main = make("Frame", {Size = UDim2.new(0, 660, 0, 560), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0.5, 0), BackgroundColor3 = COL_BG, BorderSizePixel = 0, Active = false, ClipsDescendants = true, Visible = false}, gui)
@@ -1047,6 +1063,8 @@ local function clear_object_esp()
     obj_esp_objs = {}
 end
 local function update_object_esp()
+    if tick() - last_obj_esp_update < 0.5 then return end
+    last_obj_esp_update = tick()
     if not state.object_esp_enabled or state.object_name == "" then
         clear_object_esp()
         return
@@ -2596,15 +2614,17 @@ task.spawn(function()
                     end
                 end
                 if state.mob_farm_enabled then
-                    local mobs = Workspace:FindFirstChild("Mobs") or Workspace:FindFirstChild("Entities") or Workspace
-                    for _, v in ipairs(mobs:GetDescendants()) do
-                        if v.Name == state.mob_target and v:FindFirstChild("Humanoid") then
-                            local t_hrp = v:FindFirstChild("HumanoidRootPart")
-                            if t_hrp then
-                                hrp.CFrame = t_hrp.CFrame + Vector3.new(0, 2, 2)
-                                local tool = char:FindFirstChildOfClass("Tool")
-                                if tool then pcall(function() tool:Activate() end) end
-                                break
+                    local mobs = Workspace:FindFirstChild("Mobs") or Workspace:FindFirstChild("Entities")
+                    if mobs then
+                        for _, v in ipairs(mobs:GetDescendants()) do
+                            if v.Name == state.mob_target and v:FindFirstChild("Humanoid") then
+                                local t_hrp = v:FindFirstChild("HumanoidRootPart")
+                                if t_hrp then
+                                    hrp.CFrame = t_hrp.CFrame + Vector3.new(0, 2, 2)
+                                    local tool = char:FindFirstChildOfClass("Tool")
+                                    if tool then pcall(function() tool:Activate() end) end
+                                    break
+                                end
                             end
                         end
                     end
