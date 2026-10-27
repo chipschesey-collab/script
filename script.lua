@@ -1,26 +1,22 @@
+-- BSSToolkit - Fully Stable Version
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
-local CoreGui = game:GetService("CoreGui")
 local Workspace = game:GetService("Workspace")
 local HttpService = game:GetService("HttpService")
 local Lighting = game:GetService("Lighting")
 local TweenService = game:GetService("TweenService")
 local VirtualUser = game:GetService("VirtualUser")
-local VirtualInputManager = game:GetService("VirtualInputManager")
 
--- Safe initialization to ensure script doesn't hang
+-- Safe initialization
 local player = Players.LocalPlayer
-if not player then repeat wait(0.1) until Players.LocalPlayer player = Players.LocalPlayer end
+if not player then repeat task.wait(0.1) until Players.LocalPlayer player = Players.LocalPlayer end
 local camera = Workspace.CurrentCamera
-if not camera then repeat wait(0.1) until Workspace.CurrentCamera camera = Workspace.CurrentCamera end
+if not camera then repeat task.wait(0.1) until Workspace.CurrentCamera camera = Workspace.CurrentCamera end
 local orig_fov = camera.FieldOfView
 
-local parentGui = CoreGui
-if gethui then
-    local ok, hui = pcall(gethui)
-    if ok and hui then parentGui = hui end
-end
+-- Use PlayerGui instead of CoreGui to avoid executor spoofing errors
+local parentGui = player:WaitForChild("PlayerGui")
 
 local COL_BG = Color3.fromRGB(14, 14, 20)
 local COL_PANEL = Color3.fromRGB(22, 22, 32)
