@@ -128,6 +128,7 @@ local keybinds = {
     hide = {input = Enum.UserInputType.Keyboard, key = Enum.KeyCode.RightShift},
     fly = {input = Enum.UserInputType.Keyboard, key = Enum.KeyCode.G},
     shadow_step = {input = Enum.UserInputType.Keyboard, key = Enum.KeyCode.V},
+    orbit_rage = {input = Enum.UserInputType.Keyboard, key = Enum.KeyCode.X},
 }
 local key_state = {aimbot = false, fling = false, fly = false, shadow_step = false}
 local fling_active = false
@@ -160,6 +161,7 @@ local rainbow_originals = {}
 local melee_aura_conn = nil
 local orbit_aura_conn = nil
 local shadow_step_conn = nil
+local orbit_timer = nil
 local orig_lighting = {
     Brightness = Lighting.Brightness, ClockTime = Lighting.ClockTime, GlobalShadows = Lighting.GlobalShadows, FogEnd = Lighting.FogEnd,
 }
@@ -201,7 +203,6 @@ local function import_config(code)
     return true
 end
 
--- Auto-load from Downloads or standard workspace
 if isfile then
     local file_to_load = nil
     if isfile(downloads_config) then
@@ -312,6 +313,7 @@ local function full_cleanup()
     if melee_aura_conn then melee_aura_conn:Disconnect(); melee_aura_conn = nil end
     if orbit_aura_conn then orbit_aura_conn:Disconnect(); orbit_aura_conn = nil end
     if shadow_step_conn then shadow_step_conn:Disconnect(); shadow_step_conn = nil end
+    if orbit_timer then pcall(function() task.cancel(orbit_timer) end); orbit_timer = nil end
     for obj, orig in pairs(xray_originals) do if obj and obj.Parent then obj.Transparency = orig end end
     xray_originals = {}
     for p, hl in pairs(chams_highlights) do if hl and hl.Parent then pcall(function() hl:Destroy() end) end end
@@ -401,7 +403,7 @@ local function update_wallbang()
 end
 
 -- ==========================================
--- MELEE & ORBIT AURAS (Fixed to use tool:Activate)
+-- MELEE & ORBIT AURAS
 -- ==========================================
 local function get_closest_player(max_dist)
     local my_hrp = get_root()
@@ -425,15 +427,12 @@ end
 
 local function auto_swing(char)
     local tool = char:FindFirstChildOfClass("Tool")
-    if not tool and char:FindFirstChild("Backpack") then
-        -- If unarmed, try to equip the first tool in backpack
+    if not tool then
         local backpack = player:FindFirstChild("Backpack")
         if backpack then
             for _, item in ipairs(backpack:GetChildren()) do
                 if item:IsA("Tool") then
-                    item.Parent = char
-                    task.wait(0.1)
-                    tool = item
+                    task.spawn(function() item.Parent = char end) -- Spawned to prevent render blocking
                     break
                 end
             end
@@ -441,9 +440,8 @@ local function auto_swing(char)
     end
     
     if tool then
-        tool:Activate()
+        task.spawn(function() pcall(function() tool:Activate() end) end)
     else
-        -- If no tool exists, just click for fists
         local vim = game:GetService("VirtualInputManager")
         vim:SendMouseButtonEvent(camera.ViewportSize.X/2, camera.ViewportSize.Y/2, 0, true, game, 0)
         vim:SendMouseButtonEvent(camera.ViewportSize.X/2, camera.ViewportSize.Y/2, 0, false, game, 0)
@@ -492,6 +490,22 @@ local function update_orbit_aura()
             end
         end)
     end
+end
+
+local function start_orbit_rage()
+    if state.orbit_aura then
+        -- If already running, reset the timer
+        if orbit_timer then task.cancel(orbit_timer) end
+    else
+        state.orbit_aura = true
+        update_orbit_aura()
+    end
+    
+    orbit_timer = task.delay(10, function()
+        state.orbit_aura = false
+        update_orbit_aura()
+        orbit_timer = nil
+    end)
 end
 
 local function update_shadow_step()
@@ -1051,7 +1065,6 @@ toggle(aimLeft, "Team check", true, function(on) state.aimbot_teamcheck = on end
 toggle(aimLeft, "Triggerbot", false, function(on) state.triggerbot = on end, 8, "triggerbot")
 toggle(aimLeft, "Instant Snap (Lock-on)", false, function(on) state.aimbot_snap = on end, 9, "aimbot_snap")
 
--- NEW WALLBANG TOGGLE
 toggle(aimLeft, "Wallbang (Auto-Clip)", false, function(on) 
     state.wallbang = on 
     update_wallbang()
@@ -1126,12 +1139,13 @@ local function keybind_button(parent, label, slot, order)
     return b
 end
 function update_keybind_label()
-    keybindLabel.Text = "aim:" .. bind_label("aimbot") .. " step:" .. bind_label("shadow_step")
+    keybindLabel.Text = "aim:" .. bind_label("aimbot") .. " step:" .. bind_label("shadow_step") .. " orbit:" .. bind_label("orbit_rage")
 end
 keybind_button(aimRight, "Aimbot hold", "aimbot", 2)
 keybind_button(aimRight, "Fling hold", "fling", 3)
 keybind_button(aimRight, "Fly toggle", "fly", 4)
 keybind_button(aimRight, "Shadow Step (Backstab)", "shadow_step", 5)
+keybind_button(aimRight, "Orbit Rage (10s)", "orbit_rage", 6)
 update_keybind_label()
 section(aimRight, "Object aimbot", 10)
 toggle(aimRight, "Enable object aimbot", false, function(on) state.object_aimbot_enabled = on; update_fov_circle() end, 11, "object_aimbot_enabled")
@@ -1510,12 +1524,9 @@ toggle(exLeft, "Kill Aura (Fists)", false, function(on)
 end, 21, "melee_aura")
 slider(exLeft, "Kill Aura Range", 5, 50, 15, function(v) state.melee_aura_range = v end, 22, "melee_aura_range")
 
-toggle(exLeft, "Orbit Aura (Rage)", false, function(on) 
-    state.orbit_aura = on 
-    update_orbit_aura()
-end, 23, "orbit_aura")
-slider(exLeft, "Orbit Radius", 2, 30, 6, function(v) state.orbit_radius = v end, 24, "orbit_radius")
-slider(exLeft, "Orbit Height", 1, 20, 6, function(v) state.orbit_height = v end, 25, "orbit_height")
+slider(exLeft, "Orbit Radius", 2, 30, 6, function(v) state.orbit_radius = v end, 23, "orbit_radius")
+slider(exLeft, "Orbit Height", 1, 20, 6, function(v) state.orbit_height = v end, 24, "orbit_height")
+make("TextLabel", {Size = UDim2.new(1, 0, 0, 20), BackgroundTransparency = 1, Text = "Orbit Rage is bound to a keybind", TextColor3 = COL_TEXT_DIM, Font = Enum.Font.Gotham, TextSize = 11, LayoutOrder = 25}, exLeft)
 
 section(exLeft, "Rage Visuals", 10)
 toggle(exLeft, "Wall Transparency (X-Ray)", false, function(on)
@@ -2244,7 +2255,7 @@ track(UserInputService.InputBegan:Connect(function(io, gp)
             if hrp then hrp.CFrame = CFrame.new(mouse.Hit.Position + Vector3.new(0, 3, 0)) end
         end
     end
-    local aim_bind = keybinds.aimbot; local fling_bind = keybinds.fling; local fly_bind = keybinds.fly; local hide_bind = keybinds.hide; local step_bind = keybinds.shadow_step
+    local aim_bind = keybinds.aimbot; local fling_bind = keybinds.fling; local fly_bind = keybinds.fly; local hide_bind = keybinds.hide; local step_bind = keybinds.shadow_step; local orbit_bind = keybinds.orbit_rage
     if aim_bind.key and io.UserInputType == aim_bind.input and io.KeyCode == aim_bind.key then
         key_state.aimbot = true
     elseif fling_bind.key and io.UserInputType == fling_bind.input and io.KeyCode == fling_bind.key then
@@ -2262,6 +2273,8 @@ track(UserInputService.InputBegan:Connect(function(io, gp)
     elseif step_bind.key and io.UserInputType == step_bind.input and io.KeyCode == step_bind.key then
         key_state.shadow_step = true
         update_shadow_step()
+    elseif orbit_bind.key and io.UserInputType == orbit_bind.input and io.KeyCode == orbit_bind.key then
+        start_orbit_rage()
     elseif hide_bind.key and io.UserInputType == hide_bind.input and io.KeyCode == hide_bind.key then
         main.Visible = not main.Visible
         shadow.Visible = main.Visible
