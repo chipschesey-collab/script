@@ -108,6 +108,7 @@ end
 local state = {
     esp_enabled = false, esp_box = true, esp_name = true, esp_distance = true, esp_tracers = false, esp_skeleton = false, esp_color = Color3.fromRGB(255, 80, 80), esp_team_color = false, esp_range = 500,
     esp_health = true, radar_enabled = false, offscreen_arrows = false, bullet_tracers = false,
+    crosshair_enabled = false, crosshair_image = "rbxassetid://10096090482", crosshair_size = 30, crosshair_color = Color3.fromRGB(255, 255, 255), crosshair_spin = false, crosshair_spin_speed = 100,
     fov_enabled = false, fov_value = 70, fov_rmb = false, saved_spots = {}, aimbot_enabled = false, aimbot_fov = 150, aimbot_smooth = 0.35, aimbot_part = "Head", aimbot_teamcheck = true, aimbot_range = 500, aimbot_prediction = 0.05, aimbot_snap = false, wallbang = false,
     aimbot_hit_chance = 100, aimbot_pause_kill = false, aimbot_random_part = false, aimbot_god_check = true, aimbot_silent = false, aimbot_weapon_pred = true, hit_marker = true, hit_sound_pack = "dink",
     triggerbot = false, hit_sound = false, fling_return = true, use_walkfling = false, hitbox_enabled = false, hitbox_part = "HumanoidRootPart", hitbox_look = "Box", hitbox_size = 6, hitbox_transparency = 0.5,
@@ -758,6 +759,9 @@ local function update_fov_circle()
 end
 update_fov_circle()
 
+-- Custom Crosshair
+local customCrosshair = make("ImageLabel", {Size = UDim2.new(0, state.crosshair_size, 0, state.crosshair_size), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0.5, 0), BackgroundTransparency = 1, Image = state.crosshair_image, ImageColor3 = state.crosshair_color, Visible = state.crosshair_enabled, ZIndex = 10}, draw_holder)
+
 local hitMarker = make("TextLabel", {Size = UDim2.new(0, 50, 0, 50), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0.5, 0), BackgroundTransparency = 1, Text = "X", TextColor3 = COL_BAD, Font = Enum.Font.GothamBlack, TextSize = 24, Visible = false, ZIndex = 10}, draw_holder)
 local hitMarkerTime = 0
 
@@ -964,16 +968,38 @@ section(espLeft, "Camera", 20)
 toggle(espLeft, "Enable FOV override", false, function(on) state.fov_enabled = on end, 21, "fov_enabled")
 toggle(espLeft, "FOV only while RMB", false, function(on) state.fov_rmb = on end, 22, "fov_rmb")
 slider(espLeft, "FOV", 30, 120, 70, function(v) state.fov_value = v end, 23, "fov_value")
-section(espRight, "Object ESP", 1)
+
+section(espRight, "Custom Crosshair", 1)
+toggle(espRight, "Enable Crosshair", false, function(on) 
+    state.crosshair_enabled = on
+    customCrosshair.Visible = on
+end, 2, "crosshair_enabled")
+local crosshairBox = textbox(espRight, "Image ID (rbxassetid://...)", 3, state.crosshair_image, "crosshair_image")
+crosshairBox:GetPropertyChangedSignal("Text"):Connect(function()
+    state.crosshair_image = crosshairBox.Text
+    customCrosshair.Image = state.crosshair_image
+end)
+slider(espRight, "Crosshair Size", 10, 200, 30, function(v) 
+    state.crosshair_size = v
+    customCrosshair.Size = UDim2.new(0, v, 0, v)
+end, 4, "crosshair_size")
+toggle(espRight, "Spin Crosshair", false, function(on)
+    state.crosshair_spin = on
+end, 5, "crosshair_spin")
+slider(espRight, "Spin Speed", 10, 1000, 100, function(v)
+    state.crosshair_spin_speed = v
+end, 6, "crosshair_spin_speed")
+
+section(espRight, "Object ESP", 7)
 toggle(espRight, "Enable object ESP", false, function(on)
     state.object_esp_enabled = on
     if not on then clear_object_esp() end
-end, 2, "object_esp_enabled")
-local obj_name_box = textbox(espRight, "object name (exact match)", 3, "", "object_name")
+end, 8, "object_esp_enabled")
+local obj_name_box = textbox(espRight, "object name (exact match)", 9, "", "object_name")
 obj_name_box:GetPropertyChangedSignal("Text"):Connect(function() state.object_name = obj_name_box.Text end)
-slider(espRight, "Object range", 50, 2000, 500, function(v) state.object_range = v end, 4, "object_range")
-toggle(espRight, "Object box", true, function(on) state.object_box = on end, 5, "object_box")
-toggle(espRight, "Object name label", true, function(on) state.object_name_lbl = on end, 6, "object_name_lbl")
+slider(espRight, "Object range", 50, 2000, 500, function(v) state.object_range = v end, 10, "object_range")
+toggle(espRight, "Object box", true, function(on) state.object_box = on end, 11, "object_box")
+toggle(espRight, "Object name label", true, function(on) state.object_name_lbl = on end, 12, "object_name_lbl")
 
 local tpLeft, tpRight = split_two(tabPages["Teleport"])
 section(tpLeft, "Players", 1)
@@ -2407,6 +2433,10 @@ main_render_conn = RunService.Heartbeat:Connect(function(dt)
             hitMarker.Visible = true
         else
             hitMarker.Visible = false
+        end
+        
+        if state.crosshair_enabled and state.crosshair_spin then
+            customCrosshair.Rotation = customCrosshair.Rotation + (state.crosshair_spin_speed * dt)
         end
     end)
 end)
