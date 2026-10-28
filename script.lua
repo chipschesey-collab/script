@@ -7,7 +7,6 @@ local HttpService = game:GetService("HttpService")
 local Lighting = game:GetService("Lighting")
 local TweenService = game:GetService("TweenService")
 local VirtualUser = game:GetService("VirtualUser")
-local SoundService = game:GetService("SoundService")
 local player = Players.LocalPlayer
 local camera = Workspace.CurrentCamera
 local orig_fov = camera.FieldOfView
@@ -27,34 +26,6 @@ local config_file = "BSSToolkit_Config.json"
 local downloads_config = "Downloads/BSSToolkit_Config.json"
 
 -- ==========================================
--- GUI PARENT RESOLVER (Xeno/Synapse safe)
--- ==========================================
-local function resolve_gui_parent()
-    local ok, hui = pcall(function() return gethui and gethui() end)
-    if ok and hui then
-        local test = Instance.new("ScreenGui")
-        test.Name = "_bss_probe"
-        local ok2 = pcall(function() test.Parent = hui end)
-        if ok2 and test.Parent then
-            test:Destroy()
-            return hui, "gethui"
-        end
-        test:Destroy()
-    end
-    local test2 = Instance.new("ScreenGui")
-    test2.Name = "_bss_probe"
-    local ok3 = pcall(function() test2.Parent = CoreGui end)
-    if ok3 and test2.Parent then
-        test2:Destroy()
-        return CoreGui, "CoreGui"
-    end
-    test2:Destroy()
-    return player:WaitForChild("PlayerGui"), "PlayerGui"
-end
-local gui_parent, parent_source = resolve_gui_parent()
-print("[BSSToolkit] gui parent:", parent_source)
-
--- ==========================================
 -- LOADING SCREEN
 -- ==========================================
 local loadingGui = Instance.new("ScreenGui")
@@ -62,7 +33,7 @@ loadingGui.Name = "BSS_Loading"
 loadingGui.ResetOnSpawn = false
 loadingGui.IgnoreGuiInset = true
 loadingGui.DisplayOrder = 9999
-loadingGui.Parent = gui_parent
+loadingGui.Parent = CoreGui
 
 local bg = Instance.new("Frame", loadingGui)
 bg.Size = UDim2.new(1, 0, 1, 0)
@@ -137,7 +108,6 @@ end
 local state = {
     esp_enabled = false, esp_box = true, esp_name = true, esp_distance = true, esp_tracers = false, esp_skeleton = false, esp_color = Color3.fromRGB(255, 80, 80), esp_team_color = false, esp_range = 500,
     esp_health = true, radar_enabled = false, offscreen_arrows = false, bullet_tracers = false,
-    crosshair_enabled = false, crosshair_image = "rbxassetid://10096090482", crosshair_size = 30, crosshair_color = Color3.fromRGB(255, 255, 255), crosshair_spin = false, crosshair_spin_speed = 100,
     fov_enabled = false, fov_value = 70, fov_rmb = false, saved_spots = {}, aimbot_enabled = false, aimbot_fov = 150, aimbot_smooth = 0.35, aimbot_part = "Head", aimbot_teamcheck = true, aimbot_range = 500, aimbot_prediction = 0.05, aimbot_snap = false, wallbang = false,
     aimbot_hit_chance = 100, aimbot_pause_kill = false, aimbot_random_part = false, aimbot_god_check = true, aimbot_silent = false, aimbot_weapon_pred = true, hit_marker = true, hit_sound_pack = "dink",
     triggerbot = false, hit_sound = false, fling_return = true, use_walkfling = false, hitbox_enabled = false, hitbox_part = "HumanoidRootPart", hitbox_look = "Box", hitbox_size = 6, hitbox_transparency = 0.5,
@@ -148,7 +118,7 @@ local state = {
     xray_enabled = false, chams_enabled = false, rainbow_enabled = false, forcefield_enabled = false,
     jb_auto_rob = false, jb_auto_arrest = false, inf_jump = false, config_filename = "BSSToolkit_Config.json",
     melee_aura = false, melee_aura_range = 15,
-    orbit_aura = false, orbit_radius = 6, orbit_height = 6,
+    orbit_aura = false, orbit_radius = 4, orbit_height = 3, orbit_duration = 10,
 }
 
 local ui_refs = { toggles = {}, sliders = {}, textboxes = {} }
@@ -266,30 +236,11 @@ local function stroke(inst, color, thickness, transparency)
     make("UIStroke", {Color = color or COL_STROKE, Thickness = thickness or 1, Transparency = transparency or 0}, inst)
     return inst
 end
-
-local player_cache = {}
-local function get_player_refs(p)
-    if not p then return nil end
-    local c = player_cache[p]
-    if c and c.char and c.char.Parent and c.hrp and c.hrp.Parent == c.char then
-        return c.char, c.hrp, c.hum
-    end
-    local char = p.Character
-    if not char then return nil end
-    local hrp = char:FindFirstChild("HumanoidRootPart")
-    local hum = char:FindFirstChildOfClass("Humanoid")
-    player_cache[p] = {char = char, hrp = hrp, hum = hum}
-    return char, hrp, hum
-end
 local function get_root(p)
     p = p or player
-    if p == player then
-        local char = p.Character
-        if not char then return nil end
-        return char:FindFirstChild("HumanoidRootPart")
-    end
-    local _, hrp = get_player_refs(p)
-    return hrp
+    local char = p.Character
+    if not char then return nil end
+    return char:FindFirstChild("HumanoidRootPart")
 end
 local function parse_cframe(text)
     text = text:gsub("^%s+", ""):gsub("%s+$", "")
@@ -308,33 +259,42 @@ local function same_team(a, b)
     return a.Team == b.Team
 end
 local function player_in_game(p)
-    local char, hrp, hum = get_player_refs(p)
-    if not char or not hrp or not hum then return false end
-    return hum.Health > 0
+    local char = p.Character
+    if not char then return false end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hum or not hrp then return false end
+    if hum.Health <= 0 then return false end
+    return true
 end
-
--- Fixed hit sound
 local function play_hit_sound()
     local s = Instance.new("Sound")
-    s.SoundId = "rbxassetid://131094575"
-    s.Volume = 1
-    s.Parent = SoundService
-    s:Play()
-    task.delay(1, function() s:Destroy() end)
+    if state.hit_sound_pack == "dink" then
+        s.SoundId = "rbxassetid://131094575"
+    elseif state.hit_sound_pack == "pew" then
+        s.SoundId = "rbxassetid://131094575"
+    elseif state.hit_sound_pack == "boom" then
+        s.SoundId = "rbxassetid://131094575"
+    else
+        s.SoundId = "rbxassetid://131094575"
+    end
+    s.Volume = 0.6
+    local ss = game:GetService("SoundService")
+    local ok = pcall(function() ss:PlayLocalSound(s) end)
+    if not ok then
+        s.Parent = ss
+        s:Play()
+    end
+    task.delay(2, function() if s and s.Parent then s:Destroy() end end)
 end
-
 local function monitor_health(p)
     if p == player then return end
     if hit_sound_conns[p] then hit_sound_conns[p]:Disconnect() end
     local function bind_char(char)
         local hum = char:WaitForChild("Humanoid", 5)
         if hum then
-            local last_health = hum.Health
             hit_sound_conns[p] = hum.HealthChanged:Connect(function(newHealth)
-                if state.hit_sound and newHealth < last_health and newHealth > 0 then 
-                    play_hit_sound() 
-                end
-                last_health = newHealth
+                if state.hit_sound and newHealth < hum.MaxHealth then play_hit_sound() end
             end)
         end
     end
@@ -345,15 +305,6 @@ track(Players.PlayerAdded:Connect(monitor_health))
 for _, p in ipairs(Players:GetPlayers()) do
     if p ~= player then monitor_health(p) end
 end
-
-local function bind_cache_invalidation(p)
-    if p == player then return end
-    p.CharacterAdded:Connect(function() player_cache[p] = nil end)
-    p.CharacterRemoving:Connect(function() player_cache[p] = nil end)
-end
-for _, p in ipairs(Players:GetPlayers()) do bind_cache_invalidation(p) end
-track(Players.PlayerAdded:Connect(bind_cache_invalidation))
-track(Players.PlayerRemoving:Connect(function(p) player_cache[p] = nil end))
 
 local function full_cleanup()
     pcall(function() RunService:UnbindFromRenderStep("BSSToolkitAim") end)
@@ -425,31 +376,6 @@ local function full_cleanup()
     fling_active = false
 end
 
-local tracked_objects = {}
-local object_lock = false
-local function rebuild_tracked_objects()
-    object_lock = true
-    tracked_objects = {}
-    if state.object_name ~= "" then
-        for _, obj in ipairs(Workspace:GetDescendants()) do
-            if obj.Name == state.object_name and obj:IsA("BasePart") then
-                tracked_objects[obj] = true
-            end
-        end
-    end
-    object_lock = false
-end
-track(Workspace.DescendantAdded:Connect(function(obj)
-    if object_lock or state.object_name == "" then return end
-    if obj.Name == state.object_name and obj:IsA("BasePart") then
-        tracked_objects[obj] = true
-    end
-end))
-track(Workspace.DescendantRemoving:Connect(function(obj)
-    if object_lock then return end
-    tracked_objects[obj] = nil
-end))
-
 local function export_config()
     local data = {}
     for k, v in pairs(state) do
@@ -495,22 +421,18 @@ end
 -- MELEE & ORBIT AURAS
 -- ==========================================
 local function get_closest_player(max_dist)
-    local my_root = get_root()
-    if not my_root then return nil end
-    local my_pos = my_root.Position
-    local min_sq = (max_dist or math.huge) ^ 2
+    local my_hrp = get_root()
+    if not my_hrp then return nil end
     local closest = nil
+    local min_dist = max_dist or math.huge
     for _, p in ipairs(Players:GetPlayers()) do
-        if p ~= player then
-            local _, hrp, hum = get_player_refs(p)
-            if hrp and hum and hum.Health > 0 then
-                local dx = hrp.Position.X - my_pos.X
-                local dy = hrp.Position.Y - my_pos.Y
-                local dz = hrp.Position.Z - my_pos.Z
-                local dist_sq = dx * dx + dy * dy + dz * dz
-                if dist_sq < min_sq then
-                    min_sq = dist_sq
-                    closest = hrp
+        if p ~= player and player_in_game(p) then
+            local t_hrp = get_root(p)
+            if t_hrp then
+                local dist = (t_hrp.Position - my_hrp.Position).Magnitude
+                if dist < min_dist then
+                    min_dist = dist
+                    closest = t_hrp
                 end
             end
         end
@@ -573,11 +495,10 @@ local function update_orbit_aura()
             local t_hrp = get_closest_player(1000)
             if t_hrp then
                 local t = tick()
-                local angle = t * 80  -- faster
-                local y_offset = math.sin(t * 25) * state.orbit_height -- faster bob
-                local radius = math.max(1, state.orbit_radius - 2) -- 2 studs closer
-                local x_offset = math.cos(angle) * radius
-                local z_offset = math.sin(angle) * radius
+                local angle = t * 50 
+                local y_offset = math.sin(t * 15) * state.orbit_height
+                local x_offset = math.cos(angle) * state.orbit_radius
+                local z_offset = math.sin(angle) * state.orbit_radius
                 
                 hrp.CFrame = t_hrp.CFrame * CFrame.new(x_offset, y_offset, z_offset)
                 auto_swing(char)
@@ -594,7 +515,7 @@ local function start_orbit_rage()
         update_orbit_aura()
     end
     
-    orbit_timer = task.delay(10, function()
+    orbit_timer = task.delay(state.orbit_duration, function()
         state.orbit_aura = false
         update_orbit_aura()
         orbit_timer = nil
@@ -623,7 +544,7 @@ end
 -- ==========================================
 update_loading("Building main window", 25)
 
-local gui = make("ScreenGui", {Name = "BSSToolkit", ResetOnSpawn = false, ZIndexBehavior = Enum.ZIndexBehavior.Sibling, IgnoreGuiInset = true}, gui_parent)
+local gui = make("ScreenGui", {Name = "BSSToolkit", ResetOnSpawn = false, ZIndexBehavior = Enum.ZIndexBehavior.Sibling, IgnoreGuiInset = true}, CoreGui)
 local shadow = make("Frame", {Size = UDim2.new(0, 660, 0, 560), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 3, 0.5, 5), BackgroundColor3 = Color3.fromRGB(0, 0, 0), BackgroundTransparency = 0.55, BorderSizePixel = 0}, gui)
 corner(shadow, 12)
 local main = make("Frame", {Size = UDim2.new(0, 660, 0, 560), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0.5, 0), BackgroundColor3 = COL_BG, BorderSizePixel = 0, Active = false, ClipsDescendants = true, Visible = false}, gui)
@@ -830,7 +751,7 @@ end
 -- ==========================================
 update_loading("Building ESP elements", 50)
 
-local draw_holder = make("Frame", {Size = UDim2.new(1, 0, 1, 0), Position = UDim2.new(0, 0, 0, 0), BackgroundTransparency = 1, Active = false, ClipsDescendants = false, ZIndex = 100}, gui)
+local draw_holder = make("Frame", {Size = UDim2.new(1, 0, 1, 0), Position = UDim2.new(0, 0, 0, 0), BackgroundTransparency = 1, Active = false, ClipsDescendants = false}, gui)
 local fovCircle = make("Frame", {Size = UDim2.new(0, state.aimbot_fov * 2, 0, state.aimbot_fov * 2), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0.5, 0), BackgroundTransparency = 1, BorderSizePixel = 0, Visible = false, ZIndex = 5}, draw_holder)
 make("UICorner", {CornerRadius = UDim.new(1, 0)}, fovCircle)
 make("UIStroke", {Color = COL_ACCENT, Thickness = 1.5, Transparency = 0.35}, fovCircle)
@@ -840,42 +761,6 @@ local function update_fov_circle()
     fovCircle.Visible = state.aimbot_enabled or state.object_aimbot_enabled
 end
 update_fov_circle()
-
--- Custom Crosshair
-local customCrosshair = make("ImageLabel", {
-    Size = UDim2.new(0, state.crosshair_size, 0, state.crosshair_size),
-    AnchorPoint = Vector2.new(0.5, 0.5),
-    Position = UDim2.new(0.5, 0, 0.5, 0),
-    BackgroundTransparency = 1,
-    ImageTransparency = 0,
-    ImageColor3 = state.crosshair_color,
-    ScaleType = Enum.ScaleType.Stretch,
-    Visible = state.crosshair_enabled,
-    ZIndex = 100
-}, draw_holder)
-
-local function rebind_crosshair_image(id)
-    customCrosshair.Image = ""
-    task.defer(function()
-        customCrosshair.Image = id
-    end)
-end
-rebind_crosshair_image(state.crosshair_image)
-
-customCrosshair.LoadFailed:Connect(function(asset_id)
-    warn("[BSSToolkit] crosshair failed to load asset:", asset_id)
-end)
-
-local function set_crosshair_image(id)
-    state.crosshair_image = id
-    rebind_crosshair_image(id)
-end
-
-local function set_crosshair_visible(on)
-    state.crosshair_enabled = on
-    customCrosshair.Visible = on
-    if on then rebind_crosshair_image(state.crosshair_image) end
-end
 
 local hitMarker = make("TextLabel", {Size = UDim2.new(0, 50, 0, 50), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0.5, 0), BackgroundTransparency = 1, Text = "X", TextColor3 = COL_BAD, Font = Enum.Font.GothamBlack, TextSize = 24, Visible = false, ZIndex = 10}, draw_holder)
 local hitMarkerTime = 0
@@ -887,33 +772,16 @@ local function make_esp_for(p)
     local box_stroke = make("UIStroke", {Color = state.esp_color, Thickness = 1}, box)
     local nameLbl = make("TextLabel", {BackgroundTransparency = 1, TextColor3 = state.esp_color, Font = Enum.Font.GothamBold, TextSize = 12, TextStrokeTransparency = 0.4, AnchorPoint = Vector2.new(0.5, 0.5)}, frame)
     local distLbl = make("TextLabel", {BackgroundTransparency = 1, TextColor3 = state.esp_color, Font = Enum.Font.Gotham, TextSize = 11, TextStrokeTransparency = 0.4, AnchorPoint = Vector2.new(0.5, 0.5)}, frame)
-    -- tracer moved to draw_holder to prevent clipping/offset issues
-    local tracer = make("Frame", {BackgroundColor3 = state.esp_color, BorderSizePixel = 0, Visible = false, AnchorPoint = Vector2.new(0, 0.5), ZIndex = 2}, draw_holder)
+    local tracer = make("Frame", {BackgroundColor3 = state.esp_color, BorderSizePixel = 0, Visible = false, AnchorPoint = Vector2.new(0, 0.5)}, frame)
     local skel = {}
     for i = 1, 16 do
         skel[i] = make("Frame", {BackgroundColor3 = Color3.fromRGB(200, 200, 210), BorderSizePixel = 0, Visible = false, AnchorPoint = Vector2.new(0, 0.5)}, frame)
     end
-    esp_objects[p] = {
-        root = frame, box = box, box_stroke = box_stroke, name = nameLbl, dist = distLbl, tracer = tracer, skel = skel,
-        _last = {
-            color = nil,
-            box_x = nil, box_y = nil, box_w = nil, box_h = nil,
-            name_text = nil, name_x = nil, name_y = nil,
-            dist_val = nil, dist_x = nil, dist_y = nil,
-            tracer_len = nil, tracer_rot = nil, tracer_x = nil, tracer_y = nil,
-        },
-        skel_last = {},
-        cached_char = nil,
-        bones = {},
-        pairs_list = SKEL_R6,
-    }
+    esp_objects[p] = {root = frame, box = box, box_stroke = box_stroke, name = nameLbl, dist = distLbl, tracer = tracer, skel = skel}
 end
 local function remove_esp_for(p)
     local o = esp_objects[p]
-    if o then
-        if o.root then o.root:Destroy() end
-        if o.tracer then o.tracer:Destroy() end
-    end
+    if o and o.root then o.root:Destroy() end
     esp_objects[p] = nil
 end
 local function char_bounds(char)
@@ -935,261 +803,146 @@ local SKEL_R15 = {
     {"UpperTorso", "RightUpperArm"}, {"RightUpperArm", "RightLowerArm"}, {"RightLowerArm", "RightHand"}, {"LowerTorso", "LeftUpperLeg"}, {"LeftUpperLeg", "LeftLowerLeg"},
     {"LeftLowerLeg", "LeftFoot"}, {"LowerTorso", "RightUpperLeg"}, {"RightUpperLeg", "RightLowerLeg"}, {"RightLowerLeg", "RightFoot"},
 }
-
-local function draw_skeleton(o, char, cam)
-    if o.cached_char ~= char then
-        o.cached_char = char
-        o.bones = {}
-        o.skel_last = {}
-        o.pairs_list = char:FindFirstChild("UpperTorso") and SKEL_R15 or SKEL_R6
-    end
-    local bones = o.bones
-    local skel_last = o.skel_last
+local function draw_skeleton(o, char)
+    local pairs_list = char:FindFirstChild("UpperTorso") and SKEL_R15 or SKEL_R6
     local idx = 0
-    for _, pair in ipairs(o.pairs_list) do
-        local a = bones[pair[1]]
-        if not a or not a.Parent then
-            a = char:FindFirstChild(pair[1])
-            bones[pair[1]] = a
-        end
-        local b = bones[pair[2]]
-        if not b or not b.Parent then
-            b = char:FindFirstChild(pair[2])
-            bones[pair[2]] = b
-        end
+    for _, pair in ipairs(pairs_list) do
+        local a = char:FindFirstChild(pair[1])
+        local b = char:FindFirstChild(pair[2])
         if a and b then
+            local cam = Workspace.CurrentCamera
             local sp_a, on_a = cam:WorldToViewportPoint(a.Position)
             local sp_b, on_b = cam:WorldToViewportPoint(b.Position)
             if on_a and on_b then
                 idx = idx + 1
                 local line = o.skel[idx]
                 if line then
-                    local dx = sp_b.X - sp_a.X
-                    local dy = sp_b.Y - sp_a.Y
-                    local len = math.floor(math.sqrt(dx * dx + dy * dy) + 0.5)
-                    local rot = math.floor(math.deg(math.atan2(dy, dx)) * 2 + 0.5) / 2
-                    local px = math.floor(sp_a.X * 2 + 0.5) / 2
-                    local py = math.floor(sp_a.Y * 2 + 0.5) / 2
-                    local sl = skel_last[idx]
-                    if not sl then sl = {}; skel_last[idx] = sl end
-                    if not line.Visible then line.Visible = true end
-                    if sl.len ~= len or sl.x ~= px or sl.y ~= py or sl.rot ~= rot then
-                        line.Size = UDim2.new(0, len, 0, 1)
-                        line.Position = UDim2.new(0, px, 0, py)
-                        line.Rotation = rot
-                        sl.len = len; sl.x = px; sl.y = py; sl.rot = rot
-                    end
+                    local pa = Vector2.new(sp_a.X, sp_a.Y)
+                    local pb = Vector2.new(sp_b.X, sp_b.Y)
+                    local delta = pb - pa
+                    local length = delta.Magnitude
+                    line.Visible = true
+                    line.Size = UDim2.new(0, length, 0, 1)
+                    line.Position = UDim2.new(0, pa.X, 0, pa.Y)
+                    line.Rotation = math.deg(math.atan2(delta.Y, delta.X))
                 end
             end
         end
     end
-    for i = idx + 1, #o.skel do
-        local line = o.skel[i]
-        if line and line.Visible then line.Visible = false end
-    end
+    for i = idx + 1, #o.skel do o.skel[i].Visible = false end
 end
-
 local function update_esp()
-    if not state.esp_enabled then
-        for _, o in pairs(esp_objects) do
-            if o.root.Visible then o.root.Visible = false end
-            if o.tracer.Visible then o.tracer.Visible = false end
-        end
-        return
-    end
-    local cam = camera
-    local vp = cam.ViewportSize
-    local vp_bottom_x = vp.X * 0.5
-    local vp_bottom_y = vp.Y
-    local my_color = state.esp_color
-    local use_team_color = state.esp_team_color
-    local max_range = state.esp_range
-    local show_box = state.esp_box
-    local show_name = state.esp_name
-    local show_dist = state.esp_distance
-    local show_tracer = state.esp_tracers
-    local show_skel = state.esp_skeleton
-    local cam_pos = cam.CFrame.Position
-
-    for p in pairs(esp_objects) do
+    for p, _ in pairs(esp_objects) do
         if not p.Parent or not p.Character then remove_esp_for(p) end
     end
-
     for _, p in ipairs(Players:GetPlayers()) do
         if p ~= player then
+            if not esp_objects[p] then make_esp_for(p) end
             local o = esp_objects[p]
-            if not o then make_esp_for(p); o = esp_objects[p] end
-            local char, hrp, hum = get_player_refs(p)
-            if not char or not hrp or not hum or hum.Health <= 0 then
-                if o.root.Visible then o.root.Visible = false end
-                if o.tracer.Visible then o.tracer.Visible = false end
-            else
-                local use_color = my_color
-                if use_team_color and p.Team then use_color = p.Team.TeamColor.Color end
-                if o._last.color ~= use_color then
-                    o.box_stroke.Color = use_color
-                    o.name.TextColor3 = use_color
-                    o.dist.TextColor3 = use_color
-                    o.tracer.BackgroundColor3 = use_color
-                    o._last.color = use_color
-                end
-                local sp, onscreen = cam:WorldToViewportPoint(hrp.Position)
-                if not onscreen or sp.Z <= 0 then
-                    if o.root.Visible then o.root.Visible = false end
-                    if o.tracer.Visible then o.tracer.Visible = false end
-                else
-                    local ddx = hrp.Position.X - cam_pos.X
-                    local ddy = hrp.Position.Y - cam_pos.Y
-                    local ddz = hrp.Position.Z - cam_pos.Z
-                    local dist = math.sqrt(ddx * ddx + ddy * ddy + ddz * ddz)
-                    if dist > max_range then
-                        if o.root.Visible then o.root.Visible = false end
-                        if o.tracer.Visible then o.tracer.Visible = false end
+            local char = p.Character
+            local use_color = state.esp_color
+            if state.esp_team_color and p.Team then use_color = p.Team.TeamColor.Color end
+            o.box_stroke.Color = use_color
+            o.name.TextColor3 = use_color
+            o.dist.TextColor3 = use_color
+            o.tracer.BackgroundColor3 = use_color
+            if state.esp_enabled and char and player_in_game(p) then
+                local pos, w, h, dist = char_bounds(char)
+                if pos and dist and dist <= state.esp_range then
+                    o.root.Visible = true
+                    if state.esp_box then
+                        o.box.Visible = true
+                        o.box.Size = UDim2.new(0, w, 0, h)
+                        o.box.Position = UDim2.new(0, pos.X, 0, pos.Y)
+                    else o.box.Visible = false end
+                    if state.esp_name then
+                        o.name.Visible = true
+                        o.name.Text = p.Name
+                        o.name.Size = UDim2.new(0, 200, 0, 14)
+                        o.name.Position = UDim2.new(0, pos.X, 0, pos.Y - h/2 - 10)
+                    else o.name.Visible = false end
+                    if state.esp_distance then
+                        o.dist.Visible = true
+                        o.dist.Text = string.format("%d studs", dist)
+                        o.dist.Size = UDim2.new(0, 200, 0, 12)
+                        o.dist.Position = UDim2.new(0, pos.X, 0, pos.Y + h/2 + 10)
+                    else o.dist.Visible = false end
+                    if state.esp_tracers then
+                        o.tracer.Visible = true
+                        local vp = camera.ViewportSize
+                        local startV = Vector2.new(vp.X/2, vp.Y)
+                        local endV = Vector2.new(pos.X, pos.Y + h/2)
+                        local delta = endV - startV
+                        local length = delta.Magnitude
+                        o.tracer.Size = UDim2.new(0, length, 0, 1)
+                        o.tracer.Position = UDim2.new(0, startV.X, 0, startV.Y)
+                        o.tracer.Rotation = math.deg(math.atan(delta.Y, delta.X))
+                    else o.tracer.Visible = false end
+                    if state.esp_skeleton then
+                        draw_skeleton(o, char)
                     else
-                        local h = 1200 / math.max(dist, 1)
-                        local w = h * 0.6
-                        local bx = math.floor(sp.X * 2 + 0.5) / 2
-                        local by = math.floor(sp.Y * 2 + 0.5) / 2
-                        local bw = math.floor(w + 0.5)
-                        local bh = math.floor(h + 0.5)
-                        if not o.root.Visible then o.root.Visible = true end
-
-                        if show_box then
-                            if not o.box.Visible then o.box.Visible = true end
-                            if o._last.box_x ~= bx or o._last.box_y ~= by then
-                                o.box.Position = UDim2.new(0, bx, 0, by)
-                                o._last.box_x = bx; o._last.box_y = by
-                            end
-                            if o._last.box_w ~= bw or o._last.box_h ~= bh then
-                                o.box.Size = UDim2.new(0, bw, 0, bh)
-                                o._last.box_w = bw; o._last.box_h = bh
-                            end
-                        elseif o.box.Visible then
-                            o.box.Visible = false
-                        end
-
-                        if show_name then
-                            if not o.name.Visible then o.name.Visible = true end
-                            if o._last.name_text ~= p.Name then
-                                o.name.Text = p.Name
-                                o._last.name_text = p.Name
-                            end
-                            local ny = by - math.floor(bh * 0.5) - 10
-                            if o._last.name_x ~= bx or o._last.name_y ~= ny then
-                                o.name.Position = UDim2.new(0, bx, 0, ny)
-                                o._last.name_x = bx; o._last.name_y = ny
-                            end
-                        elseif o.name.Visible then
-                            o.name.Visible = false
-                        end
-
-                        if show_dist then
-                            if not o.dist.Visible then o.dist.Visible = true end
-                            local dist_int = math.floor(dist + 0.5)
-                            if o._last.dist_val ~= dist_int then
-                                o.dist.Text = dist_int .. " studs"
-                                o._last.dist_val = dist_int
-                            end
-                            local ddy2 = by + math.floor(bh * 0.5) + 10
-                            if o._last.dist_x ~= bx or o._last.dist_y ~= ddy2 then
-                                o.dist.Position = UDim2.new(0, bx, 0, ddy2)
-                                o._last.dist_x = bx; o._last.dist_y = ddy2
-                            end
-                        elseif o.dist.Visible then
-                            o.dist.Visible = false
-                        end
-
-                        if show_tracer then
-                            if not o.tracer.Visible then o.tracer.Visible = true end
-                            local ex = sp.X
-                            local ey = sp.Y + h * 0.5
-                            local tdx = ex - vp_bottom_x
-                            local tdy = ey - vp_bottom_y
-                            local tlen = math.floor(math.sqrt(tdx * tdx + tdy * tdy) + 0.5)
-                            local trad = math.floor(math.deg(math.atan2(tdy, tdx)) * 2 + 0.5) / 2
-                            local tsx = math.floor(vp_bottom_x * 2 + 0.5) / 2
-                            local tsy = math.floor(vp_bottom_y * 2 + 0.5) / 2
-                            if o._last.tracer_len ~= tlen or o._last.tracer_rot ~= trad then
-                                o.tracer.Size = UDim2.new(0, tlen, 0, 1)
-                                o.tracer.Rotation = trad
-                                o._last.tracer_len = tlen; o._last.tracer_rot = trad
-                            end
-                            if o._last.tracer_x ~= tsx or o._last.tracer_y ~= tsy then
-                                o.tracer.Position = UDim2.new(0, tsx, 0, tsy)
-                                o._last.tracer_x = tsx; o._last.tracer_y = tsy
-                            end
-                        elseif o.tracer.Visible then
-                            o.tracer.Visible = false
-                        end
-
-                        if show_skel then
-                            draw_skeleton(o, char, cam)
-                        else
-                            for _, line in ipairs(o.skel) do
-                                if line.Visible then line.Visible = false end
-                            end
-                        end
+                        for _, line in ipairs(o.skel) do line.Visible = false end
                     end
+                else
+                    o.root.Visible = false
                 end
+            else
+                o.root.Visible = false
             end
         end
     end
 end
-
-local obj_esp_active = false
+local function get_object_origin(obj)
+    if obj:IsA("BasePart") then return obj end
+    if obj:IsA("Model") then
+        return obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")
+    end
+    return nil
+end
 local function clear_object_esp()
-    if not next(obj_esp_objs) then return end
     for inst, o in pairs(obj_esp_objs) do if o.frame then o.frame:Destroy() end end
     obj_esp_objs = {}
 end
 local function update_object_esp()
     if not state.object_esp_enabled or state.object_name == "" then
-        if obj_esp_active then clear_object_esp(); obj_esp_active = false end
+        clear_object_esp()
         return
     end
-    obj_esp_active = true
-    local cam = camera
-    local my_root = get_root()
-    local my_pos = my_root and my_root.Position or Vector3.zero
-    local range = state.object_range
-    local show_box = state.object_box
-    local show_name = state.object_name_lbl
+    local name = state.object_name
     local seen = {}
-    for obj in pairs(tracked_objects) do
-        if obj.Parent then
-            local dx = obj.Position.X - my_pos.X
-            local dy = obj.Position.Y - my_pos.Y
-            local dz = obj.Position.Z - my_pos.Z
-            local dist_sq = dx * dx + dy * dy + dz * dz
-            if dist_sq <= range * range then
-                seen[obj] = true
-                if not obj_esp_objs[obj] then
-                    local frame = make("Frame", {BackgroundTransparency = 1, Visible = false}, draw_holder)
-                    local box = make("Frame", {BackgroundTransparency = 1, AnchorPoint = Vector2.new(0.5, 0.5)}, frame)
-                    stroke(box, Color3.fromRGB(80, 200, 255), 1)
-                    local label = make("TextLabel", {BackgroundTransparency = 1, TextColor3 = Color3.fromRGB(140, 220, 255), Font = Enum.Font.GothamBold, TextSize = 11, TextStrokeTransparency = 0.4, AnchorPoint = Vector2.new(0.5, 0.5)}, frame)
-                    obj_esp_objs[obj] = {frame = frame, box = box, label = label}
-                end
-                local o = obj_esp_objs[obj]
-                local sp, onscreen = cam:WorldToViewportPoint(obj.Position)
-                if onscreen then
-                    local scale = 800 / math.max(math.sqrt(dist_sq), 1)
-                    local h = math.clamp(math.floor(scale + 0.5), 8, 300)
-                    local w = h
-                    if not o.frame.Visible then o.frame.Visible = true end
-                    if o.box.Visible ~= show_box then o.box.Visible = show_box end
-                    if show_box then
+    local my_pos = get_root() and get_root().Position or Vector3.zero
+    for _, obj in ipairs(Workspace:GetDescendants()) do
+        if obj.Name == name then
+            local part = get_object_origin(obj)
+            if part then
+                local dist = (part.Position - my_pos).Magnitude
+                if dist <= state.object_range then
+                    seen[obj] = true
+                    if not obj_esp_objs[obj] then
+                        local frame = make("Frame", {BackgroundTransparency = 1, Visible = false}, draw_holder)
+                        local box = make("Frame", {BackgroundTransparency = 1, AnchorPoint = Vector2.new(0.5, 0.5)}, frame)
+                        stroke(box, Color3.fromRGB(80, 200, 255), 1)
+                        local label = make("TextLabel", {BackgroundTransparency = 1, TextColor3 = Color3.fromRGB(140, 220, 255), Font = Enum.Font.GothamBold, TextSize = 11, TextStrokeTransparency = 0.4, AnchorPoint = Vector2.new(0.5, 0.5)}, frame)
+                        obj_esp_objs[obj] = {frame = frame, box = box, label = label}
+                    end
+                    local o = obj_esp_objs[obj]
+                    local cam = Workspace.CurrentCamera
+                    local sp, onscreen = cam:WorldToViewportPoint(part.Position)
+                    if onscreen then
+                        local scale = 800 / math.max(dist, 1)
+                        local h = math.clamp(scale, 8, 300)
+                        local w = h
+                        o.frame.Visible = true
+                        o.box.Visible = state.object_box
                         o.box.Size = UDim2.new(0, w, 0, h)
                         o.box.Position = UDim2.new(0, sp.X, 0, sp.Y)
-                    end
-                    if o.label.Visible ~= show_name then o.label.Visible = show_name end
-                    if show_name then
+                        o.label.Visible = state.object_name_lbl
                         o.label.Text = obj.Name
                         o.label.Size = UDim2.new(0, 150, 0, 14)
-                        o.label.Position = UDim2.new(0, sp.X, 0, sp.Y - h * 0.5 - 10)
+                        o.label.Position = UDim2.new(0, sp.X, 0, sp.Y - h/2 - 10)
+                    else
+                        o.frame.Visible = false
                     end
-                else
-                    if o.frame.Visible then o.frame.Visible = false end
                 end
             end
         end
@@ -1225,44 +978,16 @@ section(espLeft, "Camera", 20)
 toggle(espLeft, "Enable FOV override", false, function(on) state.fov_enabled = on end, 21, "fov_enabled")
 toggle(espLeft, "FOV only while RMB", false, function(on) state.fov_rmb = on end, 22, "fov_rmb")
 slider(espLeft, "FOV", 30, 120, 70, function(v) state.fov_value = v end, 23, "fov_value")
-
-section(espRight, "Custom Crosshair", 1)
-toggle(espRight, "Enable Crosshair", false, function(on)
-    set_crosshair_visible(on)
-end, 2, "crosshair_enabled")
-local crosshairBox = textbox(espRight, "Image ID (rbxassetid://...)", 3, state.crosshair_image, "crosshair_image")
-crosshairBox:GetPropertyChangedSignal("Text"):Connect(function()
-    set_crosshair_image(crosshairBox.Text)
-end)
-slider(espRight, "Crosshair Size", 10, 200, 30, function(v) 
-    state.crosshair_size = v
-    customCrosshair.Size = UDim2.new(0, v, 0, v)
-end, 4, "crosshair_size")
-toggle(espRight, "Spin Crosshair", false, function(on)
-    state.crosshair_spin = on
-end, 5, "crosshair_spin")
-slider(espRight, "Spin Speed", 10, 1000, 100, function(v)
-    state.crosshair_spin_speed = v
-end, 6, "crosshair_spin_speed")
-
-section(espRight, "Object ESP", 7)
+section(espRight, "Object ESP", 1)
 toggle(espRight, "Enable object ESP", false, function(on)
     state.object_esp_enabled = on
-    if on then
-        rebuild_tracked_objects()
-    else
-        clear_object_esp()
-        obj_esp_active = false
-    end
-end, 8, "object_esp_enabled")
-local obj_name_box = textbox(espRight, "object name (exact match)", 9, "", "object_name")
-obj_name_box:GetPropertyChangedSignal("Text"):Connect(function()
-    state.object_name = obj_name_box.Text
-    rebuild_tracked_objects()
-end)
-slider(espRight, "Object range", 50, 2000, 500, function(v) state.object_range = v end, 10, "object_range")
-toggle(espRight, "Object box", true, function(on) state.object_box = on end, 11, "object_box")
-toggle(espRight, "Object name label", true, function(on) state.object_name_lbl = on end, 12, "object_name_lbl")
+    if not on then clear_object_esp() end
+end, 2, "object_esp_enabled")
+local obj_name_box = textbox(espRight, "object name (exact match)", 3, "", "object_name")
+obj_name_box:GetPropertyChangedSignal("Text"):Connect(function() state.object_name = obj_name_box.Text end)
+slider(espRight, "Object range", 50, 2000, 500, function(v) state.object_range = v end, 4, "object_range")
+toggle(espRight, "Object box", true, function(on) state.object_box = on end, 5, "object_box")
+toggle(espRight, "Object name label", true, function(on) state.object_name_lbl = on end, 6, "object_name_lbl")
 
 local tpLeft, tpRight = split_two(tabPages["Teleport"])
 section(tpLeft, "Players", 1)
@@ -1462,47 +1187,35 @@ update_keybind_label()
 section(aimRight, "Object aimbot", 10)
 toggle(aimRight, "Enable object aimbot", false, function(on) state.object_aimbot_enabled = on; update_fov_circle() end, 11, "object_aimbot_enabled")
 local obj_aim_name = textbox(aimRight, "object name (exact match)", 12, "", "object_name")
-obj_aim_name:GetPropertyChangedSignal("Text"):Connect(function()
-    state.object_name = obj_aim_name.Text
-    rebuild_tracked_objects()
-end)
+obj_aim_name:GetPropertyChangedSignal("Text"):Connect(function() state.object_name = obj_aim_name.Text end)
 
 local function nearest_target()
-    local cam = camera
-    local vp = cam.ViewportSize
-    local cx = vp.X * 0.5
-    local cy = vp.Y * 0.5
+    local cam = Workspace.CurrentCamera
     local best, best_dist = nil, state.aimbot_fov
-    local my_root = get_root()
-    local my_pos = my_root and my_root.Position or Vector3.zero
-    local max_range = state.aimbot_range
-    local max_sq = max_range * max_range
-    local teamcheck = state.aimbot_teamcheck
-    local godcheck = state.aimbot_god_check
-    local random_part = state.aimbot_random_part
-    local base_part = state.aimbot_part
-    local target_part_name = base_part
-    if random_part then
-        local parts = {"Head", "HumanoidRootPart", "UpperTorso", "LowerTorso"}
-        target_part_name = parts[math.random(#parts)]
-    end
+    local my_pos = get_root() and get_root().Position or Vector3.zero
     for _, p in ipairs(Players:GetPlayers()) do
-        if p ~= player and not (teamcheck and same_team(player, p)) then
-            local char, hrp, hum = get_player_refs(p)
-            if char and hrp and hum and hum.Health > 0 then
-                local skip = godcheck and char:FindFirstChildOfClass("ForceField") ~= nil
+        if p ~= player and not (state.aimbot_teamcheck and same_team(player, p)) and player_in_game(p) then
+            local char = p.Character
+            if char then
+                local skip = false
+                if state.aimbot_god_check and char:FindFirstChildOfClass("ForceField") then
+                    skip = true
+                end
                 if not skip then
-                    local part = (target_part_name == "HumanoidRootPart") and hrp or (char:FindFirstChild(target_part_name) or hrp)
+                    local target_part_name = state.aimbot_part
+                    if state.aimbot_random_part then
+                        local parts = {"Head", "HumanoidRootPart", "UpperTorso", "LowerTorso"}
+                        target_part_name = parts[math.random(#parts)]
+                    end
+                    local part = char:FindFirstChild(target_part_name) or char:FindFirstChild("HumanoidRootPart")
                     if part then
-                        local dx = part.Position.X - my_pos.X
-                        local dy = part.Position.Y - my_pos.Y
-                        local dz = part.Position.Z - my_pos.Z
-                        if dx * dx + dy * dy + dz * dz <= max_sq then
+                        local world_dist = (part.Position - my_pos).Magnitude
+                        if world_dist <= state.aimbot_range then
                             local sp, onscreen = cam:WorldToViewportPoint(part.Position)
                             if onscreen and sp.Z > 0 then
-                                local sdx = sp.X - cx
-                                local sdy = sp.Y - cy
-                                local d = math.sqrt(sdx * sdx + sdy * sdy)
+                                local vp = cam.ViewportSize
+                                local center = Vector2.new(vp.X/2, vp.Y/2)
+                                local d = (Vector2.new(sp.X, sp.Y) - center).Magnitude
                                 if d < best_dist then best_dist = d; best = part end
                             end
                         end
@@ -1514,28 +1227,23 @@ local function nearest_target()
     return best
 end
 local function nearest_object()
+    local cam = Workspace.CurrentCamera
     if state.object_name == "" then return nil end
-    local cam = camera
-    local vp = cam.ViewportSize
-    local cx = vp.X * 0.5
-    local cy = vp.Y * 0.5
     local best, best_dist = nil, state.aimbot_fov
-    local my_root = get_root()
-    local my_pos = my_root and my_root.Position or Vector3.zero
-    local range = state.object_range
-    local range_sq = range * range
-    for obj in pairs(tracked_objects) do
-        if obj.Parent then
-            local dx = obj.Position.X - my_pos.X
-            local dy = obj.Position.Y - my_pos.Y
-            local dz = obj.Position.Z - my_pos.Z
-            if dx * dx + dy * dy + dz * dz <= range_sq then
-                local sp, onscreen = cam:WorldToViewportPoint(obj.Position)
-                if onscreen and sp.Z > 0 then
-                    local sdx = sp.X - cx
-                    local sdy = sp.Y - cy
-                    local d = math.sqrt(sdx * sdx + sdy * sdy)
-                    if d < best_dist then best_dist = d; best = obj end
+    local my_pos = get_root() and get_root().Position or Vector3.zero
+    for _, obj in ipairs(Workspace:GetDescendants()) do
+        if obj.Name == state.object_name then
+            local part = get_object_origin(obj)
+            if part then
+                local world_dist = (part.Position - my_pos).Magnitude
+                if world_dist <= state.object_range then
+                    local sp, onscreen = cam:WorldToViewportPoint(part.Position)
+                    if onscreen and sp.Z > 0 then
+                        local vp = cam.ViewportSize
+                        local center = Vector2.new(vp.X/2, vp.Y/2)
+                        local d = (Vector2.new(sp.X, sp.Y) - center).Magnitude
+                        if d < best_dist then best_dist = d; best = part end
+                    end
                 end
             end
         end
@@ -1867,9 +1575,10 @@ toggle(exLeft, "Kill Aura (Fists)", false, function(on)
 end, 21, "melee_aura")
 slider(exLeft, "Kill Aura Range", 5, 50, 15, function(v) state.melee_aura_range = v end, 22, "melee_aura_range")
 
-slider(exLeft, "Orbit Radius", 2, 30, 6, function(v) state.orbit_radius = v end, 23, "orbit_radius")
-slider(exLeft, "Orbit Height", 1, 20, 6, function(v) state.orbit_height = v end, 24, "orbit_height")
-make("TextLabel", {Size = UDim2.new(1, 0, 0, 20), BackgroundTransparency = 1, Text = "Orbit Rage is bound to a keybind", TextColor3 = COL_TEXT_DIM, Font = Enum.Font.Gotham, TextSize = 11, LayoutOrder = 25}, exLeft)
+slider(exLeft, "Orbit Radius", 2, 30, 4, function(v) state.orbit_radius = v end, 23, "orbit_radius")
+slider(exLeft, "Orbit Height", 1, 20, 3, function(v) state.orbit_height = v end, 24, "orbit_height")
+slider(exLeft, "Orbit Duration (s)", 3, 60, 10, function(v) state.orbit_duration = v end, 25, "orbit_duration")
+make("TextLabel", {Size = UDim2.new(1, 0, 0, 20), BackgroundTransparency = 1, Text = "Orbit Rage is bound to a keybind", TextColor3 = COL_TEXT_DIM, Font = Enum.Font.Gotham, TextSize = 11, LayoutOrder = 26}, exLeft)
 
 section(exLeft, "Rage Visuals", 10)
 toggle(exLeft, "Wall Transparency (X-Ray)", false, function(on)
@@ -1913,18 +1622,6 @@ local function apply_chams(p)
     hl.Parent = char
     chams_highlights[p] = hl
 end
-
-local function bind_chams_to(p)
-    if p == player then return end
-    p.CharacterAdded:Connect(function()
-        if state.chams_enabled then
-            task.wait(0.1)
-            apply_chams(p)
-        end
-    end)
-end
-for _, p in ipairs(Players:GetPlayers()) do bind_chams_to(p) end
-track(Players.PlayerAdded:Connect(bind_chams_to))
 
 toggle(exLeft, "Enemy Chams (Through Walls)", false, function(on)
     state.chams_enabled = on
@@ -1972,34 +1669,20 @@ toggle(exLeft, "Rainbow Character", false, function(on)
     end
 end, 13, "rainbow_enabled")
 
-local function apply_forcefield(p)
-    if p == player or not state.forcefield_enabled then return end
-    local char = p.Character
-    if not char then return end
-    local hrp = char:FindFirstChild("HumanoidRootPart")
-    if hrp and not hrp:FindFirstChild("BSS_FF") then
-        local ff = Instance.new("ForceField")
-        ff.Name = "BSS_FF"
-        ff.Visible = true
-        ff.Parent = hrp
-    end
-end
-local function bind_ff_to(p)
-    if p == player then return end
-    p.CharacterAdded:Connect(function()
-        if state.forcefield_enabled then
-            task.wait(0.1)
-            apply_forcefield(p)
-        end
-    end)
-end
-for _, p in ipairs(Players:GetPlayers()) do bind_ff_to(p) end
-track(Players.PlayerAdded:Connect(bind_ff_to))
-
 toggle(exLeft, "Forcefield Aura (Enemies)", false, function(on)
     state.forcefield_enabled = on
     if on then
-        for _, p in ipairs(Players:GetPlayers()) do apply_forcefield(p) end
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p ~= player and p.Character then
+                local hrp = p.Character:FindFirstChild("HumanoidRootPart")
+                if hrp and not hrp:FindFirstChild("BSS_FF") then
+                    local ff = Instance.new("ForceField")
+                    ff.Name = "BSS_FF"
+                    ff.Visible = true
+                    ff.Parent = hrp
+                end
+            end
+        end
     else
         for _, p in ipairs(Players:GetPlayers()) do
             if p.Character then
@@ -2708,24 +2391,42 @@ end))
 
 -- MAIN LOOP
 main_render_conn = RunService.Heartbeat:Connect(function(dt)
-    camera = Workspace.CurrentCamera
-    if not gui.Parent then return end
-
-    local hm_vis = state.hit_marker and tick() < hitMarkerTime
-    if hitMarker.Visible ~= hm_vis then hitMarker.Visible = hm_vis end
-
-    if state.crosshair_enabled and state.crosshair_spin then
-        customCrosshair.Rotation = customCrosshair.Rotation + (state.crosshair_spin_speed * dt)
-    end
-
-    pcall(update_esp)
-    pcall(update_object_esp)
-
-    if state.hitbox_enabled then
-        for _, p in ipairs(Players:GetPlayers()) do
-            if p ~= player then apply_hitbox_to(p) end
+    pcall(function()
+        camera = Workspace.CurrentCamera
+        if not gui.Parent then return end
+        
+        if state.chams_enabled then
+            for _, p in ipairs(Players:GetPlayers()) do
+                if p ~= player then apply_chams(p) end
+            end
         end
-    end
+        if state.forcefield_enabled then
+            for _, p in ipairs(Players:GetPlayers()) do
+                if p ~= player and p.Character then
+                    local hrp = p.Character:FindFirstChild("HumanoidRootPart")
+                    if hrp and not hrp:FindFirstChild("BSS_FF") then
+                        local ff = Instance.new("ForceField")
+                        ff.Name = "BSS_FF"
+                        ff.Visible = true
+                        ff.Parent = hrp
+                    end
+                end
+            end
+        end
+        
+        update_esp()
+        update_object_esp()
+        
+        if state.hitbox_enabled then
+            for _, p in ipairs(Players:GetPlayers()) do if p ~= player then apply_hitbox_to(p) end end
+        end
+        
+        if state.hit_marker and tick() < hitMarkerTime then
+            hitMarker.Visible = true
+        else
+            hitMarker.Visible = false
+        end
+    end)
 end)
 
 -- AIMBOT BIND
