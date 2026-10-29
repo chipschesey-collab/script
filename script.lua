@@ -322,6 +322,7 @@ local function full_cleanup()
     if under_map_conn then under_map_conn:Disconnect(); under_map_conn = nil end
     if auto_farm_conn then pcall(function() task.cancel(auto_farm_conn) end); auto_farm_conn = nil end
     if rapid_fire_task then pcall(function() task.cancel(rapid_fire_task) end); rapid_fire_task = nil end
+    _G._bss_toolkit_alive = false
     if _G._bss_weapon_hooks then
         if _G._bss_weapon_hooks.uninstall then pcall(_G._bss_weapon_hooks.uninstall) end
         if _G._bss_weapon_hooks.cancel_fallback then pcall(_G._bss_weapon_hooks.cancel_fallback) end
@@ -553,22 +554,18 @@ local _bss_gc_task = nil
 
 local function _bss_find_client_item()
     if _bss_client_item then return _bss_client_item end
-    local paths = {
-        {"PlayerScripts", "Modules", "ClientReplicatedClasses", "ClientFighter", "ClientItem"},
-        {"PlayerScripts", "Modules", "ClientItem"},
-    }
-    for _, path in ipairs(paths) do
-        local inst = player
-        local ok = true
-        for i = 1, #path do
-            inst = inst:FindFirstChild(path[i], true)
-            if not inst then ok = false; break end
-        end
-        if ok and inst then
-            local req_ok, mod = pcall(require, inst)
-            if req_ok and type(mod) == "table" then
-                _bss_client_item = mod
-                return mod
+    local search_roots = {}
+    table.insert(search_roots, player:FindFirstChild("PlayerScripts"))
+    table.insert(search_roots, game:GetService("ReplicatedStorage"))
+    for _, root in ipairs(search_roots) do
+        if root then
+            local ok, inst = pcall(function() return root:FindFirstChild("ClientItem", true) end)
+            if ok and inst and inst:IsA("ModuleScript") then
+                local req_ok, mod = pcall(require, inst)
+                if req_ok and type(mod) == "table" then
+                    _bss_client_item = mod
+                    return mod
+                end
             end
         end
     end
@@ -578,45 +575,53 @@ end
 local function _bss_apply_mods(item)
     if type(item) ~= "table" or not item.Info then return end
     if state.rapid_fire then
-        rawset(item.Info, "ShootCooldown", state.rapid_fire_delay)
-        if rawget(item.Info, "QuickShotCooldown") ~= nil then
-            rawset(item.Info, "QuickShotCooldown", state.rapid_fire_delay)
-        end
+        pcall(function()
+            if rawget(item.Info, "ShootCooldown") ~= nil then
+                rawset(item.Info, "ShootCooldown", state.rapid_fire_delay)
+            end
+            if rawget(item.Info, "QuickShotCooldown") ~= nil then
+                rawset(item.Info, "QuickShotCooldown", state.rapid_fire_delay)
+            end
+        end)
     end
     if state.inf_ammo then
-        local keys = {"Ammo", "CurrentAmmo", "MagAmmo", "AmmoReserve"}
-        for i = 1, #keys do
-            if rawget(item.Info, keys[i]) ~= nil then
-                rawset(item.Info, keys[i], state.inf_ammo_value)
+        pcall(function()
+            local keys = {"Ammo", "CurrentAmmo", "MagAmmo", "AmmoReserve"}
+            for i = 1, #keys do
+                if rawget(item.Info, keys[i]) ~= nil then
+                    rawset(item.Info, keys[i], state.inf_ammo_value)
+                end
             end
-        end
+        end)
     end
 end
 
 local function _bss_install_hooks()
-    local ClientItem = _bss_find_client_item()
-    if not ClientItem then return false end
     if type(hookfunction) ~= "function" then return false end
     if _bss_input_orig then return true end
-
+    local ClientItem = _bss_find_client_item()
+    if not ClientItem or type(ClientItem.Input) ~= "function" then return false end
     local ok = pcall(function()
         _bss_input_orig = hookfunction(ClientItem.Input, function(...)
-            local item = ...
-            _bss_apply_mods(item)
-            return _bss_input_orig(...)
+            local args = table.pack(...)
+            for i = 1, args.n do
+                _bss_apply_mods(args[i])
+            end
+            return _bss_input_orig(table.unpack(args, 1, args.n))
         end)
     end)
     if not ok or not _bss_input_orig then
         _bss_input_orig = nil
         return false
     end
-
-    if ClientItem.Reload then
+    if type(ClientItem.Reload) == "function" then
         pcall(function()
             _bss_reload_orig = hookfunction(ClientItem.Reload, function(...)
-                local item = ...
-                _bss_apply_mods(item)
-                return _bss_reload_orig(...)
+                local args = table.pack(...)
+                for i = 1, args.n do
+                    _bss_apply_mods(args[i])
+                end
+                return _bss_reload_orig(table.unpack(args, 1, args.n))
             end)
         end)
     end
@@ -628,7 +633,7 @@ local function _bss_uninstall_hooks()
     if ClientItem and _bss_input_orig and type(hookfunction) == "function" then
         pcall(function() hookfunction(ClientItem.Input, _bss_input_orig) end)
     end
-    if ClientItem and _bss_reload_orig and ClientItem.Reload and type(hookfunction) == "function" then
+    if ClientItem and _bss_reload_orig and type(ClientItem.Reload) == "function" and type(hookfunction) == "function" then
         pcall(function() hookfunction(ClientItem.Reload, _bss_reload_orig) end)
     end
     _bss_input_orig = nil
@@ -638,27 +643,33 @@ end
 local function _bss_install_gc_fallback()
     if _bss_gc_task then return end
     if type(getgc) ~= "function" then return end
+    _G._bss_toolkit_alive = true
     _bss_gc_task = task.spawn(function()
-        while not gui do task.wait(0.1) end
-        while gui.Parent do
-            task.wait(0.5)
-            if not (state.rapid_fire or state.inf_ammo) then continue end
-            for _, v in pairs(getgc(true)) do
-                if type(v) == "table" then
-                    if state.rapid_fire then
-                        if rawget(v, "ShootCooldown") ~= nil then
-                            rawset(v, "ShootCooldown", state.rapid_fire_delay)
-                        end
-                        if rawget(v, "QuickShotCooldown") ~= nil then
-                            rawset(v, "QuickShotCooldown", state.rapid_fire_delay)
-                        end
-                    end
-                    if state.inf_ammo then
-                        local keys = {"Ammo", "CurrentAmmo", "MagAmmo", "AmmoReserve"}
-                        for i = 1, #keys do
-                            if rawget(v, keys[i]) ~= nil then
-                                rawset(v, keys[i], state.inf_ammo_value)
-                            end
+        while _G._bss_toolkit_alive do
+            task.wait(1)
+            if state.rapid_fire or state.inf_ammo then
+                local ok, gc = pcall(getgc, true)
+                if ok and type(gc) == "table" then
+                    for _, v in pairs(gc) do
+                        if type(v) == "table" then
+                            pcall(function()
+                                if state.rapid_fire then
+                                    if rawget(v, "ShootCooldown") ~= nil then
+                                        rawset(v, "ShootCooldown", state.rapid_fire_delay)
+                                    end
+                                    if rawget(v, "QuickShotCooldown") ~= nil then
+                                        rawset(v, "QuickShotCooldown", state.rapid_fire_delay)
+                                    end
+                                end
+                                if state.inf_ammo then
+                                    local keys = {"Ammo", "CurrentAmmo", "MagAmmo", "AmmoReserve"}
+                                    for i = 1, #keys do
+                                        if rawget(v, keys[i]) ~= nil then
+                                            rawset(v, keys[i], state.inf_ammo_value)
+                                        end
+                                    end
+                                end
+                            end)
                         end
                     end
                 end
@@ -669,6 +680,7 @@ local function _bss_install_gc_fallback()
 end
 
 local function _bss_cancel_fallback()
+    _G._bss_toolkit_alive = false
     if _bss_gc_task then
         pcall(function() task.cancel(_bss_gc_task) end)
         _bss_gc_task = nil
@@ -681,9 +693,13 @@ _G._bss_weapon_hooks = {
     cancel_fallback = _bss_cancel_fallback,
 }
 
-if not _bss_install_hooks() then
-    warn("[BSSToolkit] hookfunction unavailable — falling back to gc scan (slower)")
-    _bss_install_gc_fallback()
+local _hook_installed = false
+pcall(function() _hook_installed = _bss_install_hooks() end)
+if not _hook_installed then
+    warn("[BSSToolkit] hookfunction/ClientItem not found — using gc fallback (slower)")
+    pcall(_bss_install_gc_fallback)
+else
+    print("[BSSToolkit] weapon hooks installed")
 end
 
 -- ==========================================
