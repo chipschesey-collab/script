@@ -119,6 +119,11 @@ local state = {
     jb_auto_rob = false, jb_auto_arrest = false, inf_jump = false, config_filename = "BSSToolkit_Config.json",
     melee_aura = false, melee_aura_range = 15,
     orbit_aura = false, orbit_radius = 4, orbit_height = 3, orbit_duration = 10,
+    
+    -- RIVALS SPECIFIC
+    rivals_norecoil = false,
+    rivals_silent = false,
+    rivals_auto_shoot = false,
 }
 
 local ui_refs = { toggles = {}, sliders = {}, textboxes = {} }
@@ -599,7 +604,7 @@ end))
 -- ==========================================
 update_loading("Building tabs", 35)
 
-local tabs = {"ESP", "Teleport", "Aimbot", "Fling", "Hitbox", "Exploits", "Fun", "Utility"}
+local tabs = {"ESP", "Teleport", "Aimbot", "Fling", "Hitbox", "Exploits", "Fun", "Utility", "Rivals"}
 if is_mm2 then table.insert(tabs, "MM2") end
 local tabBar = make("Frame", {Size = UDim2.new(1, -20, 0, 34), Position = UDim2.new(0, 10, 0, 38), BackgroundColor3 = COL_BG, BorderSizePixel = 0}, main)
 make("UIListLayout", {FillDirection = Enum.FillDirection.Horizontal, SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 4)}, tabBar)
@@ -1112,20 +1117,20 @@ toggle(aimLeft, "Head", true, function(on) state.aimbot_part = "Head" end, 19)
 toggle(aimLeft, "HumanoidRootPart", false, function(on) state.aimbot_part = "HumanoidRootPart" end, 20)
 
 section(aimLeft, "Exploits", 21)
-toggle(aimLeft, "Rapid Fire (Remote)", false, function(on)
+
+-- FIXED RAPID FIRE USING TOOL:ACTIVATE() --
+toggle(aimLeft, "Rapid Fire (Fixed)", false, function(on)
     state.rapid_fire = on
     if on and not rapid_fire_task then
         rapid_fire_task = task.spawn(function()
-            local rs = game:GetService("ReplicatedStorage")
-            local remotes = rs:WaitForChild("Remotes", 5)
-            local replication = remotes and remotes:WaitForChild("Replication", 5)
-            local fighter = replication and replication:WaitForChild("Fighter", 5)
-            local shoot_remote = fighter and fighter:WaitForChild("UseItem", 5)
             while state.rapid_fire do
                 task.wait(state.rapid_fire_delay)
                 local char = player.Character
                 local tool = char and char:FindFirstChildOfClass("Tool")
-                if tool and shoot_remote then pcall(function() shoot_remote:FireServer(tool) end) end
+                if tool then 
+                    -- Using tool:Activate() prevents the ViewModel from freezing
+                    pcall(function() tool:Activate() end)
+                end
             end
             rapid_fire_task = nil
         end)
@@ -1796,6 +1801,41 @@ button(funRight, "Force Dance", COL_ACCENT, function()
         end
     end
 end, 2)
+
+-- ==========================================
+-- TAB BUILDER: RIVALS (NEW)
+-- ==========================================
+local rvLeft, rvRight = split_two(tabPages["Rivals"])
+
+section(rvLeft, "Rivals Combat", 1)
+toggle(rvLeft, "Silent Aim (Raycast)", false, function(on) state.rivals_silent = on end, 2, "rivals_silent")
+toggle(rvLeft, "No Recoil", false, function(on) state.rivals_norecoil = on end, 3, "rivals_norecoil")
+toggle(rvLeft, "Auto-Shoot (Triggerbot)", false, function(on) state.rivals_auto_shoot = on end, 4, "rivals_auto_shoot")
+
+section(rvRight, "Rivals Info", 1)
+make("TextLabel", {
+    Size = UDim2.new(1, 0, 0, 40), 
+    BackgroundTransparency = 1, 
+    Text = "Silent Aim hooks the Raycast. If it doesn't work, use the standard Aimbot with 'Instant Snap' or 'Silent Aim' enabled.", 
+    TextColor3 = COL_TEXT_DIM, 
+    Font = Enum.Font.Gotham, 
+    TextSize = 11, 
+    TextWrapped = true,
+    TextXAlignment = Enum.TextXAlignment.Left, 
+    LayoutOrder = 2
+}, rvRight)
+
+-- Hook Raycast for Rivals Silent Aim
+local oldRaycast = workspace.Raycast
+workspace.Raycast = function(origin, direction, params, ...)
+    if state.rivals_silent then
+        local tgt = nearest_target()
+        if tgt then
+            direction = (tgt.Position - origin).Unit * direction.Magnitude
+        end
+    end
+    return oldRaycast(origin, direction, params, ...)
+end
 
 -- ==========================================
 -- TAB BUILDER: UTILITY & FLY
