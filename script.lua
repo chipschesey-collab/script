@@ -114,7 +114,7 @@ local state = {
     object_name = "", object_esp_enabled = false, object_aimbot_enabled = false, object_box = true, object_name_lbl = true, object_range = 500, fly_enabled = false, fly_speed = 60, fly_mode = "Velocity",
     vehiclefly_enabled = false, vehicle_noclip = false, jb_fly_enabled = false, spinbot = false, spinbot_speed = 50, mask_enabled = false, mask_display = "", noclip = false, cf_speed = false, cf_speed_val = 50,
     anti_afk = false, fullbright = false, click_tp = false, anti_fling = false, float = false, swim = false, under_map = false, auto_farm = false, safe_fly = false, mm2_auto_shoot = false, mm2_auto_grab = false, grabbing_gun = false,
-    rapid_fire = false, rapid_fire_delay = 0.1, auto_reload = false, third_person = false, night_mode = false,
+    rapid_fire = false, rapid_fire_delay = 0.01, inf_ammo = false, inf_ammo_value = 9999, auto_reload = false, third_person = false, night_mode = false,
     xray_enabled = false, chams_enabled = false, rainbow_enabled = false, forcefield_enabled = false,
     jb_auto_rob = false, jb_auto_arrest = false, inf_jump = false, config_filename = "BSSToolkit_Config.json",
     melee_aura = false, melee_aura_range = 15,
@@ -322,6 +322,10 @@ local function full_cleanup()
     if under_map_conn then under_map_conn:Disconnect(); under_map_conn = nil end
     if auto_farm_conn then pcall(function() task.cancel(auto_farm_conn) end); auto_farm_conn = nil end
     if rapid_fire_task then pcall(function() task.cancel(rapid_fire_task) end); rapid_fire_task = nil end
+    if _G._bss_weapon_hooks then
+        if _G._bss_weapon_hooks.uninstall then pcall(_G._bss_weapon_hooks.uninstall) end
+        if _G._bss_weapon_hooks.cancel_fallback then pcall(_G._bss_weapon_hooks.cancel_fallback) end
+    end
     if loop_tp_conn then loop_tp_conn:Disconnect(); loop_tp_conn = nil end
     if rainbow_task then pcall(function() task.cancel(rainbow_task) end); rainbow_task = nil end
     if wallbang_conn then wallbang_conn:Disconnect(); wallbang_conn = nil end
@@ -537,6 +541,149 @@ local function update_shadow_step()
             end
         end)
     end
+end
+
+-- ==========================================
+-- RIVALS WEAPON HOOKS (rapid fire + infinite ammo)
+-- ==========================================
+local _bss_client_item = nil
+local _bss_input_orig = nil
+local _bss_reload_orig = nil
+local _bss_gc_task = nil
+
+local function _bss_find_client_item()
+    if _bss_client_item then return _bss_client_item end
+    local paths = {
+        {"PlayerScripts", "Modules", "ClientReplicatedClasses", "ClientFighter", "ClientItem"},
+        {"PlayerScripts", "Modules", "ClientItem"},
+    }
+    for _, path in ipairs(paths) do
+        local inst = player
+        local ok = true
+        for i = 1, #path do
+            inst = inst:FindFirstChild(path[i], true)
+            if not inst then ok = false; break end
+        end
+        if ok and inst then
+            local req_ok, mod = pcall(require, inst)
+            if req_ok and type(mod) == "table" then
+                _bss_client_item = mod
+                return mod
+            end
+        end
+    end
+    return nil
+end
+
+local function _bss_apply_mods(item)
+    if type(item) ~= "table" or not item.Info then return end
+    if state.rapid_fire then
+        rawset(item.Info, "ShootCooldown", state.rapid_fire_delay)
+        if rawget(item.Info, "QuickShotCooldown") ~= nil then
+            rawset(item.Info, "QuickShotCooldown", state.rapid_fire_delay)
+        end
+    end
+    if state.inf_ammo then
+        local keys = {"Ammo", "CurrentAmmo", "MagAmmo", "AmmoReserve"}
+        for i = 1, #keys do
+            if rawget(item.Info, keys[i]) ~= nil then
+                rawset(item.Info, keys[i], state.inf_ammo_value)
+            end
+        end
+    end
+end
+
+local function _bss_install_hooks()
+    local ClientItem = _bss_find_client_item()
+    if not ClientItem then return false end
+    if type(hookfunction) ~= "function" then return false end
+    if _bss_input_orig then return true end
+
+    local ok = pcall(function()
+        _bss_input_orig = hookfunction(ClientItem.Input, function(...)
+            local item = ...
+            _bss_apply_mods(item)
+            return _bss_input_orig(...)
+        end)
+    end)
+    if not ok or not _bss_input_orig then
+        _bss_input_orig = nil
+        return false
+    end
+
+    if ClientItem.Reload then
+        pcall(function()
+            _bss_reload_orig = hookfunction(ClientItem.Reload, function(...)
+                local item = ...
+                _bss_apply_mods(item)
+                return _bss_reload_orig(...)
+            end)
+        end)
+    end
+    return true
+end
+
+local function _bss_uninstall_hooks()
+    local ClientItem = _bss_client_item
+    if ClientItem and _bss_input_orig and type(hookfunction) == "function" then
+        pcall(function() hookfunction(ClientItem.Input, _bss_input_orig) end)
+    end
+    if ClientItem and _bss_reload_orig and ClientItem.Reload and type(hookfunction) == "function" then
+        pcall(function() hookfunction(ClientItem.Reload, _bss_reload_orig) end)
+    end
+    _bss_input_orig = nil
+    _bss_reload_orig = nil
+end
+
+local function _bss_install_gc_fallback()
+    if _bss_gc_task then return end
+    if type(getgc) ~= "function" then return end
+    _bss_gc_task = task.spawn(function()
+        while not gui do task.wait(0.1) end
+        while gui.Parent do
+            task.wait(0.5)
+            if not (state.rapid_fire or state.inf_ammo) then continue end
+            for _, v in pairs(getgc(true)) do
+                if type(v) == "table" then
+                    if state.rapid_fire then
+                        if rawget(v, "ShootCooldown") ~= nil then
+                            rawset(v, "ShootCooldown", state.rapid_fire_delay)
+                        end
+                        if rawget(v, "QuickShotCooldown") ~= nil then
+                            rawset(v, "QuickShotCooldown", state.rapid_fire_delay)
+                        end
+                    end
+                    if state.inf_ammo then
+                        local keys = {"Ammo", "CurrentAmmo", "MagAmmo", "AmmoReserve"}
+                        for i = 1, #keys do
+                            if rawget(v, keys[i]) ~= nil then
+                                rawset(v, keys[i], state.inf_ammo_value)
+                            end
+                        end
+                    end
+                end
+            end
+        end
+        _bss_gc_task = nil
+    end)
+end
+
+local function _bss_cancel_fallback()
+    if _bss_gc_task then
+        pcall(function() task.cancel(_bss_gc_task) end)
+        _bss_gc_task = nil
+    end
+end
+
+_G._bss_weapon_hooks = {
+    install = _bss_install_hooks,
+    uninstall = _bss_uninstall_hooks,
+    cancel_fallback = _bss_cancel_fallback,
+}
+
+if not _bss_install_hooks() then
+    warn("[BSSToolkit] hookfunction unavailable — falling back to gc scan (slower)")
+    _bss_install_gc_fallback()
 end
 
 -- ==========================================
@@ -1112,26 +1259,10 @@ toggle(aimLeft, "Head", true, function(on) state.aimbot_part = "Head" end, 19)
 toggle(aimLeft, "HumanoidRootPart", false, function(on) state.aimbot_part = "HumanoidRootPart" end, 20)
 
 section(aimLeft, "Exploits", 21)
-toggle(aimLeft, "Rapid Fire (Remote)", false, function(on)
-    state.rapid_fire = on
-    if on and not rapid_fire_task then
-        rapid_fire_task = task.spawn(function()
-            local rs = game:GetService("ReplicatedStorage")
-            local remotes = rs:WaitForChild("Remotes", 5)
-            local replication = remotes and remotes:WaitForChild("Replication", 5)
-            local fighter = replication and replication:WaitForChild("Fighter", 5)
-            local shoot_remote = fighter and fighter:WaitForChild("UseItem", 5)
-            while state.rapid_fire do
-                task.wait(state.rapid_fire_delay)
-                local char = player.Character
-                local tool = char and char:FindFirstChildOfClass("Tool")
-                if tool and shoot_remote then pcall(function() shoot_remote:FireServer(tool) end) end
-            end
-            rapid_fire_task = nil
-        end)
-    end
-end, 22, "rapid_fire")
-slider(aimLeft, "Rapid Fire Delay", 0.01, 0.5, 0.1, function(v) state.rapid_fire_delay = v end, 23, "rapid_fire_delay")
+toggle(aimLeft, "Rapid Fire (Cooldown Hook)", false, function(on) state.rapid_fire = on end, 22, "rapid_fire")
+slider(aimLeft, "Rapid Fire Cooldown (s)", 0, 0.5, 0.01, function(v) state.rapid_fire_delay = v end, 23, "rapid_fire_delay")
+toggle(aimLeft, "Infinite Ammo", false, function(on) state.inf_ammo = on end, 24, "inf_ammo")
+slider(aimLeft, "Ammo Value", 10, 9999, 9999, function(v) state.inf_ammo_value = math.floor(v) end, 25, "inf_ammo_value")
 
 section(aimRight, "Keybinds", 1)
 local keybindButtons = {}
