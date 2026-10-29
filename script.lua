@@ -1825,18 +1825,6 @@ make("TextLabel", {
     LayoutOrder = 2
 }, rvRight)
 
--- Hook Raycast for Rivals Silent Aim
-local oldRaycast = workspace.Raycast
-workspace.Raycast = function(origin, direction, params, ...)
-    if state.rivals_silent then
-        local tgt = nearest_target()
-        if tgt then
-            direction = (tgt.Position - origin).Unit * direction.Magnitude
-        end
-    end
-    return oldRaycast(origin, direction, params, ...)
-end
-
 -- ==========================================
 -- TAB BUILDER: UTILITY & FLY
 -- ==========================================
