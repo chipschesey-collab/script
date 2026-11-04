@@ -13,16 +13,26 @@ local camera = Workspace.CurrentCamera
 while not camera do task.wait(0.1); camera = Workspace.CurrentCamera end
 local orig_fov = camera.FieldOfView
 
--- pick the first GUI parent we can actually attach to
-local gui_parent = CoreGui
-do
-    local ok = pcall(function()
-        local test = Instance.new("ScreenGui")
-        test.Parent = CoreGui
-        test:Destroy()
+-- Xeno-safe GUI parent: gethui() first, PlayerGui fallback (always renders)
+local function try_parent(p)
+    if not p then return false end
+    return pcall(function()
+        local t = Instance.new("ScreenGui")
+        t.Parent = p
+        t:Destroy()
     end)
-    if not ok then gui_parent = player:WaitForChild("PlayerGui") end
 end
+local function get_ui_parent()
+    if type(gethui) == "function" then
+        local ok, hui = pcall(gethui)
+        if ok and hui and try_parent(hui) then return hui end
+    end
+    local playerGui = player:WaitForChild("PlayerGui", 15)
+    if playerGui and try_parent(playerGui) then return playerGui end
+    if try_parent(CoreGui) then return CoreGui end
+    return playerGui or CoreGui
+end
+local gui_parent = get_ui_parent()
 
 local COL_BG = Color3.fromRGB(14, 14, 20)
 local COL_PANEL = Color3.fromRGB(22, 22, 32)
@@ -710,10 +720,7 @@ _G._bss_weapon_hooks = {
 local _hook_installed = false
 pcall(function() _hook_installed = _bss_install_hooks() end)
 if not _hook_installed then
-    warn("[BSSToolkit] hookfunction/ClientItem not found — using gc fallback (slower)")
     pcall(_bss_install_gc_fallback)
-else
-    print("[BSSToolkit] weapon hooks installed")
 end
 
 -- ==========================================
