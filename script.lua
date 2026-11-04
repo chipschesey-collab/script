@@ -8,8 +8,22 @@ local Lighting = game:GetService("Lighting")
 local TweenService = game:GetService("TweenService")
 local VirtualUser = game:GetService("VirtualUser")
 local player = Players.LocalPlayer
+while not player do task.wait(0.1); player = Players.LocalPlayer end
 local camera = Workspace.CurrentCamera
+while not camera do task.wait(0.1); camera = Workspace.CurrentCamera end
 local orig_fov = camera.FieldOfView
+
+-- pick the first GUI parent we can actually attach to
+local gui_parent = CoreGui
+do
+    local ok = pcall(function()
+        local test = Instance.new("ScreenGui")
+        test.Parent = CoreGui
+        test:Destroy()
+    end)
+    if not ok then gui_parent = player:WaitForChild("PlayerGui") end
+end
+
 local COL_BG = Color3.fromRGB(14, 14, 20)
 local COL_PANEL = Color3.fromRGB(22, 22, 32)
 local COL_PANEL_ALT = Color3.fromRGB(30, 30, 44)
@@ -33,7 +47,7 @@ loadingGui.Name = "BSS_Loading"
 loadingGui.ResetOnSpawn = false
 loadingGui.IgnoreGuiInset = true
 loadingGui.DisplayOrder = 9999
-loadingGui.Parent = CoreGui
+loadingGui.Parent = gui_parent
 
 local bg = Instance.new("Frame", loadingGui)
 bg.Size = UDim2.new(1, 0, 1, 0)
@@ -707,7 +721,7 @@ end
 -- ==========================================
 update_loading("Building main window", 25)
 
-local gui = make("ScreenGui", {Name = "BSSToolkit", ResetOnSpawn = false, ZIndexBehavior = Enum.ZIndexBehavior.Sibling, IgnoreGuiInset = true}, CoreGui)
+local gui = make("ScreenGui", {Name = "BSSToolkit", ResetOnSpawn = false, ZIndexBehavior = Enum.ZIndexBehavior.Sibling, IgnoreGuiInset = true}, gui_parent)
 local shadow = make("Frame", {Size = UDim2.new(0, 660, 0, 560), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 3, 0.5, 5), BackgroundColor3 = Color3.fromRGB(0, 0, 0), BackgroundTransparency = 0.55, BorderSizePixel = 0}, gui)
 corner(shadow, 12)
 local main = make("Frame", {Size = UDim2.new(0, 660, 0, 560), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0.5, 0), BackgroundColor3 = COL_BG, BorderSizePixel = 0, Active = false, ClipsDescendants = true, Visible = false}, gui)
