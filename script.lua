@@ -1,6 +1,3 @@
--- ==========================================
--- CUSTOM FONT SETUP (Handled automatically by Bloxstrap)
--- ==========================================
 Players = game:GetService("Players")
 RunService = game:GetService("RunService")
 UserInputService = game:GetService("UserInputService")
@@ -2533,30 +2530,21 @@ RunService:BindToRenderStep("BSSToolkitAim", Enum.RenderPriority.Camera.Value + 
             hrp.CFrame = CFrame.lookAt(hrp.Position, look)
         end
     else
-        local vp = cam.ViewportSize
-        local dx = sp.X - vp.X * 0.5
-        local dy = sp.Y - vp.Y * 0.5
-        local strength = 1 - state.aimbot_smooth * 0.9
-        if type(mousemoverel) == "function" then
-            if math.random(1, 100) <= state.aimbot_hit_chance then
-                mousemoverel(dx * strength, dy * strength)
+        local cam_pos = cam.CFrame.Position
+        local target_cf = CFrame.lookAt(cam_pos, aim_pos)
+        if math.random(1, 100) <= state.aimbot_hit_chance then
+            if state.aimbot_smooth <= 0.01 then
+                cam.CFrame = target_cf
+            else
+                local alpha = 1 - (0.001 ^ (dt * 60))
+                cam.CFrame = cam.CFrame:Lerp(target_cf, alpha * (1 - state.aimbot_smooth * 0.7))
             end
-        else
-            local target_cf = CFrame.lookAt(cam.CFrame.Position, aim_pos)
-            if math.random(1, 100) <= state.aimbot_hit_chance then
-                if state.aimbot_smooth <= 0.01 then
-                    cam.CFrame = target_cf
-                else
-                    local alpha = 1 - (0.001 ^ (dt * 60))
-                    cam.CFrame = cam.CFrame:Lerp(target_cf, alpha * (1 - state.aimbot_smooth * 0.7))
-                end
-            end
-            local char = player.Character
-            local hrp = char and char:FindFirstChild("HumanoidRootPart")
-            if hrp then
-                local look = Vector3.new(aim_pos.X, hrp.Position.Y, aim_pos.Z)
-                hrp.CFrame = CFrame.lookAt(hrp.Position, look)
-            end
+        end
+        local char = player.Character
+        local hrp = char and char:FindFirstChild("HumanoidRootPart")
+        if hrp then
+            local look = Vector3.new(aim_pos.X, hrp.Position.Y, aim_pos.Z)
+            hrp.CFrame = CFrame.lookAt(hrp.Position, look)
         end
     end
 end)
