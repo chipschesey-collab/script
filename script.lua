@@ -1,20 +1,25 @@
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
-local CoreGui = game:GetService("CoreGui")
-local Workspace = game:GetService("Workspace")
-local HttpService = game:GetService("HttpService")
-local Lighting = game:GetService("Lighting")
-local TweenService = game:GetService("TweenService")
-local VirtualUser = game:GetService("VirtualUser")
-local player = Players.LocalPlayer
-while not player do task.wait(0.1); player = Players.LocalPlayer end
-local camera = Workspace.CurrentCamera
-while not camera do task.wait(0.1); camera = Workspace.CurrentCamera end
-local orig_fov = camera.FieldOfView
+-- ==========================================
+-- CUSTOM FONT SETUP (Handled automatically by Bloxstrap)
+-- ==========================================
+Players = game:GetService("Players")
+RunService = game:GetService("RunService")
+UserInputService = game:GetService("UserInputService")
+CoreGui = game:GetService("CoreGui")
+Workspace = game:GetService("Workspace")
+HttpService = game:GetService("HttpService")
+Lighting = game:GetService("Lighting")
+TweenService = game:GetService("TweenService")
+VirtualUser = game:GetService("VirtualUser")
 
--- Xeno-safe GUI parent: gethui() first, PlayerGui fallback (always renders)
-local function try_parent(p)
+player = Players.LocalPlayer
+while not player do task.wait(0.1); player = Players.LocalPlayer end
+
+camera = Workspace.CurrentCamera
+while not camera do task.wait(0.1); camera = Workspace.CurrentCamera end
+
+orig_fov = camera.FieldOfView
+
+function try_parent(p)
     if not p then return false end
     return pcall(function()
         local t = Instance.new("ScreenGui")
@@ -22,85 +27,87 @@ local function try_parent(p)
         t:Destroy()
     end)
 end
-local function get_ui_parent()
-    if type(gethui) == "function" then
-        local ok, hui = pcall(gethui)
-        if ok and hui and try_parent(hui) then return hui end
-    end
-    local playerGui = player:WaitForChild("PlayerGui", 15)
-    if playerGui and try_parent(playerGui) then return playerGui end
-    if try_parent(CoreGui) then return CoreGui end
-    return playerGui or CoreGui
-end
-local gui_parent = get_ui_parent()
 
-local COL_BG = Color3.fromRGB(14, 14, 20)
-local COL_PANEL = Color3.fromRGB(22, 22, 32)
-local COL_PANEL_ALT = Color3.fromRGB(30, 30, 44)
-local COL_PANEL_HOVER = Color3.fromRGB(42, 42, 60)
-local COL_STROKE = Color3.fromRGB(55, 55, 80)
-local COL_TEXT = Color3.fromRGB(235, 235, 250)
-local COL_TEXT_DIM = Color3.fromRGB(140, 140, 165)
-local COL_ACCENT = Color3.fromRGB(90, 170, 255)
-local COL_OK = Color3.fromRGB(120, 220, 160)
-local COL_BAD = Color3.fromRGB(255, 120, 130)
-local COL_DANGER = Color3.fromRGB(220, 70, 90)
-local COL_DANGER_HOVER = Color3.fromRGB(255, 90, 110)
-local config_file = "BSSToolkit_Config.json"
-local downloads_config = "Downloads/BSSToolkit_Config.json"
+function get_ui_parent()
+    local ok, pg = pcall(function()
+        local p = player:FindFirstChildOfClass("PlayerGui")
+        if not p then p = player:WaitForChild("PlayerGui", 3) end
+        return p
+    end)
+    if ok and pg and try_parent(pg) then return pg end
+    if type(gethui) == "function" then
+        local ok2, h = pcall(gethui)
+        if ok2 and h and try_parent(h) then return h end
+    end
+    if try_parent(CoreGui) then return CoreGui end
+    return pg or CoreGui
+end
+
+gui_parent = get_ui_parent()
+
+COL_BG = Color3.fromRGB(14, 14, 20)
+COL_PANEL = Color3.fromRGB(22, 22, 32)
+COL_PANEL_ALT = Color3.fromRGB(30, 30, 44)
+COL_PANEL_HOVER = Color3.fromRGB(42, 42, 60)
+COL_STROKE = Color3.fromRGB(55, 55, 80)
+COL_TEXT = Color3.fromRGB(235, 235, 250)
+COL_TEXT_DIM = Color3.fromRGB(140, 140, 165)
+COL_ACCENT = Color3.fromRGB(90, 170, 255)
+COL_OK = Color3.fromRGB(120, 220, 160)
+COL_BAD = Color3.fromRGB(255, 120, 130)
+COL_DANGER = Color3.fromRGB(220, 70, 90)
+COL_DANGER_HOVER = Color3.fromRGB(255, 90, 110)
+config_file = "BSSToolkit_Config.json"
+downloads_config = "Downloads/BSSToolkit_Config.json"
 
 -- ==========================================
 -- LOADING SCREEN
 -- ==========================================
-local loadingGui = Instance.new("ScreenGui")
+loadingGui = Instance.new("ScreenGui")
 loadingGui.Name = "BSS_Loading"
 loadingGui.ResetOnSpawn = false
 loadingGui.IgnoreGuiInset = true
 loadingGui.DisplayOrder = 9999
 loadingGui.Parent = gui_parent
 
-local bg = Instance.new("Frame", loadingGui)
+bg = Instance.new("Frame", loadingGui)
 bg.Size = UDim2.new(1, 0, 1, 0)
 bg.BackgroundColor3 = Color3.fromRGB(10, 10, 15)
 bg.BorderSizePixel = 0
 
-local title = Instance.new("TextLabel", bg)
+title = Instance.new("TextLabel", bg)
 title.Size = UDim2.new(1, 0, 0, 30)
 title.Position = UDim2.new(0, 0, 0.4, 0)
 title.BackgroundTransparency = 1
 title.Text = "BSSToolkit"
 title.TextColor3 = COL_ACCENT
-title.Font = Enum.Font.GothamBlack
+title.Font = Enum.Font.Code
 title.TextSize = 28
 
-local status = Instance.new("TextLabel", bg)
+status = Instance.new("TextLabel", bg)
 status.Size = UDim2.new(1, 0, 0, 20)
 status.Position = UDim2.new(0, 0, 0.45, 10)
 status.BackgroundTransparency = 1
 status.Text = "Starting..."
 status.TextColor3 = COL_TEXT
-status.Font = Enum.Font.Gotham
+status.Font = Enum.Font.Code
 status.TextSize = 14
 
-local barBg = Instance.new("Frame", bg)
-barBg.Size = UDim2.new(0, 300, 0, 6)
+barBg = Instance.new("Frame", bg)
+barBg.Size = UDim2.new(0, 300, 0, 4)
 barBg.Position = UDim2.new(0.5, -150, 0.5, 15)
 barBg.BackgroundColor3 = COL_PANEL_ALT
 barBg.BorderSizePixel = 0
-local cornerBar = Instance.new("UICorner", barBg)
-cornerBar.CornerRadius = UDim.new(1, 0)
 
-local barFill = Instance.new("Frame", barBg)
+barFill = Instance.new("Frame", barBg)
 barFill.Size = UDim2.new(0, 0, 1, 0)
 barFill.BackgroundColor3 = COL_ACCENT
 barFill.BorderSizePixel = 0
-local cornerFill = Instance.new("UICorner", barFill)
-cornerFill.CornerRadius = UDim.new(1, 0)
 
-local function update_loading(text, pct)
+function update_loading(text, pct)
     status.Text = text .. " (" .. tostring(pct) .. "%)"
     TweenService:Create(barFill, TweenInfo.new(0.3), {Size = UDim2.new(pct/100, 0, 1, 0)}):Play()
-    task.wait(0.1)
+    task.wait(0.05)
 end
 
 -- ==========================================
@@ -108,28 +115,22 @@ end
 -- ==========================================
 update_loading("Initializing variables", 5)
 
-local top_conns = {}
-local hit_sound_conns = {}
-local function track(c)
+top_conns = {}
+hit_sound_conns = {}
+
+function track(c)
     table.insert(top_conns, c)
     return c
 end
-local function tween(inst, props, time, style, dir)
+
+function tween(inst, props, time, style, dir)
     local ti = TweenInfo.new(time or 0.18, style or Enum.EasingStyle.Quad, dir or Enum.EasingDirection.Out)
     local t = TweenService:Create(inst, ti, props)
     t:Play()
     return t
 end
-local function lighten(c, amt)
-    amt = amt or 25
-    return Color3.fromRGB(
-        math.min(255, c.R * 255 + amt),
-        math.min(255, c.G * 255 + amt),
-        math.min(255, c.B * 255 + amt)
-    )
-end
 
-local state = {
+state = {
     esp_enabled = false, esp_box = true, esp_name = true, esp_distance = true, esp_tracers = false, esp_skeleton = false, esp_color = Color3.fromRGB(255, 80, 80), esp_team_color = false, esp_range = 500,
     esp_health = true, radar_enabled = false, offscreen_arrows = false, bullet_tracers = false,
     fov_enabled = false, fov_value = 70, fov_rmb = false, saved_spots = {}, aimbot_enabled = false, aimbot_fov = 150, aimbot_smooth = 0.35, aimbot_part = "Head", aimbot_teamcheck = true, aimbot_range = 500, aimbot_prediction = 0.05, aimbot_snap = false, wallbang = false,
@@ -145,11 +146,11 @@ local state = {
     orbit_aura = false, orbit_radius = 4, orbit_height = 3, orbit_duration = 10,
 }
 
-local ui_refs = { toggles = {}, sliders = {}, textboxes = {} }
+ui_refs = { toggles = {}, sliders = {}, textboxes = {} }
 
-local locked_target = nil
-local aim_pause_until = 0
-local keybinds = {
+locked_target = nil
+aim_pause_until = 0
+keybinds = {
     aimbot = {input = Enum.UserInputType.Keyboard, key = Enum.KeyCode.E},
     fling = {input = Enum.UserInputType.Keyboard, key = Enum.KeyCode.F},
     hide = {input = Enum.UserInputType.Keyboard, key = Enum.KeyCode.RightShift},
@@ -157,45 +158,45 @@ local keybinds = {
     shadow_step = {input = Enum.UserInputType.Keyboard, key = Enum.KeyCode.V},
     orbit_rage = {input = Enum.UserInputType.Keyboard, key = Enum.KeyCode.X},
 }
-local key_state = {aimbot = false, fling = false, fly = false, shadow_step = false}
-local fling_active = false
-local fling_target = nil
-local fling_return_cf = nil
-local fling_conn = nil
-local fly_conn = nil
-local fly_velocity = nil
-local fly_gyro = nil
-local hitbox_expanded = {}
-local obj_esp_objs = {}
-local troll_conn = nil
-local spin_vel = nil
-local noclip_conn = nil
-local cf_speed_conn = nil
-local anti_afk_conn = nil
-local anti_fling_conn = nil
-local float_conn = nil
-local swim_conn = nil
-local vehicle_noclip_conn = nil
-local under_map_conn = nil
-local auto_farm_conn = nil
-local rapid_fire_task = nil
-local main_render_conn = nil
-local loop_tp_conn = nil
-local xray_originals = {}
-local chams_highlights = {}
-local rainbow_task = nil
-local rainbow_originals = {}
-local melee_aura_conn = nil
-local orbit_aura_conn = nil
-local shadow_step_conn = nil
-local orbit_timer = nil
-local orig_lighting = {
+key_state = {aimbot = false, fling = false, fly = false, shadow_step = false}
+fling_active = false
+fling_target = nil
+fling_return_cf = nil
+fling_conn = nil
+fly_conn = nil
+fly_velocity = nil
+fly_gyro = nil
+hitbox_expanded = {}
+obj_esp_objs = {}
+troll_conn = nil
+spin_vel = nil
+noclip_conn = nil
+cf_speed_conn = nil
+anti_afk_conn = nil
+anti_fling_conn = nil
+float_conn = nil
+swim_conn = nil
+vehicle_noclip_conn = nil
+under_map_conn = nil
+auto_farm_conn = nil
+rapid_fire_task = nil
+main_render_conn = nil
+loop_tp_conn = nil
+xray_originals = {}
+chams_highlights = {}
+rainbow_task = nil
+rainbow_originals = {}
+melee_aura_conn = nil
+orbit_aura_conn = nil
+shadow_step_conn = nil
+orbit_timer = nil
+orig_lighting = {
     Brightness = Lighting.Brightness, ClockTime = Lighting.ClockTime, GlobalShadows = Lighting.GlobalShadows, FogEnd = Lighting.FogEnd,
 }
-local is_mm2 = game.PlaceId == 142823291
-local wallbang_conn = nil
+is_mm2 = game.PlaceId == 142823291
+wallbang_conn = nil
 
-local function import_config(code)
+function import_config(code)
     local ok, data = pcall(function() return HttpService:JSONDecode(code) end)
     if not ok then return false end
     for k, v in pairs(data) do
@@ -216,7 +217,6 @@ local function import_config(code)
             state[k] = v
         end
     end
-
     for _, item in ipairs(ui_refs.toggles) do
         if item.key and state[item.key] ~= nil then item.set(state[item.key]) end
     end
@@ -226,7 +226,6 @@ local function import_config(code)
     for _, item in ipairs(ui_refs.textboxes) do
         if item.key and state[item.key] ~= nil then item.set(state[item.key]) end
     end
-
     return true
 end
 
@@ -237,36 +236,34 @@ if isfile then
     elseif isfile(config_file) then
         file_to_load = config_file
     end
-    
     if file_to_load then
         local ok, savedData = pcall(function() return readfile(file_to_load) end)
-        if ok and savedData then
-            import_config(savedData)
-        end
+        if ok and savedData then import_config(savedData) end
     end
 end
 
-local function make(class, props, parent)
+function make(class, props, parent)
     local inst = Instance.new(class)
     for k, v in pairs(props or {}) do inst[k] = v end
     if parent then inst.Parent = parent end
     return inst
 end
-local function corner(inst, radius)
-    make("UICorner", {CornerRadius = UDim.new(0, radius or 6)}, inst)
-    return inst
+
+function corner(inst, radius)
+    return inst 
 end
-local function stroke(inst, color, thickness, transparency)
+
+function stroke(inst, color, thickness, transparency)
     make("UIStroke", {Color = color or COL_STROKE, Thickness = thickness or 1, Transparency = transparency or 0}, inst)
     return inst
 end
-local function get_root(p)
+function get_root(p)
     p = p or player
     local char = p.Character
     if not char then return nil end
     return char:FindFirstChild("HumanoidRootPart")
 end
-local function parse_cframe(text)
+function parse_cframe(text)
     text = text:gsub("^%s+", ""):gsub("%s+$", "")
     local inner = text:match("CFrame%.new%s*%((.*)%)%s*$") or text
     local nums = {}
@@ -278,11 +275,11 @@ local function parse_cframe(text)
     if #nums == 12 then return CFrame.new(table.unpack(nums)) end
     return nil
 end
-local function same_team(a, b)
+function same_team(a, b)
     if not a.Team or not b.Team then return false end
     return a.Team == b.Team
 end
-local function player_in_game(p)
+function player_in_game(p)
     local char = p.Character
     if not char then return false end
     local hum = char:FindFirstChildOfClass("Humanoid")
@@ -291,27 +288,16 @@ local function player_in_game(p)
     if hum.Health <= 0 then return false end
     return true
 end
-local function play_hit_sound()
+function play_hit_sound()
     local s = Instance.new("Sound")
-    if state.hit_sound_pack == "dink" then
-        s.SoundId = "rbxassetid://131094575"
-    elseif state.hit_sound_pack == "pew" then
-        s.SoundId = "rbxassetid://131094575"
-    elseif state.hit_sound_pack == "boom" then
-        s.SoundId = "rbxassetid://131094575"
-    else
-        s.SoundId = "rbxassetid://131094575"
-    end
+    s.SoundId = "rbxassetid://131094575"
     s.Volume = 0.6
     local ss = game:GetService("SoundService")
     local ok = pcall(function() ss:PlayLocalSound(s) end)
-    if not ok then
-        s.Parent = ss
-        s:Play()
-    end
+    if not ok then s.Parent = ss; s:Play() end
     task.delay(2, function() if s and s.Parent then s:Destroy() end end)
 end
-local function monitor_health(p)
+function monitor_health(p)
     if p == player then return end
     if hit_sound_conns[p] then hit_sound_conns[p]:Disconnect() end
     local function bind_char(char)
@@ -330,7 +316,7 @@ for _, p in ipairs(Players:GetPlayers()) do
     if p ~= player then monitor_health(p) end
 end
 
-local function full_cleanup()
+function full_cleanup()
     pcall(function() RunService:UnbindFromRenderStep("BSSToolkitAim") end)
     if main_render_conn then main_render_conn:Disconnect(); main_render_conn = nil end
     if fling_conn then fling_conn:Disconnect(); fling_conn = nil end
@@ -395,7 +381,6 @@ local function full_cleanup()
     for _, o in pairs(esp_objects or {}) do if o and o.root then o.root:Destroy() end end
     for _, o in pairs(obj_esp_objs) do if o.frame then o.frame:Destroy() end end
     obj_esp_objs = {}
-    if _G._bss_aim_debug_lbl then pcall(function() _G._bss_aim_debug_lbl:Destroy() end); _G._bss_aim_debug_lbl = nil end
     for _, c in ipairs(top_conns) do pcall(function() c:Disconnect() end) end
     top_conns = {}
     key_state.aimbot = false
@@ -405,7 +390,7 @@ local function full_cleanup()
     fling_active = false
 end
 
-local function export_config()
+function export_config()
     local data = {}
     for k, v in pairs(state) do
         if k ~= "saved_spots" then
@@ -425,7 +410,7 @@ end
 -- ==========================================
 -- WALLBANG AUTO-CLIP
 -- ==========================================
-local function update_wallbang()
+function update_wallbang()
     if wallbang_conn then wallbang_conn:Disconnect(); wallbang_conn = nil end
     if state.wallbang then
         wallbang_conn = UserInputService.InputBegan:Connect(function(io, gp)
@@ -436,9 +421,7 @@ local function update_wallbang()
                     local old_cf = hrp.CFrame
                     hrp.CFrame = hrp.CFrame * CFrame.new(0, 0, -5)
                     task.delay(0.1, function()
-                        if hrp and hrp.Parent then
-                            hrp.CFrame = old_cf
-                        end
+                        if hrp and hrp.Parent then hrp.CFrame = old_cf end
                     end)
                 end
             end
@@ -449,7 +432,7 @@ end
 -- ==========================================
 -- MELEE & ORBIT AURAS
 -- ==========================================
-local function get_closest_player(max_dist)
+function get_closest_player(max_dist)
     local my_hrp = get_root()
     if not my_hrp then return nil end
     local closest = nil
@@ -459,30 +442,23 @@ local function get_closest_player(max_dist)
             local t_hrp = get_root(p)
             if t_hrp then
                 local dist = (t_hrp.Position - my_hrp.Position).Magnitude
-                if dist < min_dist then
-                    min_dist = dist
-                    closest = t_hrp
-                end
+                if dist < min_dist then min_dist = dist; closest = t_hrp end
             end
         end
     end
     return closest
 end
 
-local function auto_swing(char)
+function auto_swing(char)
     local tool = char:FindFirstChildOfClass("Tool")
     if not tool then
         local backpack = player:FindFirstChild("Backpack")
         if backpack then
             for _, item in ipairs(backpack:GetChildren()) do
-                if item:IsA("Tool") then
-                    task.spawn(function() item.Parent = char end)
-                    break
-                end
+                if item:IsA("Tool") then task.spawn(function() item.Parent = char end); break end
             end
         end
     end
-    
     if tool then
         task.spawn(function() pcall(function() tool:Activate() end) end)
     else
@@ -492,14 +468,13 @@ local function auto_swing(char)
     end
 end
 
-local function update_melee_aura()
+function update_melee_aura()
     if melee_aura_conn then melee_aura_conn:Disconnect(); melee_aura_conn = nil end
     if state.melee_aura then
         melee_aura_conn = RunService.Heartbeat:Connect(function()
             local char = player.Character
             local hrp = get_root()
             if not char or not hrp then return end
-            
             for _, p in ipairs(Players:GetPlayers()) do
                 if p ~= player and player_in_game(p) then
                     local t_hrp = get_root(p)
@@ -513,22 +488,20 @@ local function update_melee_aura()
     end
 end
 
-local function update_orbit_aura()
+function update_orbit_aura()
     if orbit_aura_conn then orbit_aura_conn:Disconnect(); orbit_aura_conn = nil end
     if state.orbit_aura then
         orbit_aura_conn = RunService.RenderStepped:Connect(function(dt)
             local char = player.Character
             local hrp = get_root()
             if not hrp or not char then return end
-            
             local t_hrp = get_closest_player(1000)
             if t_hrp then
                 local t = tick()
-                local angle = t * 50 
+                local angle = t * 50
                 local y_offset = math.sin(t * 15) * state.orbit_height
                 local x_offset = math.cos(angle) * state.orbit_radius
                 local z_offset = math.sin(angle) * state.orbit_radius
-                
                 hrp.CFrame = t_hrp.CFrame * CFrame.new(x_offset, y_offset, z_offset)
                 auto_swing(char)
             end
@@ -536,14 +509,13 @@ local function update_orbit_aura()
     end
 end
 
-local function start_orbit_rage()
+function start_orbit_rage()
     if state.orbit_aura then
         if orbit_timer then task.cancel(orbit_timer) end
     else
         state.orbit_aura = true
         update_orbit_aura()
     end
-    
     orbit_timer = task.delay(state.orbit_duration, function()
         state.orbit_aura = false
         update_orbit_aura()
@@ -551,13 +523,12 @@ local function start_orbit_rage()
     end)
 end
 
-local function update_shadow_step()
+function update_shadow_step()
     if shadow_step_conn then shadow_step_conn:Disconnect(); shadow_step_conn = nil end
     if key_state.shadow_step then
         shadow_step_conn = RunService.RenderStepped:Connect(function()
             local hrp = get_root()
             if not hrp then return end
-            
             local t_hrp = get_closest_player(1000)
             if t_hrp then
                 hrp.CFrame = t_hrp.CFrame * CFrame.new(0, 0, 3)
@@ -569,14 +540,14 @@ local function update_shadow_step()
 end
 
 -- ==========================================
--- RIVALS WEAPON HOOKS (rapid fire + infinite ammo)
+-- WEAPON HOOKS
 -- ==========================================
-local _bss_client_item = nil
-local _bss_input_orig = nil
-local _bss_reload_orig = nil
-local _bss_gc_task = nil
+_bss_client_item = nil
+_bss_input_orig = nil
+_bss_reload_orig = nil
+_bss_gc_task = nil
 
-local function _bss_find_client_item()
+function _bss_find_client_item()
     if _bss_client_item then return _bss_client_item end
     local search_roots = {}
     table.insert(search_roots, player:FindFirstChild("PlayerScripts"))
@@ -586,41 +557,32 @@ local function _bss_find_client_item()
             local ok, inst = pcall(function() return root:FindFirstChild("ClientItem", true) end)
             if ok and inst and inst:IsA("ModuleScript") then
                 local req_ok, mod = pcall(require, inst)
-                if req_ok and type(mod) == "table" then
-                    _bss_client_item = mod
-                    return mod
-                end
+                if req_ok and type(mod) == "table" then _bss_client_item = mod; return mod end
             end
         end
     end
     return nil
 end
 
-local function _bss_apply_mods(item)
+function _bss_apply_mods(item)
     if type(item) ~= "table" or not item.Info then return end
     if state.rapid_fire then
         pcall(function()
-            if rawget(item.Info, "ShootCooldown") ~= nil then
-                rawset(item.Info, "ShootCooldown", state.rapid_fire_delay)
-            end
-            if rawget(item.Info, "QuickShotCooldown") ~= nil then
-                rawset(item.Info, "QuickShotCooldown", state.rapid_fire_delay)
-            end
+            if rawget(item.Info, "ShootCooldown") ~= nil then rawset(item.Info, "ShootCooldown", state.rapid_fire_delay) end
+            if rawget(item.Info, "QuickShotCooldown") ~= nil then rawset(item.Info, "QuickShotCooldown", state.rapid_fire_delay) end
         end)
     end
     if state.inf_ammo then
         pcall(function()
             local keys = {"Ammo", "CurrentAmmo", "MagAmmo", "AmmoReserve"}
             for i = 1, #keys do
-                if rawget(item.Info, keys[i]) ~= nil then
-                    rawset(item.Info, keys[i], state.inf_ammo_value)
-                end
+                if rawget(item.Info, keys[i]) ~= nil then rawset(item.Info, keys[i], state.inf_ammo_value) end
             end
         end)
     end
 end
 
-local function _bss_install_hooks()
+function _bss_install_hooks()
     if type(hookfunction) ~= "function" then return false end
     if _bss_input_orig then return true end
     local ClientItem = _bss_find_client_item()
@@ -628,23 +590,16 @@ local function _bss_install_hooks()
     local ok = pcall(function()
         _bss_input_orig = hookfunction(ClientItem.Input, function(...)
             local args = table.pack(...)
-            for i = 1, args.n do
-                _bss_apply_mods(args[i])
-            end
+            for i = 1, args.n do _bss_apply_mods(args[i]) end
             return _bss_input_orig(table.unpack(args, 1, args.n))
         end)
     end)
-    if not ok or not _bss_input_orig then
-        _bss_input_orig = nil
-        return false
-    end
+    if not ok or not _bss_input_orig then _bss_input_orig = nil; return false end
     if type(ClientItem.Reload) == "function" then
         pcall(function()
             _bss_reload_orig = hookfunction(ClientItem.Reload, function(...)
                 local args = table.pack(...)
-                for i = 1, args.n do
-                    _bss_apply_mods(args[i])
-                end
+                for i = 1, args.n do _bss_apply_mods(args[i]) end
                 return _bss_reload_orig(table.unpack(args, 1, args.n))
             end)
         end)
@@ -652,7 +607,7 @@ local function _bss_install_hooks()
     return true
 end
 
-local function _bss_uninstall_hooks()
+function _bss_uninstall_hooks()
     local ClientItem = _bss_client_item
     if ClientItem and _bss_input_orig and type(hookfunction) == "function" then
         pcall(function() hookfunction(ClientItem.Input, _bss_input_orig) end)
@@ -664,7 +619,7 @@ local function _bss_uninstall_hooks()
     _bss_reload_orig = nil
 end
 
-local function _bss_install_gc_fallback()
+function _bss_install_gc_fallback()
     if _bss_gc_task then return end
     if type(getgc) ~= "function" then return end
     _G._bss_toolkit_alive = true
@@ -678,19 +633,13 @@ local function _bss_install_gc_fallback()
                         if type(v) == "table" then
                             pcall(function()
                                 if state.rapid_fire then
-                                    if rawget(v, "ShootCooldown") ~= nil then
-                                        rawset(v, "ShootCooldown", state.rapid_fire_delay)
-                                    end
-                                    if rawget(v, "QuickShotCooldown") ~= nil then
-                                        rawset(v, "QuickShotCooldown", state.rapid_fire_delay)
-                                    end
+                                    if rawget(v, "ShootCooldown") ~= nil then rawset(v, "ShootCooldown", state.rapid_fire_delay) end
+                                    if rawget(v, "QuickShotCooldown") ~= nil then rawset(v, "QuickShotCooldown", state.rapid_fire_delay) end
                                 end
                                 if state.inf_ammo then
                                     local keys = {"Ammo", "CurrentAmmo", "MagAmmo", "AmmoReserve"}
                                     for i = 1, #keys do
-                                        if rawget(v, keys[i]) ~= nil then
-                                            rawset(v, keys[i], state.inf_ammo_value)
-                                        end
+                                        if rawget(v, keys[i]) ~= nil then rawset(v, keys[i], state.inf_ammo_value) end
                                     end
                                 end
                             end)
@@ -703,12 +652,9 @@ local function _bss_install_gc_fallback()
     end)
 end
 
-local function _bss_cancel_fallback()
+function _bss_cancel_fallback()
     _G._bss_toolkit_alive = false
-    if _bss_gc_task then
-        pcall(function() task.cancel(_bss_gc_task) end)
-        _bss_gc_task = nil
-    end
+    if _bss_gc_task then pcall(function() task.cancel(_bss_gc_task) end); _bss_gc_task = nil end
 end
 
 _G._bss_weapon_hooks = {
@@ -717,33 +663,27 @@ _G._bss_weapon_hooks = {
     cancel_fallback = _bss_cancel_fallback,
 }
 
-local _hook_installed = false
-pcall(function() _hook_installed = _bss_install_hooks() end)
-if not _hook_installed then
-    pcall(_bss_install_gc_fallback)
-end
+task.spawn(function()
+    local ok = false
+    pcall(function() ok = _bss_install_hooks() end)
+    if not ok then pcall(_bss_install_gc_fallback) end
+end)
 
 -- ==========================================
 -- UI CREATION
 -- ==========================================
 update_loading("Building main window", 25)
 
-local gui = make("ScreenGui", {Name = "BSSToolkit", ResetOnSpawn = false, ZIndexBehavior = Enum.ZIndexBehavior.Sibling, IgnoreGuiInset = true}, gui_parent)
-local shadow = make("Frame", {Size = UDim2.new(0, 660, 0, 560), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 3, 0.5, 5), BackgroundColor3 = Color3.fromRGB(0, 0, 0), BackgroundTransparency = 0.55, BorderSizePixel = 0}, gui)
-corner(shadow, 12)
-local main = make("Frame", {Size = UDim2.new(0, 660, 0, 560), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0.5, 0), BackgroundColor3 = COL_BG, BorderSizePixel = 0, Active = false, ClipsDescendants = true, Visible = false}, gui)
-corner(main, 10)
-stroke(main, COL_STROKE, 1.5)
-local main_scale = make("UIScale", {Scale = 0.85}, main)
+gui = make("ScreenGui", {Name = "BSSToolkit", ResetOnSpawn = false, ZIndexBehavior = Enum.ZIndexBehavior.Sibling, IgnoreGuiInset = true}, gui_parent)
+shadow = make("Frame", {Size = UDim2.new(0, 660, 0, 560), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 3, 0.5, 5), BackgroundColor3 = Color3.fromRGB(0, 0, 0), BackgroundTransparency = 0.55, BorderSizePixel = 0}, gui)
+main = make("Frame", {Size = UDim2.new(0, 660, 0, 560), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0.5, 0), BackgroundColor3 = COL_BG, BorderSizePixel = 1, BorderColor3 = COL_ACCENT, Active = false, ClipsDescendants = true, Visible = false}, gui)
+main_scale = make("UIScale", {Scale = 0.85}, main)
 
-local titleBar = make("Frame", {Size = UDim2.new(1, 0, 0, 38), BackgroundColor3 = COL_PANEL, BorderSizePixel = 0}, main)
-corner(titleBar, 10)
-make("Frame", {Size = UDim2.new(1, 0, 0, 1), Position = UDim2.new(0, 0, 1, -1), BackgroundColor3 = COL_ACCENT, BorderSizePixel = 0, BackgroundTransparency = 0.4}, titleBar)
-local titleText = make("TextLabel", {Size = UDim2.new(1, -140, 1, 0), Position = UDim2.new(0, 16, 0, 0), BackgroundTransparency = 1, Text = "BSSToolkit", TextColor3 = COL_TEXT, TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.GothamBlack, TextSize = 15}, titleBar)
-make("UIStroke", {Color = COL_ACCENT, Thickness = 1, Transparency = 0.7}, titleText)
-local keybindLabel = make("TextLabel", {Size = UDim2.new(0, 130, 1, 0), Position = UDim2.new(1, -170, 0, 0), BackgroundTransparency = 1, Text = "", TextColor3 = COL_TEXT_DIM, TextXAlignment = Enum.TextXAlignment.Right, Font = Enum.Font.Code, TextSize = 10}, titleBar)
-local closeBtn = make("TextButton", {Size = UDim2.new(0, 28, 0, 22), Position = UDim2.new(1, -36, 0, 8), BackgroundColor3 = COL_DANGER, BorderSizePixel = 0, Text = "x", TextColor3 = Color3.fromRGB(255, 220, 220), Font = Enum.Font.GothamBold, TextSize = 13}, titleBar)
-corner(closeBtn, 5)
+titleBar = make("Frame", {Size = UDim2.new(1, 0, 0, 26), BackgroundColor3 = COL_ACCENT, BorderSizePixel = 0}, main)
+titleText = make("TextLabel", {Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1, Text = "BSSToolkit", TextColor3 = Color3.fromRGB(255, 255, 255), TextXAlignment = Enum.TextXAlignment.Center, Font = Enum.Font.Code, TextSize = 14}, titleBar)
+keybindLabel = make("TextLabel", {Size = UDim2.new(0, 200, 1, 0), Position = UDim2.new(1, -210, 0, 0), BackgroundTransparency = 1, Text = "", TextColor3 = Color3.fromRGB(200, 200, 200), TextXAlignment = Enum.TextXAlignment.Right, Font = Enum.Font.Code, TextSize = 11}, titleBar)
+
+closeBtn = make("TextButton", {Size = UDim2.new(0, 26, 1, 0), Position = UDim2.new(1, -26, 0, 0), BackgroundColor3 = COL_DANGER, BorderSizePixel = 0, Text = "X", TextColor3 = Color3.fromRGB(255, 255, 255), Font = Enum.Font.Code, TextSize = 13}, titleBar)
 closeBtn.MouseEnter:Connect(function() tween(closeBtn, {BackgroundColor3 = COL_DANGER_HOVER}, 0.12) end)
 closeBtn.MouseLeave:Connect(function() tween(closeBtn, {BackgroundColor3 = COL_DANGER}, 0.12) end)
 closeBtn.MouseButton1Click:Connect(function()
@@ -754,9 +694,10 @@ closeBtn.MouseButton1Click:Connect(function()
         gui:Destroy()
     end)
 end)
-local dragging = false
-local drag_start = nil
-local drag_start_pos = nil
+
+dragging = false
+drag_start = nil
+drag_start_pos = nil
 titleBar.InputBegan:Connect(function(io)
     if io.UserInputType == Enum.UserInputType.MouseButton1 or io.UserInputType == Enum.UserInputType.Touch then
         dragging = true
@@ -783,84 +724,79 @@ end))
 -- ==========================================
 update_loading("Building tabs", 35)
 
-local tabs = {"ESP", "Teleport", "Aimbot", "Fling", "Hitbox", "Exploits", "Fun", "Utility"}
+tabs = {"ESP", "Teleport", "Aimbot", "Fling", "Hitbox", "Exploits", "Fun", "Utility"}
 if is_mm2 then table.insert(tabs, "MM2") end
-local tabBar = make("Frame", {Size = UDim2.new(1, -20, 0, 34), Position = UDim2.new(0, 10, 0, 38), BackgroundColor3 = COL_BG, BorderSizePixel = 0}, main)
+tabBar = make("Frame", {Size = UDim2.new(1, -12, 0, 26), Position = UDim2.new(0, 6, 0, 32), BackgroundColor3 = COL_BG, BorderSizePixel = 0}, main)
 make("UIListLayout", {FillDirection = Enum.FillDirection.Horizontal, SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 4)}, tabBar)
-local tabButtons = {}
-local tabPages = {}
+tabButtons = {}
+tabPages = {}
 for i, name in ipairs(tabs) do
-    local btn = make("TextButton", {Size = UDim2.new(1 / #tabs, -4, 1, -6), Position = UDim2.new(0, 0, 0, 3), BackgroundColor3 = COL_PANEL_ALT, BorderSizePixel = 0, Text = name, TextColor3 = COL_TEXT_DIM, Font = Enum.Font.GothamBold, TextSize = 11, LayoutOrder = i, AutoButtonColor = false}, tabBar)
-    corner(btn, 6)
+    local btn = make("TextButton", {Size = UDim2.new(1 / #tabs, -4, 1, 0), Position = UDim2.new(0, 0, 0, 0), BackgroundColor3 = COL_BG, BorderSizePixel = 1, BorderColor3 = COL_STROKE, Text = name, TextColor3 = COL_TEXT, Font = Enum.Font.Code, TextSize = 12, LayoutOrder = i, AutoButtonColor = false}, tabBar)
     tabButtons[name] = btn
-    local page = make("Frame", {Size = UDim2.new(1, -24, 1, -96), Position = UDim2.new(0, 12, 0, 82), BackgroundTransparency = 1, Visible = false}, main)
+    local page = make("Frame", {Size = UDim2.new(1, -16, 1, -72), Position = UDim2.new(0, 8, 0, 64), BackgroundTransparency = 1, Visible = false}, main)
     tabPages[name] = page
-    btn.MouseEnter:Connect(function() if not page.Visible then tween(btn, {BackgroundColor3 = COL_PANEL_HOVER}, 0.12) end end)
-    btn.MouseLeave:Connect(function() if not page.Visible then tween(btn, {BackgroundColor3 = COL_PANEL_ALT}, 0.12) end end)
 end
-local function switch_tab(name)
+
+function switch_tab(name)
     for n, btn in pairs(tabButtons) do
         local active = (n == name)
-        tween(btn, {BackgroundColor3 = active and COL_ACCENT or COL_PANEL_ALT}, 0.18)
-        tween(btn, {TextColor3 = active and Color3.fromRGB(255, 255, 255) or COL_TEXT_DIM}, 0.18)
+        tween(btn, {BackgroundColor3 = active and COL_ACCENT or COL_BG, BorderColor3 = active and COL_ACCENT or COL_STROKE}, 0.1)
+        tween(btn, {TextColor3 = active and Color3.fromRGB(255, 255, 255) or COL_TEXT}, 0.1)
         tabPages[n].Visible = active
     end
 end
 for n, btn in pairs(tabButtons) do btn.MouseButton1Click:Connect(function() switch_tab(n) end) end
 switch_tab("ESP")
 
-local function section(parent, text, order)
+function section(parent, text, order)
     local row = make("Frame", {Size = UDim2.new(1, 0, 0, 24), BackgroundTransparency = 1, LayoutOrder = order or 0}, parent)
-    local bar = make("Frame", {Size = UDim2.new(0, 3, 0, 14), Position = UDim2.new(0, 0, 0.5, -7), BackgroundColor3 = COL_ACCENT, BorderSizePixel = 0}, row)
-    corner(bar, 2)
-    make("TextLabel", {Size = UDim2.new(1, -12, 1, 0), Position = UDim2.new(0, 12, 0, 0), BackgroundTransparency = 1, Text = text, TextColor3 = COL_TEXT, TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.GothamBold, TextSize = 12}, row)
+    make("TextLabel", {Size = UDim2.new(1, 0, 1, 0), Position = UDim2.new(0, 0, 0, 0), BackgroundTransparency = 1, Text = text, TextColor3 = COL_ACCENT, TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.Code, TextSize = 13}, row)
     return row
 end
 
-local function toggle(parent, text, initial, callback, order, state_key)
+function toggle(parent, text, initial, callback, order, state_key)
     local actual_initial = initial
     if state_key and state[state_key] ~= nil then actual_initial = state[state_key] end
-    local row = make("Frame", {Size = UDim2.new(1, 0, 0, 32), BackgroundColor3 = COL_PANEL_ALT, BorderSizePixel = 0, LayoutOrder = order or 0}, parent)
-    corner(row, 6)
-    make("TextLabel", {Size = UDim2.new(1, -60, 1, 0), Position = UDim2.new(0, 12, 0, 0), BackgroundTransparency = 1, Text = text, TextColor3 = COL_TEXT, TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.Gotham, TextSize = 12}, row)
-    local track_ui = make("Frame", {Size = UDim2.new(0, 36, 0, 18), Position = UDim2.new(1, -46, 0.5, -9), BackgroundColor3 = actual_initial and COL_ACCENT or COL_PANEL, BorderSizePixel = 0}, row)
-    corner(track_ui, 9)
-    stroke(track_ui, COL_STROKE, 1)
-    local knob = make("Frame", {Size = UDim2.new(0, 14, 0, 14), Position = actual_initial and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7), BackgroundColor3 = COL_TEXT, BorderSizePixel = 0}, track_ui)
-    corner(knob, 7)
+    
+    local row = make("Frame", {Size = UDim2.new(1, 0, 0, 24), BackgroundTransparency = 1, LayoutOrder = order or 0}, parent)
+    
+    local box = make("Frame", {Size = UDim2.new(0, 16, 0, 16), Position = UDim2.new(0, 4, 0.5, -8), BackgroundColor3 = actual_initial and COL_ACCENT or COL_BG, BorderSizePixel = 1, BorderColor3 = COL_STROKE}, row)
+    local check = make("Frame", {Size = UDim2.new(0, 8, 0, 8), Position = UDim2.new(0.5, -4, 0.5, -4), BackgroundColor3 = Color3.fromRGB(255, 255, 255), Visible = actual_initial}, box)
+    
+    make("TextLabel", {Size = UDim2.new(1, -30, 1, 0), Position = UDim2.new(0, 28, 0, 0), BackgroundTransparency = 1, Text = text, TextColor3 = COL_TEXT, TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.Code, TextSize = 13}, row)
+    
     local state_on = actual_initial
     local function set_val(val)
         state_on = val
-        tween(track_ui, {BackgroundColor3 = state_on and COL_ACCENT or COL_PANEL}, 0.2)
-        tween(knob, {Position = state_on and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7)}, 0.2, Enum.EasingStyle.Quad)
+        tween(box, {BackgroundColor3 = state_on and COL_ACCENT or COL_BG}, 0.1)
+        check.Visible = state_on
         callback(val)
     end
+    
     local hit = make("TextButton", {Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1, Text = "", AutoButtonColor = false}, row)
-    hit.MouseEnter:Connect(function() tween(row, {BackgroundColor3 = COL_PANEL_HOVER}, 0.12) end)
-    hit.MouseLeave:Connect(function() tween(row, {BackgroundColor3 = COL_PANEL_ALT}, 0.12) end)
+    hit.MouseEnter:Connect(function() tween(row, {BackgroundTransparency = 0.9}, 0.1) end)
+    hit.MouseLeave:Connect(function() tween(row, {BackgroundTransparency = 1}, 0.1) end)
     hit.MouseButton1Click:Connect(function() set_val(not state_on) end)
+    
     if state_key then table.insert(ui_refs.toggles, {key = state_key, set = set_val}) end
     return row
 end
 
-local function slider(parent, text, minv, maxv, initial, callback, order, state_key)
+function slider(parent, text, minv, maxv, initial, callback, order, state_key)
     local actual_initial = initial
     if state_key and state[state_key] ~= nil then actual_initial = state[state_key] end
-    local row = make("Frame", {Size = UDim2.new(1, 0, 0, 46), BackgroundColor3 = COL_PANEL_ALT, BorderSizePixel = 0, LayoutOrder = order or 0}, parent)
-    corner(row, 6)
-    local label = make("TextLabel", {Size = UDim2.new(1, -20, 0, 18), Position = UDim2.new(0, 12, 0, 5), BackgroundTransparency = 1, Text = text .. "  (" .. string.format("%.2f", actual_initial) .. ")", TextColor3 = COL_TEXT, TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.Gotham, TextSize = 12}, row)
-    local track_ui = make("Frame", {Size = UDim2.new(1, -24, 0, 4), Position = UDim2.new(0, 12, 0, 32), BackgroundColor3 = COL_PANEL, BorderSizePixel = 0}, row)
-    corner(track_ui, 2)
+    local row = make("Frame", {Size = UDim2.new(1, 0, 0, 34), BackgroundTransparency = 1, LayoutOrder = order or 0}, parent)
+    
+    local label = make("TextLabel", {Size = UDim2.new(1, -20, 0, 18), Position = UDim2.new(0, 4, 0, 0), BackgroundTransparency = 1, Text = text .. "  (" .. string.format("%.2f", actual_initial) .. ")", TextColor3 = COL_TEXT, TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.Code, TextSize = 12}, row)
+    local track_ui = make("Frame", {Size = UDim2.new(1, -8, 0, 4), Position = UDim2.new(0, 4, 0, 24), BackgroundColor3 = COL_PANEL, BorderSizePixel = 1, BorderColor3 = COL_STROKE}, row)
     local fill = make("Frame", {Size = UDim2.new((actual_initial - minv) / (maxv - minv), 0, 1, 0), BackgroundColor3 = COL_ACCENT, BorderSizePixel = 0}, track_ui)
-    corner(fill, 2)
-    local thumb = make("Frame", {Size = UDim2.new(0, 14, 0, 14), Position = UDim2.new((actual_initial - minv) / (maxv - minv), -7, 0.5, -7), BackgroundColor3 = COL_TEXT, BorderSizePixel = 0}, track_ui)
-    corner(thumb, 7)
-    local thumb_stroke = make("UIStroke", {Color = COL_ACCENT, Thickness = 1.5, Transparency = 0.5}, thumb)
+    local thumb = make("Frame", {Size = UDim2.new(0, 8, 0, 14), Position = UDim2.new((actual_initial - minv) / (maxv - minv), -4, 0.5, -7), BackgroundColor3 = COL_TEXT, BorderSizePixel = 1, BorderColor3 = COL_ACCENT}, track_ui)
+    
     local grabbing = false
     local function set_val(val)
         local rel = math.clamp((val - minv) / (maxv - minv), 0, 1)
         fill.Size = UDim2.new(rel, 0, 1, 0)
-        thumb.Position = UDim2.new(rel, -7, 0.5, -7)
+        thumb.Position = UDim2.new(rel, -4, 0.5, -7)
         label.Text = text .. "  (" .. string.format("%.2f", val) .. ")"
         callback(val)
     end
@@ -871,8 +807,6 @@ local function slider(parent, text, minv, maxv, initial, callback, order, state_
     thumb.InputBegan:Connect(function(io)
         if io.UserInputType == Enum.UserInputType.MouseButton1 then
             grabbing = true
-            tween(thumb_stroke, {Transparency = 0}, 0.12)
-            tween(thumb, {Size = UDim2.new(0, 16, 0, 16), Position = UDim2.new(thumb.Position.X.Scale, -8, 0.5, -8)}, 0.12)
             io:CaptureFocus()
         end
     end)
@@ -882,47 +816,37 @@ local function slider(parent, text, minv, maxv, initial, callback, order, state_
     track(UserInputService.InputEnded:Connect(function(io)
         if io.UserInputType == Enum.UserInputType.MouseButton1 then
             grabbing = false
-            tween(thumb_stroke, {Transparency = 0.5}, 0.12)
-            tween(thumb, {Size = UDim2.new(0, 14, 0, 14), Position = UDim2.new(thumb.Position.X.Scale, -7, 0.5, -7)}, 0.12)
         end
     end))
     if state_key then table.insert(ui_refs.sliders, {key = state_key, set = set_val}) end
     return row
 end
 
-local function button(parent, text, color, callback, order)
-    local base = color or COL_PANEL_ALT
-    local hover = lighten(base, 22)
-    local b = make("TextButton", {Size = UDim2.new(1, 0, 0, 32), BackgroundColor3 = base, BorderSizePixel = 0, Text = text, TextColor3 = COL_TEXT, Font = Enum.Font.GothamBold, TextSize = 12, LayoutOrder = order or 0, AutoButtonColor = false}, parent)
-    corner(b, 6)
-    b.MouseEnter:Connect(function() tween(b, {BackgroundColor3 = hover}, 0.12) end)
-    b.MouseLeave:Connect(function() tween(b, {BackgroundColor3 = base}, 0.12) end)
-    b.MouseButton1Click:Connect(function()
-        tween(b, {BackgroundColor3 = lighten(base, 45)}, 0.05)
-        task.delay(0.08, function() tween(b, {BackgroundColor3 = hover}, 0.12) end)
-        callback()
-    end)
+function button(parent, text, color, callback, order)
+    local base = COL_BG
+    local b = make("TextButton", {Size = UDim2.new(1, 0, 0, 28), BackgroundColor3 = base, BorderSizePixel = 1, BorderColor3 = COL_ACCENT, Text = text, TextColor3 = COL_TEXT, Font = Enum.Font.Code, TextSize = 13, LayoutOrder = order or 0, AutoButtonColor = false}, parent)
+    b.MouseEnter:Connect(function() tween(b, {BackgroundColor3 = COL_PANEL_HOVER}, 0.1) end)
+    b.MouseLeave:Connect(function() tween(b, {BackgroundColor3 = base}, 0.1) end)
+    b.MouseButton1Click:Connect(function() callback() end)
     return b
 end
 
-local function textbox(parent, placeholder, order, initial, state_key)
+function textbox(parent, placeholder, order, initial, state_key)
     local actual_initial = initial
     if state_key and state[state_key] ~= nil then actual_initial = state[state_key] end
-    local t = make("TextBox", {Size = UDim2.new(1, 0, 0, 34), BackgroundColor3 = COL_PANEL, BorderSizePixel = 0, TextColor3 = COL_TEXT, PlaceholderText = placeholder, PlaceholderColor3 = COL_TEXT_DIM, Text = actual_initial or "", Font = Enum.Font.Gotham, TextSize = 12, ClearTextOnFocus = false, LayoutOrder = order or 0}, parent)
-    corner(t, 6)
-    local s = make("UIStroke", {Color = COL_STROKE, Thickness = 1, Transparency = 0.3}, t)
-    t.Focused:Connect(function() tween(s, {Color = COL_ACCENT, Transparency = 0}, 0.15) end)
-    t.FocusLost:Connect(function() tween(s, {Color = COL_STROKE, Transparency = 0.3}, 0.15) end)
+    local t = make("TextBox", {Size = UDim2.new(1, 0, 0, 26), BackgroundColor3 = COL_BG, BorderSizePixel = 1, BorderColor3 = COL_STROKE, TextColor3 = COL_TEXT, PlaceholderText = placeholder, PlaceholderColor3 = COL_TEXT_DIM, Text = actual_initial or "", Font = Enum.Font.Code, TextSize = 12, ClearTextOnFocus = false, LayoutOrder = order or 0}, parent)
+    t.Focused:Connect(function() t.BorderColor3 = COL_ACCENT end)
+    t.FocusLost:Connect(function() t.BorderColor3 = COL_STROKE end)
     if state_key then table.insert(ui_refs.textboxes, {key = state_key, set = function(val) t.Text = val end}) end
     return t
 end
 
-local function scroll_col(parent)
+function scroll_col(parent)
     local s = make("ScrollingFrame", {Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1, BorderSizePixel = 0, ScrollBarThickness = 4, CanvasSize = UDim2.new(0, 0, 0, 0), AutomaticCanvasSize = Enum.AutomaticSize.Y, ScrollBarImageColor3 = COL_ACCENT}, parent)
     make("UIListLayout", {Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder}, s)
     return s
 end
-local function split_two(parent)
+function split_two(parent)
     local left = make("Frame", {Size = UDim2.new(0.5, -6, 1, 0), BackgroundTransparency = 1}, parent)
     local ls = scroll_col(left)
     local right = make("Frame", {Size = UDim2.new(0.5, -6, 1, 0), Position = UDim2.new(0.5, 6, 0, 0), BackgroundTransparency = 1}, parent)
@@ -935,27 +859,27 @@ end
 -- ==========================================
 update_loading("Building ESP elements", 50)
 
-local draw_holder = make("Frame", {Size = UDim2.new(1, 0, 1, 0), Position = UDim2.new(0, 0, 0, 0), BackgroundTransparency = 1, Active = false, ClipsDescendants = false}, gui)
-local fovCircle = make("Frame", {Size = UDim2.new(0, state.aimbot_fov * 2, 0, state.aimbot_fov * 2), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0.5, 0), BackgroundTransparency = 1, BorderSizePixel = 0, Visible = false, ZIndex = 5}, draw_holder)
-make("UICorner", {CornerRadius = UDim.new(1, 0)}, fovCircle)
+draw_holder = make("Frame", {Size = UDim2.new(1, 0, 1, 0), Position = UDim2.new(0, 0, 0, 0), BackgroundTransparency = 1, Active = false, ClipsDescendants = false}, gui)
+fovCircle = make("Frame", {Size = UDim2.new(0, state.aimbot_fov * 2, 0, state.aimbot_fov * 2), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0.5, 0), BackgroundTransparency = 1, BorderSizePixel = 0, Visible = false, ZIndex = 5}, draw_holder)
+make("UICorner", {CornerRadius = UDim.new(1, 0)}, fovCircle) 
 make("UIStroke", {Color = COL_ACCENT, Thickness = 1.5, Transparency = 0.35}, fovCircle)
-local function update_fov_circle()
+function update_fov_circle()
     local d = state.aimbot_fov * 2
     fovCircle.Size = UDim2.new(0, d, 0, d)
     fovCircle.Visible = state.aimbot_enabled or state.object_aimbot_enabled
 end
 update_fov_circle()
 
-local hitMarker = make("TextLabel", {Size = UDim2.new(0, 50, 0, 50), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0.5, 0), BackgroundTransparency = 1, Text = "X", TextColor3 = COL_BAD, Font = Enum.Font.GothamBlack, TextSize = 24, Visible = false, ZIndex = 10}, draw_holder)
-local hitMarkerTime = 0
+hitMarker = make("TextLabel", {Size = UDim2.new(0, 50, 0, 50), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0.5, 0), BackgroundTransparency = 1, Text = "X", TextColor3 = COL_BAD, Font = Enum.Font.Code, TextSize = 24, Visible = false, ZIndex = 10}, draw_holder)
+hitMarkerTime = 0
 
-local esp_objects = {}
-local function make_esp_for(p)
+esp_objects = {}
+function make_esp_for(p)
     local frame = make("Frame", {BackgroundTransparency = 1, Visible = false}, draw_holder)
     local box = make("Frame", {BackgroundTransparency = 1, Visible = false, AnchorPoint = Vector2.new(0.5, 0.5)}, frame)
     local box_stroke = make("UIStroke", {Color = state.esp_color, Thickness = 1}, box)
-    local nameLbl = make("TextLabel", {BackgroundTransparency = 1, TextColor3 = state.esp_color, Font = Enum.Font.GothamBold, TextSize = 12, TextStrokeTransparency = 0.4, AnchorPoint = Vector2.new(0.5, 0.5)}, frame)
-    local distLbl = make("TextLabel", {BackgroundTransparency = 1, TextColor3 = state.esp_color, Font = Enum.Font.Gotham, TextSize = 11, TextStrokeTransparency = 0.4, AnchorPoint = Vector2.new(0.5, 0.5)}, frame)
+    local nameLbl = make("TextLabel", {BackgroundTransparency = 1, TextColor3 = state.esp_color, Font = Enum.Font.Code, TextSize = 12, TextStrokeTransparency = 0.4, AnchorPoint = Vector2.new(0.5, 0.5)}, frame)
+    local distLbl = make("TextLabel", {BackgroundTransparency = 1, TextColor3 = state.esp_color, Font = Enum.Font.Code, TextSize = 11, TextStrokeTransparency = 0.4, AnchorPoint = Vector2.new(0.5, 0.5)}, frame)
     local tracer = make("Frame", {BackgroundColor3 = state.esp_color, BorderSizePixel = 0, Visible = false, AnchorPoint = Vector2.new(0, 0.5)}, frame)
     local skel = {}
     for i = 1, 16 do
@@ -963,15 +887,15 @@ local function make_esp_for(p)
     end
     esp_objects[p] = {root = frame, box = box, box_stroke = box_stroke, name = nameLbl, dist = distLbl, tracer = tracer, skel = skel}
 end
-local function remove_esp_for(p)
+function remove_esp_for(p)
     local o = esp_objects[p]
     if o and o.root then o.root:Destroy() end
     esp_objects[p] = nil
 end
-local function char_bounds(char)
+function char_bounds(char)
     local hrp = char:FindFirstChild("HumanoidRootPart")
     if not hrp then return nil end
-    local cam = Workspace.CurrentCamera
+    local cam = Workspace.CurrentCamera or camera
     local sp, onscreen = cam:WorldToViewportPoint(hrp.Position)
     if not onscreen or sp.Z <= 0 then return nil end
     local dist = (cam.CFrame.Position - hrp.Position).Magnitude
@@ -979,22 +903,22 @@ local function char_bounds(char)
     local w = h * 0.6
     return Vector2.new(sp.X, sp.Y), w, h, dist
 end
-local SKEL_R6 = {
+SKEL_R6 = {
     {"Head", "Torso"}, {"Torso", "Left Arm"}, {"Torso", "Right Arm"}, {"Torso", "Left Leg"}, {"Torso", "Right Leg"},
 }
-local SKEL_R15 = {
+SKEL_R15 = {
     {"Head", "UpperTorso"}, {"UpperTorso", "LowerTorso"}, {"UpperTorso", "LeftUpperArm"}, {"LeftUpperArm", "LeftLowerArm"}, {"LeftLowerArm", "LeftHand"},
     {"UpperTorso", "RightUpperArm"}, {"RightUpperArm", "RightLowerArm"}, {"RightLowerArm", "RightHand"}, {"LowerTorso", "LeftUpperLeg"}, {"LeftUpperLeg", "LeftLowerLeg"},
     {"LeftLowerLeg", "LeftFoot"}, {"LowerTorso", "RightUpperLeg"}, {"RightUpperLeg", "RightLowerLeg"}, {"RightLowerLeg", "RightFoot"},
 }
-local function draw_skeleton(o, char)
+function draw_skeleton(o, char)
     local pairs_list = char:FindFirstChild("UpperTorso") and SKEL_R15 or SKEL_R6
     local idx = 0
     for _, pair in ipairs(pairs_list) do
         local a = char:FindFirstChild(pair[1])
         local b = char:FindFirstChild(pair[2])
         if a and b then
-            local cam = Workspace.CurrentCamera
+            local cam = Workspace.CurrentCamera or camera
             local sp_a, on_a = cam:WorldToViewportPoint(a.Position)
             local sp_b, on_b = cam:WorldToViewportPoint(b.Position)
             if on_a and on_b then
@@ -1015,7 +939,7 @@ local function draw_skeleton(o, char)
     end
     for i = idx + 1, #o.skel do o.skel[i].Visible = false end
 end
-local function update_esp()
+function update_esp()
     for p, _ in pairs(esp_objects) do
         if not p.Parent or not p.Character then remove_esp_for(p) end
     end
@@ -1053,7 +977,7 @@ local function update_esp()
                     else o.dist.Visible = false end
                     if state.esp_tracers then
                         o.tracer.Visible = true
-                        local vp = camera.ViewportSize
+                        local vp = (Workspace.CurrentCamera or camera).ViewportSize
                         local startV = Vector2.new(vp.X/2, vp.Y)
                         local endV = Vector2.new(pos.X, pos.Y + h/2)
                         local delta = endV - startV
@@ -1076,18 +1000,18 @@ local function update_esp()
         end
     end
 end
-local function get_object_origin(obj)
+function get_object_origin(obj)
     if obj:IsA("BasePart") then return obj end
     if obj:IsA("Model") then
         return obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")
     end
     return nil
 end
-local function clear_object_esp()
+function clear_object_esp()
     for inst, o in pairs(obj_esp_objs) do if o.frame then o.frame:Destroy() end end
     obj_esp_objs = {}
 end
-local function update_object_esp()
+function update_object_esp()
     if not state.object_esp_enabled or state.object_name == "" then
         clear_object_esp()
         return
@@ -1106,11 +1030,11 @@ local function update_object_esp()
                         local frame = make("Frame", {BackgroundTransparency = 1, Visible = false}, draw_holder)
                         local box = make("Frame", {BackgroundTransparency = 1, AnchorPoint = Vector2.new(0.5, 0.5)}, frame)
                         stroke(box, Color3.fromRGB(80, 200, 255), 1)
-                        local label = make("TextLabel", {BackgroundTransparency = 1, TextColor3 = Color3.fromRGB(140, 220, 255), Font = Enum.Font.GothamBold, TextSize = 11, TextStrokeTransparency = 0.4, AnchorPoint = Vector2.new(0.5, 0.5)}, frame)
+                        local label = make("TextLabel", {BackgroundTransparency = 1, TextColor3 = Color3.fromRGB(140, 220, 255), Font = Enum.Font.Code, TextSize = 11, TextStrokeTransparency = 0.4, AnchorPoint = Vector2.new(0.5, 0.5)}, frame)
                         obj_esp_objs[obj] = {frame = frame, box = box, label = label}
                     end
                     local o = obj_esp_objs[obj]
-                    local cam = Workspace.CurrentCamera
+                    local cam = Workspace.CurrentCamera or camera
                     local sp, onscreen = cam:WorldToViewportPoint(part.Position)
                     if onscreen then
                         local scale = 800 / math.max(dist, 1)
@@ -1144,7 +1068,7 @@ end
 -- ==========================================
 update_loading("Building ESP UI", 60)
 
-local espLeft, espRight = split_two(tabPages["ESP"])
+espLeft, espRight = split_two(tabPages["ESP"])
 section(espLeft, "Player ESP", 1)
 toggle(espLeft, "Enable ESP", false, function(on) state.esp_enabled = on end, 2, "esp_enabled")
 toggle(espLeft, "Box", true, function(on) state.esp_box = on end, 3, "esp_box")
@@ -1167,17 +1091,17 @@ toggle(espRight, "Enable object ESP", false, function(on)
     state.object_esp_enabled = on
     if not on then clear_object_esp() end
 end, 2, "object_esp_enabled")
-local obj_name_box = textbox(espRight, "object name (exact match)", 3, "", "object_name")
+obj_name_box = textbox(espRight, "object name (exact match)", 3, "", "object_name")
 obj_name_box:GetPropertyChangedSignal("Text"):Connect(function() state.object_name = obj_name_box.Text end)
 slider(espRight, "Object range", 50, 2000, 500, function(v) state.object_range = v end, 4, "object_range")
 toggle(espRight, "Object box", true, function(on) state.object_box = on end, 5, "object_box")
 toggle(espRight, "Object name label", true, function(on) state.object_name_lbl = on end, 6, "object_name_lbl")
 
-local tpLeft, tpRight = split_two(tabPages["Teleport"])
+tpLeft, tpRight = split_two(tabPages["Teleport"])
 section(tpLeft, "Players", 1)
-local playerListFrame = make("Frame", {Size = UDim2.new(1, 0, 0, 0), BackgroundTransparency = 1, AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = 2}, tpLeft)
+playerListFrame = make("Frame", {Size = UDim2.new(1, 0, 0, 0), BackgroundTransparency = 1, AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = 2}, tpLeft)
 make("UIListLayout", {Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder}, playerListFrame)
-local function refresh_player_list()
+function refresh_player_list()
     for _, c in ipairs(playerListFrame:GetChildren()) do if c:IsA("TextButton") then c:Destroy() end end
     for i, p in ipairs(Players:GetPlayers()) do
         if p ~= player then
@@ -1192,11 +1116,10 @@ track(Players.PlayerAdded:Connect(refresh_player_list))
 track(Players.PlayerRemoving:Connect(refresh_player_list))
 refresh_player_list()
 section(tpRight, "CFrame warp", 1)
-local cfBox = make("TextBox", {Size = UDim2.new(1, 0, 0, 80), BackgroundColor3 = COL_PANEL, BorderSizePixel = 0, TextColor3 = COL_TEXT, PlaceholderText = "CFrame.new(...) or 3/12 numbers", PlaceholderColor3 = COL_TEXT_DIM, Text = "", TextWrapped = true, TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top, Font = Enum.Font.Code, TextSize = 12, ClearTextOnFocus = false, LayoutOrder = 2}, tpRight)
-corner(cfBox, 6)
+cfBox = make("TextBox", {Size = UDim2.new(1, 0, 0, 80), BackgroundColor3 = COL_BG, BorderSizePixel = 1, BorderColor3 = COL_STROKE, TextColor3 = COL_TEXT, PlaceholderText = "CFrame.new(...) or 3/12 numbers", PlaceholderColor3 = COL_TEXT_DIM, Text = "", TextWrapped = true, TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top, Font = Enum.Font.Code, TextSize = 12, ClearTextOnFocus = false, LayoutOrder = 2}, tpRight)
 make("UIPadding", {PaddingLeft = UDim.new(0, 8), PaddingRight = UDim.new(0, 8), PaddingTop = UDim.new(0, 6), PaddingBottom = UDim.new(0, 6)}, cfBox)
-local tpStatus = make("TextLabel", {Size = UDim2.new(1, 0, 0, 20), BackgroundTransparency = 1, Text = "", TextColor3 = COL_OK, TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.Gotham, TextSize = 12, LayoutOrder = 3}, tpRight)
-local function set_status(msg, ok)
+tpStatus = make("TextLabel", {Size = UDim2.new(1, 0, 0, 20), BackgroundTransparency = 1, Text = "", TextColor3 = COL_OK, TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.Code, TextSize = 12, LayoutOrder = 3}, tpRight)
+function set_status(msg, ok)
     tpStatus.Text = msg
     tpStatus.TextColor3 = ok and COL_OK or COL_BAD
     task.delay(2.5, function() if tpStatus.Text == msg then tpStatus.Text = "" end end)
@@ -1209,21 +1132,19 @@ button(tpRight, "Teleport to CFrame", COL_ACCENT, function()
     root.CFrame = cf
     set_status("teleported", true)
 end, 4)
-local saveBox = textbox(tpRight, "name this spot...", 5, "")
-local savedFrame = make("Frame", {Size = UDim2.new(1, 0, 0, 0), BackgroundTransparency = 1, AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = 7}, tpRight)
+saveBox = textbox(tpRight, "name this spot...", 5, "")
+savedFrame = make("Frame", {Size = UDim2.new(1, 0, 0, 0), BackgroundTransparency = 1, AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = 7}, tpRight)
 make("UIListLayout", {Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder}, savedFrame)
-local function rebuild_saved()
+function rebuild_saved()
     for _, c in ipairs(savedFrame:GetChildren()) do if c:IsA("Frame") then c:Destroy() end end
     for i, entry in ipairs(state.saved_spots) do
-        local row = make("Frame", {Size = UDim2.new(1, 0, 0, 30), BackgroundColor3 = COL_PANEL_ALT, BorderSizePixel = 0, LayoutOrder = i}, savedFrame)
-        corner(row, 5)
-        local nb = make("TextButton", {Size = UDim2.new(1, -36, 1, 0), BackgroundTransparency = 1, Text = "  " .. entry.name, TextColor3 = COL_TEXT, TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.Gotham, TextSize = 12, AutoButtonColor = false}, row)
+        local row = make("Frame", {Size = UDim2.new(1, 0, 0, 28), BackgroundColor3 = COL_BG, BorderSizePixel = 1, BorderColor3 = COL_STROKE, LayoutOrder = i}, savedFrame)
+        local nb = make("TextButton", {Size = UDim2.new(1, -36, 1, 0), BackgroundTransparency = 1, Text = "  " .. entry.name, TextColor3 = COL_TEXT, TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.Code, TextSize = 12, AutoButtonColor = false}, row)
         nb.MouseButton1Click:Connect(function()
             local root = get_root()
             if root then root.CFrame = entry.cf; set_status("teleported to " .. entry.name, true) end
         end)
-        local del = make("TextButton", {Size = UDim2.new(0, 28, 0, 22), Position = UDim2.new(1, -32, 0, 4), BackgroundColor3 = COL_DANGER, BorderSizePixel = 0, Text = "x", TextColor3 = Color3.fromRGB(255, 220, 220), Font = Enum.Font.GothamBold, TextSize = 12, AutoButtonColor = false}, row)
-        corner(del, 4)
+        local del = make("TextButton", {Size = UDim2.new(0, 26, 1, 0), Position = UDim2.new(1, -26, 0, 0), BackgroundColor3 = COL_DANGER, BorderSizePixel = 0, Text = "X", TextColor3 = Color3.fromRGB(255, 255, 255), Font = Enum.Font.Code, TextSize = 12, AutoButtonColor = false}, row)
         del.MouseEnter:Connect(function() tween(del, {BackgroundColor3 = COL_DANGER_HOVER}, 0.12) end)
         del.MouseLeave:Connect(function() tween(del, {BackgroundColor3 = COL_DANGER}, 0.12) end)
         del.MouseButton1Click:Connect(function()
@@ -1264,7 +1185,7 @@ rebuild_saved()
 -- ==========================================
 update_loading("Building Aimbot", 70)
 
-local aimLeft, aimRight = split_two(tabPages["Aimbot"])
+aimLeft, aimRight = split_two(tabPages["Aimbot"])
 section(aimLeft, "Player aimbot", 1)
 toggle(aimLeft, "Enable aimbot", false, function(on)
     state.aimbot_enabled = on
@@ -1286,8 +1207,8 @@ toggle(aimLeft, "Random body part", false, function(on) state.aimbot_random_part
 toggle(aimLeft, "God check (skip FF)", true, function(on) state.aimbot_god_check = on end, 15, "aimbot_god_check")
 toggle(aimLeft, "Weapon-aware prediction", true, function(on) state.aimbot_weapon_pred = on end, 16, "aimbot_weapon_pred")
 
-toggle(aimLeft, "Wallbang (Auto-Clip)", false, function(on) 
-    state.wallbang = on 
+toggle(aimLeft, "Wallbang (Auto-Clip)", false, function(on)
+    state.wallbang = on
     update_wallbang()
 end, 17, "wallbang")
 
@@ -1302,18 +1223,17 @@ toggle(aimLeft, "Infinite Ammo", false, function(on) state.inf_ammo = on end, 24
 slider(aimLeft, "Ammo Value", 10, 9999, 9999, function(v) state.inf_ammo_value = math.floor(v) end, 25, "inf_ammo_value")
 
 section(aimRight, "Keybinds", 1)
-local keybindButtons = {}
-local function bind_label(b)
+keybindButtons = {}
+function bind_label(b)
     local bind = keybinds[b]
     if not bind.key then return "none" end
     if bind.input == Enum.UserInputType.Keyboard then return bind.key.Name else return bind.input.Name end
 end
-local function keybind_button(parent, label, slot, order)
-    local b = make("TextButton", {Size = UDim2.new(1, 0, 0, 30), BackgroundColor3 = COL_PANEL_ALT, BorderSizePixel = 0, Text = label .. ":  " .. bind_label(slot), TextColor3 = COL_TEXT, Font = Enum.Font.Gotham, TextSize = 12, LayoutOrder = order or 0, AutoButtonColor = false}, parent)
-    corner(b, 5)
+function keybind_button(parent, label, slot, order)
+    local b = make("TextButton", {Size = UDim2.new(1, 0, 0, 26), BackgroundColor3 = COL_BG, BorderSizePixel = 1, BorderColor3 = COL_STROKE, Text = label .. ":  " .. bind_label(slot), TextColor3 = COL_TEXT, Font = Enum.Font.Code, TextSize = 12, LayoutOrder = order or 0, AutoButtonColor = false}, parent)
     keybindButtons[slot] = b
     b.MouseEnter:Connect(function() tween(b, {BackgroundColor3 = COL_PANEL_HOVER}, 0.12) end)
-    b.MouseLeave:Connect(function() tween(b, {BackgroundColor3 = COL_PANEL_ALT}, 0.12) end)
+    b.MouseLeave:Connect(function() tween(b, {BackgroundColor3 = COL_BG}, 0.12) end)
     b.MouseButton1Click:Connect(function()
         b.Text = label .. ":  ..."
         local conn
@@ -1354,11 +1274,11 @@ keybind_button(aimRight, "Orbit Rage (10s)", "orbit_rage", 6)
 update_keybind_label()
 section(aimRight, "Object aimbot", 10)
 toggle(aimRight, "Enable object aimbot", false, function(on) state.object_aimbot_enabled = on; update_fov_circle() end, 11, "object_aimbot_enabled")
-local obj_aim_name = textbox(aimRight, "object name (exact match)", 12, "", "object_name")
+obj_aim_name = textbox(aimRight, "object name (exact match)", 12, "", "object_name")
 obj_aim_name:GetPropertyChangedSignal("Text"):Connect(function() state.object_name = obj_aim_name.Text end)
 
-local function nearest_target()
-    local cam = Workspace.CurrentCamera
+function nearest_target()
+    local cam = Workspace.CurrentCamera or camera
     local best, best_dist = nil, state.aimbot_fov
     local my_pos = get_root() and get_root().Position or Vector3.zero
     for _, p in ipairs(Players:GetPlayers()) do
@@ -1366,9 +1286,7 @@ local function nearest_target()
             local char = p.Character
             if char then
                 local skip = false
-                if state.aimbot_god_check and char:FindFirstChildOfClass("ForceField") then
-                    skip = true
-                end
+                if state.aimbot_god_check and char:FindFirstChildOfClass("ForceField") then skip = true end
                 if not skip then
                     local target_part_name = state.aimbot_part
                     if state.aimbot_random_part then
@@ -1394,8 +1312,8 @@ local function nearest_target()
     end
     return best
 end
-local function nearest_object()
-    local cam = Workspace.CurrentCamera
+function nearest_object()
+    local cam = Workspace.CurrentCamera or camera
     if state.object_name == "" then return nil end
     local best, best_dist = nil, state.aimbot_fov
     local my_pos = get_root() and get_root().Position or Vector3.zero
@@ -1424,11 +1342,11 @@ end
 -- ==========================================
 update_loading("Building Fling & Hitbox", 80)
 
-local flLeft, flRight = split_two(tabPages["Fling"])
+flLeft, flRight = split_two(tabPages["Fling"])
 section(flLeft, "Fling target", 1)
-local flingListFrame = make("Frame", {Size = UDim2.new(1, 0, 0, 0), BackgroundTransparency = 1, AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = 2}, flLeft)
+flingListFrame = make("Frame", {Size = UDim2.new(1, 0, 0, 0), BackgroundTransparency = 1, AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = 2}, flLeft)
 make("UIListLayout", {Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder}, flingListFrame)
-local function stop_fling()
+function stop_fling()
     if fling_conn then fling_conn:Disconnect(); fling_conn = nil end
     if _G._bss_fling_weld then pcall(function() _G._bss_fling_weld:Destroy() end); _G._bss_fling_weld = nil end
     fling_active = false
@@ -1443,7 +1361,7 @@ local function stop_fling()
     end
     fling_return_cf = nil; fling_target = nil
 end
-local function start_fling(target_player)
+function start_fling(target_player)
     if fling_active then stop_fling() end
     local root = get_root()
     local target_root = get_root(target_player)
@@ -1475,7 +1393,7 @@ local function start_fling(target_player)
     end)
     task.delay(2.5, function() if fling_active and fling_target == target_player then stop_fling() end end)
 end
-local function refresh_fling_list()
+function refresh_fling_list()
     for _, c in ipairs(flingListFrame:GetChildren()) do if c:IsA("TextButton") then c:Destroy() end end
     for i, p in ipairs(Players:GetPlayers()) do
         if p ~= player then
@@ -1491,45 +1409,38 @@ toggle(flRight, "Return to start after fling", true, function(on) state.fling_re
 toggle(flRight, "Walkfling method", false, function(on) state.use_walkfling = on end, 3, "use_walkfling")
 button(flRight, "Stop fling", COL_DANGER, function() stop_fling() end, 4)
 
-local hbLeft, hbRight = split_two(tabPages["Hitbox"])
+hbLeft, hbRight = split_two(tabPages["Hitbox"])
 section(hbLeft, "Hitbox Expander", 1)
-local function remove_hitbox(p)
+function remove_hitbox(p)
     if hitbox_expanded[p] then hitbox_expanded[p]:Destroy(); hitbox_expanded[p] = nil end
 end
 toggle(hbLeft, "Enabled", false, function(on)
     state.hitbox_enabled = on
     if not on then for p, _ in pairs(hitbox_expanded) do remove_hitbox(p) end end
 end, 2, "hitbox_enabled")
-local partRow = make("Frame", {Size = UDim2.new(1,0,0,34), BackgroundColor3 = COL_PANEL_ALT, LayoutOrder = 3}, hbLeft)
-corner(partRow, 5)
-make("TextLabel", {Size = UDim2.new(1,-160,1,0), Position = UDim2.new(0,12,0,0), BackgroundTransparency = 1, Text = "Part", TextColor3 = COL_TEXT, Font = Enum.Font.Gotham, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left}, partRow)
-local hrpBtn = make("TextButton", {Size = UDim2.new(0, 80, 0, 24), Position = UDim2.new(1, -160, 0.5, -12), BackgroundColor3 = state.hitbox_part == "HumanoidRootPart" and COL_ACCENT or COL_PANEL, Text = "HumanoidRootPart", TextColor3 = COL_TEXT, Font = Enum.Font.GothamBold, TextSize = 10, TextScaled = true, AutoButtonColor = false}, partRow)
-corner(hrpBtn, 4)
-local headBtn = make("TextButton", {Size = UDim2.new(0, 60, 0, 24), Position = UDim2.new(1, -75, 0.5, -12), BackgroundColor3 = state.hitbox_part == "Head" and COL_ACCENT or COL_PANEL, Text = "Head", TextColor3 = COL_TEXT, Font = Enum.Font.GothamBold, TextSize = 10, AutoButtonColor = false}, partRow)
-corner(headBtn, 4)
+partRow = make("Frame", {Size = UDim2.new(1,0,0,30), BackgroundTransparency = 1, LayoutOrder = 3}, hbLeft)
+make("TextLabel", {Size = UDim2.new(1,-160,1,0), Position = UDim2.new(0,4,0,0), BackgroundTransparency = 1, Text = "Part", TextColor3 = COL_TEXT, Font = Enum.Font.Code, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left}, partRow)
+hrpBtn = make("TextButton", {Size = UDim2.new(0, 80, 0, 22), Position = UDim2.new(1, -160, 0.5, -11), BackgroundColor3 = state.hitbox_part == "HumanoidRootPart" and COL_ACCENT or COL_BG, BorderSizePixel = 1, BorderColor3 = COL_STROKE, Text = "HumanoidRootPart", TextColor3 = COL_TEXT, Font = Enum.Font.Code, TextSize = 10, TextScaled = true, AutoButtonColor = false}, partRow)
+headBtn = make("TextButton", {Size = UDim2.new(0, 60, 0, 22), Position = UDim2.new(1, -75, 0.5, -11), BackgroundColor3 = state.hitbox_part == "Head" and COL_ACCENT or COL_BG, BorderSizePixel = 1, BorderColor3 = COL_STROKE, Text = "Head", TextColor3 = COL_TEXT, Font = Enum.Font.Code, TextSize = 10, AutoButtonColor = false}, partRow)
 hrpBtn.MouseButton1Click:Connect(function()
-    state.hitbox_part = "HumanoidRootPart"; tween(hrpBtn, {BackgroundColor3 = COL_ACCENT}, 0.15); tween(headBtn, {BackgroundColor3 = COL_PANEL}, 0.15)
+    state.hitbox_part = "HumanoidRootPart"; tween(hrpBtn, {BackgroundColor3 = COL_ACCENT}, 0.15); tween(headBtn, {BackgroundColor3 = COL_BG}, 0.15)
     for p, _ in pairs(hitbox_expanded) do remove_hitbox(p) end
 end)
 headBtn.MouseButton1Click:Connect(function()
-    state.hitbox_part = "Head"; tween(hrpBtn, {BackgroundColor3 = COL_PANEL}, 0.15); tween(headBtn, {BackgroundColor3 = COL_ACCENT}, 0.15)
+    state.hitbox_part = "Head"; tween(hrpBtn, {BackgroundColor3 = COL_BG}, 0.15); tween(headBtn, {BackgroundColor3 = COL_ACCENT}, 0.15)
     for p, _ in pairs(hitbox_expanded) do remove_hitbox(p) end
 end)
-local lookRow = make("Frame", {Size = UDim2.new(1,0,0,34), BackgroundColor3 = COL_PANEL_ALT, LayoutOrder = 4}, hbLeft)
-corner(lookRow, 5)
-make("TextLabel", {Size = UDim2.new(1,-210,1,0), Position = UDim2.new(0,12,0,0), BackgroundTransparency = 1, Text = "Hitbox Look", TextColor3 = COL_TEXT, Font = Enum.Font.Gotham, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left}, lookRow)
-local boxBtn = make("TextButton", {Size = UDim2.new(0, 60, 0, 24), Position = UDim2.new(1, -210, 0.5, -12), BackgroundColor3 = state.hitbox_look == "Box" and COL_ACCENT or COL_PANEL, Text = "Box", TextColor3 = COL_TEXT, Font = Enum.Font.GothamBold, TextSize = 10, AutoButtonColor = false}, lookRow)
-corner(boxBtn, 4)
-local wireBtn = make("TextButton", {Size = UDim2.new(0, 60, 0, 24), Position = UDim2.new(1, -145, 0.5, -12), BackgroundColor3 = state.hitbox_look == "Wireframe" and COL_ACCENT or COL_PANEL, Text = "Wireframe", TextColor3 = COL_TEXT, Font = Enum.Font.GothamBold, TextSize = 10, AutoButtonColor = false}, lookRow)
-corner(wireBtn, 4)
-local invBtn = make("TextButton", {Size = UDim2.new(0, 60, 0, 24), Position = UDim2.new(1, -80, 0.5, -12), BackgroundColor3 = state.hitbox_look == "Invisible" and COL_ACCENT or COL_PANEL, Text = "Invisible", TextColor3 = COL_TEXT, Font = Enum.Font.GothamBold, TextSize = 10, AutoButtonColor = false}, lookRow)
-corner(invBtn, 4)
-boxBtn.MouseButton1Click:Connect(function() state.hitbox_look = "Box"; tween(boxBtn, {BackgroundColor3 = COL_ACCENT}, 0.15); tween(wireBtn, {BackgroundColor3 = COL_PANEL}, 0.15); tween(invBtn, {BackgroundColor3 = COL_PANEL}, 0.15) end)
-wireBtn.MouseButton1Click:Connect(function() state.hitbox_look = "Wireframe"; tween(boxBtn, {BackgroundColor3 = COL_PANEL}, 0.15); tween(wireBtn, {BackgroundColor3 = COL_ACCENT}, 0.15); tween(invBtn, {BackgroundColor3 = COL_PANEL}, 0.15) end)
-invBtn.MouseButton1Click:Connect(function() state.hitbox_look = "Invisible"; tween(boxBtn, {BackgroundColor3 = COL_PANEL}, 0.15); tween(wireBtn, {BackgroundColor3 = COL_PANEL}, 0.15); tween(invBtn, {BackgroundColor3 = COL_ACCENT}, 0.15) end)
+lookRow = make("Frame", {Size = UDim2.new(1,0,0,30), BackgroundTransparency = 1, LayoutOrder = 4}, hbLeft)
+make("TextLabel", {Size = UDim2.new(1,-210,1,0), Position = UDim2.new(0,4,0,0), BackgroundTransparency = 1, Text = "Hitbox Look", TextColor3 = COL_TEXT, Font = Enum.Font.Code, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left}, lookRow)
+boxBtn = make("TextButton", {Size = UDim2.new(0, 60, 0, 22), Position = UDim2.new(1, -210, 0.5, -11), BackgroundColor3 = state.hitbox_look == "Box" and COL_ACCENT or COL_BG, BorderSizePixel = 1, BorderColor3 = COL_STROKE, Text = "Box", TextColor3 = COL_TEXT, Font = Enum.Font.Code, TextSize = 10, AutoButtonColor = false}, lookRow)
+wireBtn = make("TextButton", {Size = UDim2.new(0, 60, 0, 22), Position = UDim2.new(1, -145, 0.5, -11), BackgroundColor3 = state.hitbox_look == "Wireframe" and COL_ACCENT or COL_BG, BorderSizePixel = 1, BorderColor3 = COL_STROKE, Text = "Wireframe", TextColor3 = COL_TEXT, Font = Enum.Font.Code, TextSize = 10, AutoButtonColor = false}, lookRow)
+invBtn = make("TextButton", {Size = UDim2.new(0, 60, 0, 22), Position = UDim2.new(1, -80, 0.5, -11), BackgroundColor3 = state.hitbox_look == "Invisible" and COL_ACCENT or COL_BG, BorderSizePixel = 1, BorderColor3 = COL_STROKE, Text = "Invisible", TextColor3 = COL_TEXT, Font = Enum.Font.Code, TextSize = 10, AutoButtonColor = false}, lookRow)
+boxBtn.MouseButton1Click:Connect(function() state.hitbox_look = "Box"; tween(boxBtn, {BackgroundColor3 = COL_ACCENT}, 0.15); tween(wireBtn, {BackgroundColor3 = COL_BG}, 0.15); tween(invBtn, {BackgroundColor3 = COL_BG}, 0.15) end)
+wireBtn.MouseButton1Click:Connect(function() state.hitbox_look = "Wireframe"; tween(boxBtn, {BackgroundColor3 = COL_BG}, 0.15); tween(wireBtn, {BackgroundColor3 = COL_ACCENT}, 0.15); tween(invBtn, {BackgroundColor3 = COL_BG}, 0.15) end)
+invBtn.MouseButton1Click:Connect(function() state.hitbox_look = "Invisible"; tween(boxBtn, {BackgroundColor3 = COL_BG}, 0.15); tween(wireBtn, {BackgroundColor3 = COL_BG}, 0.15); tween(invBtn, {BackgroundColor3 = COL_ACCENT}, 0.15) end)
 slider(hbLeft, "Size", 1, 50, 6, function(v) state.hitbox_size = v end, 5, "hitbox_size")
 slider(hbLeft, "Transparency", 0, 1, 0.7, function(v) state.hitbox_transparency = v end, 6, "hitbox_transparency")
-local function apply_hitbox_to(p)
+function apply_hitbox_to(p)
     if not state.hitbox_enabled then
         if hitbox_expanded[p] then remove_hitbox(p) end
         return
@@ -1580,35 +1491,29 @@ track(Players.PlayerRemoving:Connect(function(p) remove_hitbox(p) end))
 -- ==========================================
 update_loading("Building Exploits", 90)
 
-local exLeft, exRight = split_two(tabPages["Exploits"])
+exLeft, exRight = split_two(tabPages["Exploits"])
 section(exLeft, "Targeted Exploits", 1)
-local exTargetBox = textbox(exLeft, "target player name...", 2, "")
+exTargetBox = textbox(exLeft, "target player name...", 2, "")
 
-local function fly_to_position(target_pos, speed)
+function fly_to_position(target_pos, speed)
     local hrp = get_root()
     if not hrp then return end
-    
     local bv = Instance.new("BodyVelocity")
     bv.Name = "BSS_AutoMove"
     bv.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
     bv.Parent = hrp
-    
     local timeout = tick() + 10
     while (hrp.Position - target_pos).Magnitude > 8 and tick() < timeout do
-        if not hrp or not hrp.Parent then 
-            bv:Destroy() 
-            return 
-        end
+        if not hrp or not hrp.Parent then bv:Destroy(); return end
         local dir = (target_pos - hrp.Position).Unit
         bv.Velocity = dir * speed
         task.wait(0.05)
     end
-    
     if bv then bv.Velocity = Vector3.zero; task.wait(0.1); bv:Destroy() end
 end
 
-local DIAMOND_CFRAME = CFrame.new(111.998154, 17.5156422, 1294.89917, 0.173624337, -0, -0.984811902, 0, 1, -0, 0.984811902, 0, 0.173624337)
-local DROPOFF_CFRAME = CFrame.new(-300.185577, 20.6801224, 1594.45862, -0.29079634, 6.13783641e-06, -0.956784964, 0.00014125774, 1, -3.65175038e-05, 0.956784964, -0.000145772443, -0.29079634)
+DIAMOND_CFRAME = CFrame.new(111.998154, 17.5156422, 1294.89917, 0.173624337, -0, -0.984811902, 0, 1, -0, 0.984811902, 0, 0.173624337)
+DROPOFF_CFRAME = CFrame.new(-300.185577, 20.6801224, 1594.45862, -0.29079634, 6.13783641e-06, -0.956784964, 0.00014125774, 1, -3.65175038e-05, 0.956784964, -0.000145772443, -0.29079634)
 
 toggle(exLeft, "Auto Rob Jewelry (Speed 300)", false, function(on)
     state.jb_auto_rob = on
@@ -1617,9 +1522,7 @@ toggle(exLeft, "Auto Rob Jewelry (Speed 300)", false, function(on)
             while state.jb_auto_rob do
                 local hrp = get_root()
                 if not hrp then break end
-                
                 fly_to_position(DIAMOND_CFRAME.Position, 300)
-                
                 local vim = game:GetService("VirtualInputManager")
                 for i = 1, 20 do
                     if not state.jb_auto_rob then break end
@@ -1627,7 +1530,6 @@ toggle(exLeft, "Auto Rob Jewelry (Speed 300)", false, function(on)
                     vim:SendMouseButtonEvent(camera.ViewportSize.X/2, camera.ViewportSize.Y/2, 0, false, game, 0)
                     task.wait(0.05)
                 end
-                
                 fly_to_position(DROPOFF_CFRAME.Position, 300)
                 task.wait(2)
             end
@@ -1643,23 +1545,17 @@ toggle(exLeft, "Auto Arrest (Speed 300)", false, function(on)
                 local hrp = get_root()
                 local char = player.Character
                 if not hrp or not char then break end
-                
                 local target = nil
                 for _, p in ipairs(Players:GetPlayers()) do
                     if p ~= player and p.Character then
                         local wanted = p:FindFirstChild("Wanted")
-                        if wanted and wanted.Value > 0 then
-                            target = p
-                            break
-                        end
+                        if wanted and wanted.Value > 0 then target = p; break end
                     end
                 end
-                
                 if target and target.Character then
                     local t_hrp = target.Character:FindFirstChild("HumanoidRootPart")
                     if t_hrp then
                         fly_to_position(t_hrp.Position, 300)
-                        
                         local backpack = player:FindFirstChild("Backpack")
                         local cuffs = backpack and (backpack:FindFirstChild("Handcuffs") or backpack:FindFirstChild("Arrest"))
                         if cuffs then
@@ -1677,7 +1573,7 @@ toggle(exLeft, "Auto Arrest (Speed 300)", false, function(on)
     end
 end, 5, "jb_auto_arrest")
 
-local loop_tp_target = nil
+loop_tp_target = nil
 toggle(exLeft, "Loop Teleport to Target", false, function(on)
     if on then
         local targetName = exTargetBox.Text
@@ -1692,9 +1588,7 @@ toggle(exLeft, "Loop Teleport to Target", false, function(on)
             loop_tp_conn = RunService.Heartbeat:Connect(function()
                 local hrp = get_root()
                 local t_hrp = get_root(loop_tp_target)
-                if hrp and t_hrp then
-                    hrp.CFrame = t_hrp.CFrame * CFrame.new(0, 0, 2)
-                end
+                if hrp and t_hrp then hrp.CFrame = t_hrp.CFrame * CFrame.new(0, 0, 2) end
             end)
         end
     else
@@ -1737,16 +1631,15 @@ button(exLeft, "Invalid Avatar Rig Break", COL_DANGER, function()
 end, 6)
 
 section(exLeft, "Melee Rage", 20)
-toggle(exLeft, "Kill Aura (Fists)", false, function(on) 
-    state.melee_aura = on 
+toggle(exLeft, "Kill Aura (Fists)", false, function(on)
+    state.melee_aura = on
     update_melee_aura()
 end, 21, "melee_aura")
 slider(exLeft, "Kill Aura Range", 5, 50, 15, function(v) state.melee_aura_range = v end, 22, "melee_aura_range")
-
 slider(exLeft, "Orbit Radius", 2, 30, 4, function(v) state.orbit_radius = v end, 23, "orbit_radius")
 slider(exLeft, "Orbit Height", 1, 20, 3, function(v) state.orbit_height = v end, 24, "orbit_height")
 slider(exLeft, "Orbit Duration (s)", 3, 60, 10, function(v) state.orbit_duration = v end, 25, "orbit_duration")
-make("TextLabel", {Size = UDim2.new(1, 0, 0, 20), BackgroundTransparency = 1, Text = "Orbit Rage is bound to a keybind", TextColor3 = COL_TEXT_DIM, Font = Enum.Font.Gotham, TextSize = 11, LayoutOrder = 26}, exLeft)
+make("TextLabel", {Size = UDim2.new(1, 0, 0, 20), BackgroundTransparency = 1, Text = "Orbit Rage is bound to a keybind", TextColor3 = COL_TEXT_DIM, Font = Enum.Font.Code, TextSize = 11, LayoutOrder = 26}, exLeft)
 
 section(exLeft, "Rage Visuals", 10)
 toggle(exLeft, "Wall Transparency (X-Ray)", false, function(on)
@@ -1774,7 +1667,7 @@ toggle(exLeft, "Wall Transparency (X-Ray)", false, function(on)
     end
 end, 11, "xray_enabled")
 
-local function apply_chams(p)
+function apply_chams(p)
     if p == player then return end
     local char = p.Character
     if not char then return end
@@ -1894,7 +1787,6 @@ button(exRight, "Global Server Fling (Mass Parts)", COL_DANGER, function()
 end, 2)
 
 button(exRight, "Spawn Lag Parts (Crash Server)", COL_DANGER, function()
-    local char = player.Character
     local hrp = get_root()
     if hrp then
         for i = 1, 300 do
@@ -1911,9 +1803,9 @@ button(exRight, "Spawn Lag Parts (Crash Server)", COL_DANGER, function()
     end
 end, 3)
 
-local funLeft, funRight = split_two(tabPages["Fun"])
+funLeft, funRight = split_two(tabPages["Fun"])
 section(funLeft, "Troll", 1)
-local bangTarget = textbox(funLeft, "target player name...", 2, "")
+bangTarget = textbox(funLeft, "target player name...", 2, "")
 button(funLeft, "Bang Target (Back n Forth)", COL_PANEL_ALT, function()
     local targetName = bangTarget.Text
     if targetName == "" then return end
@@ -1965,17 +1857,14 @@ button(funRight, "Force Dance", COL_ACCENT, function()
     end
 end, 2)
 
--- ==========================================
--- TAB BUILDER: UTILITY & FLY
--- ==========================================
 update_loading("Building Utility", 95)
 
-local function stop_fly()
+function stop_fly()
     if fly_conn then fly_conn:Disconnect(); fly_conn = nil end
     if fly_velocity then fly_velocity:Destroy(); fly_velocity = nil end
     if fly_gyro then fly_gyro:Destroy(); fly_gyro = nil end
 end
-local function start_fly(on_vehicle)
+function start_fly(on_vehicle)
     stop_fly()
     local root
     if on_vehicle then
@@ -2065,7 +1954,7 @@ local function start_fly(on_vehicle)
         end)
     end
 end
-local function start_jb_fly()
+function start_jb_fly()
     stop_fly()
     local char = player.Character
     local hum = char and char:FindFirstChildOfClass("Humanoid")
@@ -2101,7 +1990,7 @@ local function start_jb_fly()
     end)
 end
 
-local uScroll = scroll_col(tabPages["Utility"])
+uScroll = scroll_col(tabPages["Utility"])
 section(uScroll, "Movement", 1)
 slider(uScroll, "WalkSpeed", 16, 200, 16, function(v)
     local char = player.Character
@@ -2156,7 +2045,6 @@ toggle(uScroll, "Noclip", false, function(on)
             if char then
                 local hrp = char:FindFirstChild("HumanoidRootPart")
                 if hrp then pcall(function() hrp:SetNetworkOwner(player) end) end
-                
                 for _, part in ipairs(char:GetDescendants()) do
                     if part:IsA("BasePart") then
                         part.CanCollide = false
@@ -2254,20 +2142,17 @@ toggle(uScroll, "Enable fly", false, function(on)
     if on then start_fly(false) else stop_fly() end
 end, 21, "fly_enabled")
 slider(uScroll, "Fly speed", 10, 300, 60, function(v) state.fly_speed = v end, 22, "fly_speed")
-local modeRow = make("Frame", {Size = UDim2.new(1, 0, 0, 34), BackgroundColor3 = COL_PANEL_ALT, LayoutOrder = 23}, uScroll)
-corner(modeRow, 5)
-make("TextLabel", {Size = UDim2.new(1, -150, 1, 0), Position = UDim2.new(0, 12, 0, 0), BackgroundTransparency = 1, Text = "Fly Mode", TextColor3 = COL_TEXT, Font = Enum.Font.Gotham, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left}, modeRow)
-local velBtn = make("TextButton", {Size = UDim2.new(0, 60, 1, -8), Position = UDim2.new(1, -130, 0, 4), BackgroundColor3 = state.fly_mode == "Velocity" and COL_ACCENT or COL_PANEL, BorderSizePixel = 0, Text = "Velocity", TextColor3 = COL_TEXT, Font = Enum.Font.GothamBold, TextSize = 11, AutoButtonColor = false}, modeRow)
-corner(velBtn, 4)
-local cfBtn = make("TextButton", {Size = UDim2.new(0, 60, 1, -8), Position = UDim2.new(1, -66, 0, 4), BackgroundColor3 = state.fly_mode == "CFrame" and COL_ACCENT or COL_PANEL, BorderSizePixel = 0, Text = "CFrame", TextColor3 = COL_TEXT, Font = Enum.Font.GothamBold, TextSize = 11, AutoButtonColor = false}, modeRow)
-corner(cfBtn, 4)
+modeRow = make("Frame", {Size = UDim2.new(1, 0, 0, 30), BackgroundTransparency = 1, LayoutOrder = 23}, uScroll)
+make("TextLabel", {Size = UDim2.new(1, -150, 1, 0), Position = UDim2.new(0, 4, 0, 0), BackgroundTransparency = 1, Text = "Fly Mode", TextColor3 = COL_TEXT, Font = Enum.Font.Code, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left}, modeRow)
+velBtn = make("TextButton", {Size = UDim2.new(0, 60, 0, 22), Position = UDim2.new(1, -130, 0.5, -11), BackgroundColor3 = state.fly_mode == "Velocity" and COL_ACCENT or COL_BG, BorderSizePixel = 1, BorderColor3 = COL_STROKE, Text = "Velocity", TextColor3 = COL_TEXT, Font = Enum.Font.Code, TextSize = 11, AutoButtonColor = false}, modeRow)
+cfBtn = make("TextButton", {Size = UDim2.new(0, 60, 0, 22), Position = UDim2.new(1, -66, 0.5, -11), BackgroundColor3 = state.fly_mode == "CFrame" and COL_ACCENT or COL_BG, BorderSizePixel = 1, BorderColor3 = COL_STROKE, Text = "CFrame", TextColor3 = COL_TEXT, Font = Enum.Font.Code, TextSize = 11, AutoButtonColor = false}, modeRow)
 velBtn.MouseButton1Click:Connect(function()
-    state.fly_mode = "Velocity"; tween(velBtn, {BackgroundColor3 = COL_ACCENT}, 0.15); tween(cfBtn, {BackgroundColor3 = COL_PANEL}, 0.15)
+    state.fly_mode = "Velocity"; tween(velBtn, {BackgroundColor3 = COL_ACCENT}, 0.15); tween(cfBtn, {BackgroundColor3 = COL_BG}, 0.15)
     if state.fly_enabled then start_fly(false) end
     if state.vehiclefly_enabled then start_fly(true) end
 end)
 cfBtn.MouseButton1Click:Connect(function()
-    state.fly_mode = "CFrame"; tween(velBtn, {BackgroundColor3 = COL_PANEL}, 0.15); tween(cfBtn, {BackgroundColor3 = COL_ACCENT}, 0.15)
+    state.fly_mode = "CFrame"; tween(velBtn, {BackgroundColor3 = COL_BG}, 0.15); tween(cfBtn, {BackgroundColor3 = COL_ACCENT}, 0.15)
     if state.fly_enabled then start_fly(false) end
     if state.vehiclefly_enabled then start_fly(true) end
 end)
@@ -2406,14 +2291,14 @@ toggle(uScroll, "Anti-Fling", false, function(on)
 end, 48, "anti_fling")
 
 section(uScroll, "Config", 50)
-local configStatus = make("TextLabel", {Size = UDim2.new(1, 0, 0, 20), BackgroundTransparency = 1, Text = "", TextColor3 = COL_OK, TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.Gotham, TextSize = 12, LayoutOrder = 51}, uScroll)
-local function set_config_status(msg, is_success)
+configStatus = make("TextLabel", {Size = UDim2.new(1, 0, 0, 20), BackgroundTransparency = 1, Text = "", TextColor3 = COL_OK, TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.Code, TextSize = 12, LayoutOrder = 51}, uScroll)
+function set_config_status(msg, is_success)
     configStatus.Text = msg
     configStatus.TextColor3 = is_success and COL_OK or COL_BAD
     task.delay(3, function() if configStatus.Text == msg then configStatus.Text = "" end end)
 end
 
-local configNameBox = textbox(uScroll, "filename... (e.g. myconfig.json)", 52, "BSSToolkit_Config.json", "config_filename")
+configNameBox = textbox(uScroll, "filename... (e.g. myconfig.json)", 52, "BSSToolkit_Config.json", "config_filename")
 
 button(uScroll, "Save Config", COL_ACCENT, function()
     local code = export_config()
@@ -2446,7 +2331,6 @@ button(uScroll, "Load Config", COL_PANEL_ALT, function()
         elseif isfile(fname) then
             code = readfile(fname)
         end
-
         if code then
             local ok = import_config(code)
             if ok then
@@ -2491,7 +2375,6 @@ update_loading("Starting services", 98)
 track(UserInputService.InputBegan:Connect(function(io, gp)
     if gp then return end
     if UserInputService:GetFocusedTextBox() then return end
-    
     if state.click_tp and io.KeyCode == Enum.KeyCode.LeftAlt and io.UserInputType == Enum.UserInputType.Keyboard then
         local mouse = player:GetMouse()
         if mouse.Target then
@@ -2500,7 +2383,6 @@ track(UserInputService.InputBegan:Connect(function(io, gp)
             if hrp then hrp.CFrame = CFrame.new(mouse.Hit.Position + Vector3.new(0, 3, 0)) end
         end
     end
-    
     if state.auto_reload and io.UserInputType == Enum.UserInputType.MouseButton1 then
         local char = player.Character
         local tool = char and char:FindFirstChildOfClass("Tool")
@@ -2512,7 +2394,6 @@ track(UserInputService.InputBegan:Connect(function(io, gp)
             end)
         end
     end
-
     local aim_bind = keybinds.aimbot; local fling_bind = keybinds.fling; local fly_bind = keybinds.fly; local hide_bind = keybinds.hide; local step_bind = keybinds.shadow_step; local orbit_bind = keybinds.orbit_rage
     if aim_bind.key and io.UserInputType == aim_bind.input and io.KeyCode == aim_bind.key then
         key_state.aimbot = true
@@ -2543,7 +2424,7 @@ track(UserInputService.InputEnded:Connect(function(io)
     local aim_bind = keybinds.aimbot; local fling_bind = keybinds.fling; local step_bind = keybinds.shadow_step
     if aim_bind.key and io.UserInputType == aim_bind.input and io.KeyCode == aim_bind.key then key_state.aimbot = false end
     if fling_bind.key and io.UserInputType == fling_bind.input and io.KeyCode == fling_bind.key then key_state.fling = false end
-    if step_bind.key and io.UserInputType == step_bind.input and io.KeyCode == step_bind.key then 
+    if step_bind.key and io.UserInputType == step_bind.input and io.KeyCode == step_bind.key then
         key_state.shadow_step = false
         update_shadow_step()
     end
@@ -2557,12 +2438,10 @@ track(UserInputService.WindowFocusReleased:Connect(function()
     update_shadow_step()
 end))
 
--- MAIN LOOP
 main_render_conn = RunService.Heartbeat:Connect(function(dt)
     pcall(function()
-        camera = Workspace.CurrentCamera
+        camera = Workspace.CurrentCamera or camera
         if not gui.Parent then return end
-        
         if state.chams_enabled then
             for _, p in ipairs(Players:GetPlayers()) do
                 if p ~= player then apply_chams(p) end
@@ -2581,14 +2460,11 @@ main_render_conn = RunService.Heartbeat:Connect(function(dt)
                 end
             end
         end
-        
         update_esp()
         update_object_esp()
-        
         if state.hitbox_enabled then
             for _, p in ipairs(Players:GetPlayers()) do if p ~= player then apply_hitbox_to(p) end end
         end
-        
         if state.hit_marker and tick() < hitMarkerTime then
             hitMarker.Visible = true
         else
@@ -2597,11 +2473,9 @@ main_render_conn = RunService.Heartbeat:Connect(function(dt)
     end)
 end)
 
--- AIMBOT BIND
 RunService:BindToRenderStep("BSSToolkitAim", Enum.RenderPriority.Camera.Value + 1, function(dt)
-    local cam = Workspace.CurrentCamera
+    local cam = Workspace.CurrentCamera or camera
     if not gui.Parent then return end
-    
     if state.fov_enabled then
         if state.fov_rmb then
             if UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) then
@@ -2615,32 +2489,24 @@ RunService:BindToRenderStep("BSSToolkitAim", Enum.RenderPriority.Camera.Value + 
     else
         cam.FieldOfView = orig_fov
     end
-    
     if not key_state.aimbot then
         locked_target = nil
         return
     end
-
     if tick() < aim_pause_until then return end
-
     if locked_target then
         local char = locked_target.Parent
         local hum = char and char:FindFirstChildOfClass("Humanoid")
         if not hum or hum.Health <= 0 then
             locked_target = nil
-            if state.aimbot_pause_kill then
-                aim_pause_until = tick() + 0.5
-            end
+            if state.aimbot_pause_kill then aim_pause_until = tick() + 0.5 end
         end
     end
-
     if not locked_target then
         if state.aimbot_enabled then locked_target = nearest_target() end
         if not locked_target and state.object_aimbot_enabled then locked_target = nearest_object() end
     end
-
     if not locked_target then return end
-
     local aim_pos = locked_target.Position
     if locked_target.Parent and locked_target.Parent:IsA("Model") then
         local hrp = locked_target.Parent:FindFirstChild("HumanoidRootPart")
@@ -2656,15 +2522,10 @@ RunService:BindToRenderStep("BSSToolkitAim", Enum.RenderPriority.Camera.Value + 
     end
     local sp, onscreen = cam:WorldToViewportPoint(aim_pos)
     if not onscreen or sp.Z <= 0 then return end
-    
     if state.aimbot_silent then
-        local cam_pos = cam.CFrame.Position
-        local target_cf = CFrame.lookAt(cam_pos, aim_pos)
-        cam.CFrame = target_cf
+        cam.CFrame = CFrame.lookAt(cam.CFrame.Position, aim_pos)
     elseif state.aimbot_snap then
-        local cam_pos = cam.CFrame.Position
-        local target_cf = CFrame.lookAt(cam_pos, aim_pos)
-        cam.CFrame = target_cf
+        cam.CFrame = CFrame.lookAt(cam.CFrame.Position, aim_pos)
         local char = player.Character
         local hrp = char and char:FindFirstChild("HumanoidRootPart")
         if hrp then
@@ -2681,8 +2542,7 @@ RunService:BindToRenderStep("BSSToolkitAim", Enum.RenderPriority.Camera.Value + 
                 mousemoverel(dx * strength, dy * strength)
             end
         else
-            local cam_pos = cam.CFrame.Position
-            local target_cf = CFrame.lookAt(cam_pos, aim_pos)
+            local target_cf = CFrame.lookAt(cam.CFrame.Position, aim_pos)
             if math.random(1, 100) <= state.aimbot_hit_chance then
                 if state.aimbot_smooth <= 0.01 then
                     cam.CFrame = target_cf
@@ -2701,7 +2561,6 @@ RunService:BindToRenderStep("BSSToolkitAim", Enum.RenderPriority.Camera.Value + 
     end
 end)
 
--- TRIGGERBOT BIND
 RunService.Heartbeat:Connect(function()
     if not state.triggerbot then return end
     local mouse = player:GetMouse()
@@ -2723,7 +2582,6 @@ RunService.Heartbeat:Connect(function()
     end
 end)
 
--- FINISH LOADING
 task.wait(0.3)
 update_loading("Finished!", 100)
 task.wait(0.2)
