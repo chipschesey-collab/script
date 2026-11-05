@@ -26,17 +26,17 @@ function try_parent(p)
 end
 
 function get_ui_parent()
+    if type(gethui) == "function" then
+        local ok2, h = pcall(gethui)
+        if ok2 and h and try_parent(h) then return h end
+    end
+    if try_parent(CoreGui) then return CoreGui end
     local ok, pg = pcall(function()
         local p = player:FindFirstChildOfClass("PlayerGui")
         if not p then p = player:WaitForChild("PlayerGui", 3) end
         return p
     end)
     if ok and pg and try_parent(pg) then return pg end
-    if type(gethui) == "function" then
-        local ok2, h = pcall(gethui)
-        if ok2 and h and try_parent(h) then return h end
-    end
-    if try_parent(CoreGui) then return CoreGui end
     return pg or CoreGui
 end
 
@@ -140,7 +140,7 @@ state = {
     xray_enabled = false, chams_enabled = false, rainbow_enabled = false, forcefield_enabled = false,
     jb_auto_rob = false, jb_auto_arrest = false, inf_jump = false, config_filename = "BSSToolkit_Config.json",
     melee_aura = false, melee_aura_range = 15,
-    orbit_aura = false, orbit_radius = 4, orbit_height = 3, orbit_duration = 10,
+    orbit_aura = false, orbit_radius = 4, orbit_height = 3, orbit_duration = 10, ui_scale = 1,
 }
 
 ui_refs = { toggles = {}, sliders = {}, textboxes = {} }
@@ -677,8 +677,8 @@ main = make("Frame", {Size = UDim2.new(0, 660, 0, 560), AnchorPoint = Vector2.ne
 main_scale = make("UIScale", {Scale = 0.85}, main)
 
 titleBar = make("Frame", {Size = UDim2.new(1, 0, 0, 26), BackgroundColor3 = COL_ACCENT, BorderSizePixel = 0}, main)
-titleText = make("TextLabel", {Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1, Text = "BSSToolkit", TextColor3 = Color3.fromRGB(255, 255, 255), TextXAlignment = Enum.TextXAlignment.Center, Font = Enum.Font.Code, TextSize = 14, TextScaled = true}, titleBar)
-keybindLabel = make("TextLabel", {Size = UDim2.new(0, 200, 1, 0), Position = UDim2.new(1, -210, 0, 0), BackgroundTransparency = 1, Text = "", TextColor3 = Color3.fromRGB(200, 200, 200), TextXAlignment = Enum.TextXAlignment.Right, Font = Enum.Font.Code, TextSize = 11, TextScaled = true}, titleBar)
+titleText = make("TextLabel", {Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1, Text = "BSSToolkit", TextColor3 = Color3.fromRGB(255, 255, 255), TextXAlignment = Enum.TextXAlignment.Center, Font = Enum.Font.Code, TextSize = 14}, titleBar)
+keybindLabel = make("TextLabel", {Size = UDim2.new(0, 200, 1, 0), Position = UDim2.new(1, -210, 0, 0), BackgroundTransparency = 1, Text = "", TextColor3 = Color3.fromRGB(200, 200, 200), TextXAlignment = Enum.TextXAlignment.Right, Font = Enum.Font.Code, TextSize = 11}, titleBar)
 
 closeBtn = make("TextButton", {Size = UDim2.new(0, 26, 1, 0), Position = UDim2.new(1, -26, 0, 0), BackgroundColor3 = COL_DANGER, BorderSizePixel = 0, Text = "X", TextColor3 = Color3.fromRGB(255, 255, 255), Font = Enum.Font.Code, TextSize = 13}, titleBar)
 closeBtn.MouseEnter:Connect(function() tween(closeBtn, {BackgroundColor3 = COL_DANGER_HOVER}, 0.12) end)
@@ -747,7 +747,7 @@ switch_tab("ESP")
 
 function section(parent, text, order)
     local row = make("Frame", {Size = UDim2.new(1, 0, 0, 24), BackgroundTransparency = 1, LayoutOrder = order or 0}, parent)
-    make("TextLabel", {Size = UDim2.new(1, 0, 1, 0), Position = UDim2.new(0, 0, 0, 0), BackgroundTransparency = 1, Text = text, TextColor3 = COL_ACCENT, TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.Code, TextSize = 13, TextScaled = true}, row)
+    make("TextLabel", {Size = UDim2.new(1, 0, 1, 0), Position = UDim2.new(0, 0, 0, 0), BackgroundTransparency = 1, Text = text, TextColor3 = COL_ACCENT, TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.Code, TextSize = 13}, row)
     return row
 end
 
@@ -760,7 +760,7 @@ function toggle(parent, text, initial, callback, order, state_key)
     local box = make("Frame", {Size = UDim2.new(0, 16, 0, 16), Position = UDim2.new(0, 4, 0.5, -8), BackgroundColor3 = actual_initial and COL_ACCENT or COL_BG, BorderSizePixel = 1, BorderColor3 = COL_STROKE}, row)
     local check = make("Frame", {Size = UDim2.new(0, 8, 0, 8), Position = UDim2.new(0.5, -4, 0.5, -4), BackgroundColor3 = Color3.fromRGB(255, 255, 255), Visible = actual_initial}, box)
     
-    make("TextLabel", {Size = UDim2.new(1, -30, 1, 0), Position = UDim2.new(0, 28, 0, 0), BackgroundTransparency = 1, Text = text, TextColor3 = COL_TEXT, TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.Code, TextSize = 13, TextScaled = true}, row)
+    make("TextLabel", {Size = UDim2.new(1, -30, 1, 0), Position = UDim2.new(0, 28, 0, 0), BackgroundTransparency = 1, Text = text, TextColor3 = COL_TEXT, TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.Code, TextSize = 13}, row)
     
     local state_on = actual_initial
     local function set_val(val)
@@ -784,7 +784,7 @@ function slider(parent, text, minv, maxv, initial, callback, order, state_key)
     if state_key and state[state_key] ~= nil then actual_initial = state[state_key] end
     local row = make("Frame", {Size = UDim2.new(1, 0, 0, 34), BackgroundTransparency = 1, LayoutOrder = order or 0}, parent)
     
-    local label = make("TextLabel", {Size = UDim2.new(1, -20, 0, 18), Position = UDim2.new(0, 4, 0, 0), BackgroundTransparency = 1, Text = text .. "  (" .. string.format("%.2f", actual_initial) .. ")", TextColor3 = COL_TEXT, TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.Code, TextSize = 12, TextScaled = true}, row)
+    local label = make("TextLabel", {Size = UDim2.new(1, -20, 0, 18), Position = UDim2.new(0, 4, 0, 0), BackgroundTransparency = 1, Text = text .. "  (" .. string.format("%.2f", actual_initial) .. ")", TextColor3 = COL_TEXT, TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.Code, TextSize = 12}, row)
     local track_ui = make("Frame", {Size = UDim2.new(1, -8, 0, 4), Position = UDim2.new(0, 4, 0, 24), BackgroundColor3 = COL_PANEL, BorderSizePixel = 1, BorderColor3 = COL_STROKE}, row)
     local fill = make("Frame", {Size = UDim2.new((actual_initial - minv) / (maxv - minv), 0, 1, 0), BackgroundColor3 = COL_ACCENT, BorderSizePixel = 0}, track_ui)
     local thumb = make("Frame", {Size = UDim2.new(0, 8, 0, 14), Position = UDim2.new((actual_initial - minv) / (maxv - minv), -4, 0.5, -7), BackgroundColor3 = COL_TEXT, BorderSizePixel = 1, BorderColor3 = COL_ACCENT}, track_ui)
@@ -821,7 +821,7 @@ end
 
 function button(parent, text, color, callback, order)
     local base = COL_BG
-    local b = make("TextButton", {Size = UDim2.new(1, 0, 0, 28), BackgroundColor3 = base, BorderSizePixel = 1, BorderColor3 = COL_ACCENT, Text = text, TextColor3 = COL_TEXT, Font = Enum.Font.Code, TextSize = 13, TextScaled = true, LayoutOrder = order or 0, AutoButtonColor = false}, parent)
+    local b = make("TextButton", {Size = UDim2.new(1, 0, 0, 28), BackgroundColor3 = base, BorderSizePixel = 1, BorderColor3 = COL_ACCENT, Text = text, TextColor3 = COL_TEXT, Font = Enum.Font.Code, TextSize = 13, LayoutOrder = order or 0, AutoButtonColor = false}, parent)
     b.MouseEnter:Connect(function() tween(b, {BackgroundColor3 = COL_PANEL_HOVER}, 0.1) end)
     b.MouseLeave:Connect(function() tween(b, {BackgroundColor3 = base}, 0.1) end)
     b.MouseButton1Click:Connect(function() callback() end)
@@ -831,7 +831,7 @@ end
 function textbox(parent, placeholder, order, initial, state_key)
     local actual_initial = initial
     if state_key and state[state_key] ~= nil then actual_initial = state[state_key] end
-    local t = make("TextBox", {Size = UDim2.new(1, 0, 0, 26), BackgroundColor3 = COL_BG, BorderSizePixel = 1, BorderColor3 = COL_STROKE, TextColor3 = COL_TEXT, PlaceholderText = placeholder, PlaceholderColor3 = COL_TEXT_DIM, Text = actual_initial or "", Font = Enum.Font.Code, TextSize = 12, TextScaled = true, ClearTextOnFocus = false, LayoutOrder = order or 0}, parent)
+    local t = make("TextBox", {Size = UDim2.new(1, 0, 0, 26), BackgroundColor3 = COL_BG, BorderSizePixel = 1, BorderColor3 = COL_STROKE, TextColor3 = COL_TEXT, PlaceholderText = placeholder, PlaceholderColor3 = COL_TEXT_DIM, Text = actual_initial or "", Font = Enum.Font.Code, TextSize = 12, ClearTextOnFocus = false, LayoutOrder = order or 0}, parent)
     t.Focused:Connect(function() t.BorderColor3 = COL_ACCENT end)
     t.FocusLost:Connect(function() t.BorderColor3 = COL_STROKE end)
     if state_key then table.insert(ui_refs.textboxes, {key = state_key, set = function(val) t.Text = val end}) end
@@ -860,6 +860,9 @@ draw_holder = make("Frame", {Size = UDim2.new(1, 0, 1, 0), Position = UDim2.new(
 fovCircle = make("Frame", {Size = UDim2.new(0, state.aimbot_fov * 2, 0, state.aimbot_fov * 2), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0.5, 0), BackgroundTransparency = 1, BorderSizePixel = 0, Visible = false, ZIndex = 2}, draw_holder)
 make("UICorner", {CornerRadius = UDim.new(1, 0)}, fovCircle) 
 make("UIStroke", {Color = COL_ACCENT, Thickness = 1.5, Transparency = 0.35}, fovCircle)
+
+lock_text = make("TextLabel", {Size = UDim2.new(0, 200, 0, 20), Position = UDim2.new(0.5, -100, 0.5, -20), BackgroundTransparency = 1, Text = "TARGET LOCKED", TextColor3 = Color3.fromRGB(255, 50, 50), Font = Enum.Font.Code, TextSize = 14, Visible = false, ZIndex = 3}, draw_holder)
+
 function update_fov_circle()
     local d = state.aimbot_fov * 2
     fovCircle.Size = UDim2.new(0, d, 0, d)
@@ -1229,7 +1232,7 @@ function bind_label(b)
     if bind.input == Enum.UserInputType.Keyboard then return bind.key.Name else return bind.input.Name end
 end
 function keybind_button(parent, label, slot, order)
-    local b = make("TextButton", {Size = UDim2.new(1, 0, 0, 26), BackgroundColor3 = COL_BG, BorderSizePixel = 1, BorderColor3 = COL_STROKE, Text = label .. ":  " .. bind_label(slot), TextColor3 = COL_TEXT, Font = Enum.Font.Code, TextSize = 12, TextScaled = true, LayoutOrder = order or 0, AutoButtonColor = false}, parent)
+    local b = make("TextButton", {Size = UDim2.new(1, 0, 0, 26), BackgroundColor3 = COL_BG, BorderSizePixel = 1, BorderColor3 = COL_STROKE, Text = label .. ":  " .. bind_label(slot), TextColor3 = COL_TEXT, Font = Enum.Font.Code, TextSize = 12, LayoutOrder = order or 0, AutoButtonColor = false}, parent)
     keybindButtons[slot] = b
     b.MouseEnter:Connect(function() tween(b, {BackgroundColor3 = COL_PANEL_HOVER}, 0.12) end)
     b.MouseLeave:Connect(function() tween(b, {BackgroundColor3 = COL_BG}, 0.12) end)
@@ -2299,6 +2302,8 @@ end
 
 configNameBox = textbox(uScroll, "filename... (e.g. myconfig.json)", 52, "BSSToolkit_Config.json", "config_filename")
 
+slider(uScroll, "UI Scale", 0.5, 1.5, 1, function(v) main_scale.Scale = v end, 52.5, "ui_scale")
+
 button(uScroll, "Save Config", COL_ACCENT, function()
     local code = export_config()
     local fname = configNameBox.Text
@@ -2490,6 +2495,7 @@ RunService:BindToRenderStep("BSSToolkitAim", Enum.RenderPriority.Camera.Value + 
     end
     if not key_state.aimbot and not state.aimbot_always then
         locked_target = nil
+        lock_text.Visible = false
         return
     end
     if tick() < aim_pause_until then return end
@@ -2505,7 +2511,11 @@ RunService:BindToRenderStep("BSSToolkitAim", Enum.RenderPriority.Camera.Value + 
         if state.aimbot_enabled then locked_target = nearest_target() end
         if not locked_target and state.object_aimbot_enabled then locked_target = nearest_object() end
     end
-    if not locked_target then return end
+    if not locked_target then 
+        lock_text.Visible = false
+        return 
+    end
+    lock_text.Visible = true
     local aim_pos = locked_target.Position
     if locked_target.Parent and locked_target.Parent:IsA("Model") then
         local hrp = locked_target.Parent:FindFirstChild("HumanoidRootPart")
