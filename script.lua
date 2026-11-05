@@ -64,7 +64,7 @@ loadingGui = Instance.new("ScreenGui")
 loadingGui.Name = "BSS_Loading"
 loadingGui.ResetOnSpawn = false
 loadingGui.IgnoreGuiInset = true
-loadingGui.DisplayOrder = 9999
+loadingGui.DisplayOrder = 999999
 loadingGui.Parent = gui_parent
 
 bg = Instance.new("Frame", loadingGui)
@@ -130,7 +130,7 @@ end
 state = {
     esp_enabled = false, esp_box = true, esp_name = true, esp_distance = true, esp_tracers = false, esp_skeleton = false, esp_color = Color3.fromRGB(255, 80, 80), esp_team_color = false, esp_range = 500,
     esp_health = true, radar_enabled = false, offscreen_arrows = false, bullet_tracers = false,
-    fov_enabled = false, fov_value = 70, fov_rmb = false, saved_spots = {}, aimbot_enabled = false, aimbot_fov = 150, aimbot_smooth = 0.35, aimbot_part = "Head", aimbot_teamcheck = true, aimbot_range = 500, aimbot_prediction = 0.05, aimbot_snap = false, wallbang = false,
+    fov_enabled = false, fov_value = 70, fov_rmb = false, saved_spots = {}, aimbot_enabled = false, aimbot_fov = 150, aimbot_smooth = 0.35, aimbot_part = "Head", aimbot_teamcheck = true, aimbot_range = 500, aimbot_prediction = 0.05, aimbot_snap = false, aimbot_always = false, wallbang = false,
     aimbot_hit_chance = 100, aimbot_pause_kill = false, aimbot_random_part = false, aimbot_god_check = true, aimbot_silent = false, aimbot_weapon_pred = true, hit_marker = true, hit_sound_pack = "dink",
     triggerbot = false, hit_sound = false, fling_return = true, use_walkfling = false, hitbox_enabled = false, hitbox_part = "HumanoidRootPart", hitbox_look = "Box", hitbox_size = 6, hitbox_transparency = 0.5,
     object_name = "", object_esp_enabled = false, object_aimbot_enabled = false, object_box = true, object_name_lbl = true, object_range = 500, fly_enabled = false, fly_speed = 60, fly_mode = "Velocity",
@@ -671,14 +671,14 @@ end)
 -- ==========================================
 update_loading("Building main window", 25)
 
-gui = make("ScreenGui", {Name = "BSSToolkit", ResetOnSpawn = false, ZIndexBehavior = Enum.ZIndexBehavior.Sibling, IgnoreGuiInset = true}, gui_parent)
+gui = make("ScreenGui", {Name = "BSSToolkit", DisplayOrder = 99999, ResetOnSpawn = false, ZIndexBehavior = Enum.ZIndexBehavior.Sibling, IgnoreGuiInset = true}, gui_parent)
 shadow = make("Frame", {Size = UDim2.new(0, 660, 0, 560), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 3, 0.5, 5), BackgroundColor3 = Color3.fromRGB(0, 0, 0), BackgroundTransparency = 0.55, BorderSizePixel = 0}, gui)
-main = make("Frame", {Size = UDim2.new(0, 660, 0, 560), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0.5, 0), BackgroundColor3 = COL_BG, BorderSizePixel = 1, BorderColor3 = COL_ACCENT, Active = false, ClipsDescendants = true, Visible = false}, gui)
+main = make("Frame", {Size = UDim2.new(0, 660, 0, 560), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0.5, 0), BackgroundColor3 = COL_BG, BorderSizePixel = 1, BorderColor3 = COL_ACCENT, Active = false, ClipsDescendants = true, Visible = false, ZIndex = 10}, gui)
 main_scale = make("UIScale", {Scale = 0.85}, main)
 
 titleBar = make("Frame", {Size = UDim2.new(1, 0, 0, 26), BackgroundColor3 = COL_ACCENT, BorderSizePixel = 0}, main)
-titleText = make("TextLabel", {Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1, Text = "BSSToolkit", TextColor3 = Color3.fromRGB(255, 255, 255), TextXAlignment = Enum.TextXAlignment.Center, Font = Enum.Font.Code, TextSize = 14}, titleBar)
-keybindLabel = make("TextLabel", {Size = UDim2.new(0, 200, 1, 0), Position = UDim2.new(1, -210, 0, 0), BackgroundTransparency = 1, Text = "", TextColor3 = Color3.fromRGB(200, 200, 200), TextXAlignment = Enum.TextXAlignment.Right, Font = Enum.Font.Code, TextSize = 11}, titleBar)
+titleText = make("TextLabel", {Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1, Text = "BSSToolkit", TextColor3 = Color3.fromRGB(255, 255, 255), TextXAlignment = Enum.TextXAlignment.Center, Font = Enum.Font.Code, TextSize = 14, TextScaled = true}, titleBar)
+keybindLabel = make("TextLabel", {Size = UDim2.new(0, 200, 1, 0), Position = UDim2.new(1, -210, 0, 0), BackgroundTransparency = 1, Text = "", TextColor3 = Color3.fromRGB(200, 200, 200), TextXAlignment = Enum.TextXAlignment.Right, Font = Enum.Font.Code, TextSize = 11, TextScaled = true}, titleBar)
 
 closeBtn = make("TextButton", {Size = UDim2.new(0, 26, 1, 0), Position = UDim2.new(1, -26, 0, 0), BackgroundColor3 = COL_DANGER, BorderSizePixel = 0, Text = "X", TextColor3 = Color3.fromRGB(255, 255, 255), Font = Enum.Font.Code, TextSize = 13}, titleBar)
 closeBtn.MouseEnter:Connect(function() tween(closeBtn, {BackgroundColor3 = COL_DANGER_HOVER}, 0.12) end)
@@ -747,7 +747,7 @@ switch_tab("ESP")
 
 function section(parent, text, order)
     local row = make("Frame", {Size = UDim2.new(1, 0, 0, 24), BackgroundTransparency = 1, LayoutOrder = order or 0}, parent)
-    make("TextLabel", {Size = UDim2.new(1, 0, 1, 0), Position = UDim2.new(0, 0, 0, 0), BackgroundTransparency = 1, Text = text, TextColor3 = COL_ACCENT, TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.Code, TextSize = 13}, row)
+    make("TextLabel", {Size = UDim2.new(1, 0, 1, 0), Position = UDim2.new(0, 0, 0, 0), BackgroundTransparency = 1, Text = text, TextColor3 = COL_ACCENT, TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.Code, TextSize = 13, TextScaled = true}, row)
     return row
 end
 
@@ -760,7 +760,7 @@ function toggle(parent, text, initial, callback, order, state_key)
     local box = make("Frame", {Size = UDim2.new(0, 16, 0, 16), Position = UDim2.new(0, 4, 0.5, -8), BackgroundColor3 = actual_initial and COL_ACCENT or COL_BG, BorderSizePixel = 1, BorderColor3 = COL_STROKE}, row)
     local check = make("Frame", {Size = UDim2.new(0, 8, 0, 8), Position = UDim2.new(0.5, -4, 0.5, -4), BackgroundColor3 = Color3.fromRGB(255, 255, 255), Visible = actual_initial}, box)
     
-    make("TextLabel", {Size = UDim2.new(1, -30, 1, 0), Position = UDim2.new(0, 28, 0, 0), BackgroundTransparency = 1, Text = text, TextColor3 = COL_TEXT, TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.Code, TextSize = 13}, row)
+    make("TextLabel", {Size = UDim2.new(1, -30, 1, 0), Position = UDim2.new(0, 28, 0, 0), BackgroundTransparency = 1, Text = text, TextColor3 = COL_TEXT, TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.Code, TextSize = 13, TextScaled = true}, row)
     
     local state_on = actual_initial
     local function set_val(val)
@@ -784,7 +784,7 @@ function slider(parent, text, minv, maxv, initial, callback, order, state_key)
     if state_key and state[state_key] ~= nil then actual_initial = state[state_key] end
     local row = make("Frame", {Size = UDim2.new(1, 0, 0, 34), BackgroundTransparency = 1, LayoutOrder = order or 0}, parent)
     
-    local label = make("TextLabel", {Size = UDim2.new(1, -20, 0, 18), Position = UDim2.new(0, 4, 0, 0), BackgroundTransparency = 1, Text = text .. "  (" .. string.format("%.2f", actual_initial) .. ")", TextColor3 = COL_TEXT, TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.Code, TextSize = 12}, row)
+    local label = make("TextLabel", {Size = UDim2.new(1, -20, 0, 18), Position = UDim2.new(0, 4, 0, 0), BackgroundTransparency = 1, Text = text .. "  (" .. string.format("%.2f", actual_initial) .. ")", TextColor3 = COL_TEXT, TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.Code, TextSize = 12, TextScaled = true}, row)
     local track_ui = make("Frame", {Size = UDim2.new(1, -8, 0, 4), Position = UDim2.new(0, 4, 0, 24), BackgroundColor3 = COL_PANEL, BorderSizePixel = 1, BorderColor3 = COL_STROKE}, row)
     local fill = make("Frame", {Size = UDim2.new((actual_initial - minv) / (maxv - minv), 0, 1, 0), BackgroundColor3 = COL_ACCENT, BorderSizePixel = 0}, track_ui)
     local thumb = make("Frame", {Size = UDim2.new(0, 8, 0, 14), Position = UDim2.new((actual_initial - minv) / (maxv - minv), -4, 0.5, -7), BackgroundColor3 = COL_TEXT, BorderSizePixel = 1, BorderColor3 = COL_ACCENT}, track_ui)
@@ -821,7 +821,7 @@ end
 
 function button(parent, text, color, callback, order)
     local base = COL_BG
-    local b = make("TextButton", {Size = UDim2.new(1, 0, 0, 28), BackgroundColor3 = base, BorderSizePixel = 1, BorderColor3 = COL_ACCENT, Text = text, TextColor3 = COL_TEXT, Font = Enum.Font.Code, TextSize = 13, LayoutOrder = order or 0, AutoButtonColor = false}, parent)
+    local b = make("TextButton", {Size = UDim2.new(1, 0, 0, 28), BackgroundColor3 = base, BorderSizePixel = 1, BorderColor3 = COL_ACCENT, Text = text, TextColor3 = COL_TEXT, Font = Enum.Font.Code, TextSize = 13, TextScaled = true, LayoutOrder = order or 0, AutoButtonColor = false}, parent)
     b.MouseEnter:Connect(function() tween(b, {BackgroundColor3 = COL_PANEL_HOVER}, 0.1) end)
     b.MouseLeave:Connect(function() tween(b, {BackgroundColor3 = base}, 0.1) end)
     b.MouseButton1Click:Connect(function() callback() end)
@@ -831,7 +831,7 @@ end
 function textbox(parent, placeholder, order, initial, state_key)
     local actual_initial = initial
     if state_key and state[state_key] ~= nil then actual_initial = state[state_key] end
-    local t = make("TextBox", {Size = UDim2.new(1, 0, 0, 26), BackgroundColor3 = COL_BG, BorderSizePixel = 1, BorderColor3 = COL_STROKE, TextColor3 = COL_TEXT, PlaceholderText = placeholder, PlaceholderColor3 = COL_TEXT_DIM, Text = actual_initial or "", Font = Enum.Font.Code, TextSize = 12, ClearTextOnFocus = false, LayoutOrder = order or 0}, parent)
+    local t = make("TextBox", {Size = UDim2.new(1, 0, 0, 26), BackgroundColor3 = COL_BG, BorderSizePixel = 1, BorderColor3 = COL_STROKE, TextColor3 = COL_TEXT, PlaceholderText = placeholder, PlaceholderColor3 = COL_TEXT_DIM, Text = actual_initial or "", Font = Enum.Font.Code, TextSize = 12, TextScaled = true, ClearTextOnFocus = false, LayoutOrder = order or 0}, parent)
     t.Focused:Connect(function() t.BorderColor3 = COL_ACCENT end)
     t.FocusLost:Connect(function() t.BorderColor3 = COL_STROKE end)
     if state_key then table.insert(ui_refs.textboxes, {key = state_key, set = function(val) t.Text = val end}) end
@@ -856,8 +856,8 @@ end
 -- ==========================================
 update_loading("Building ESP elements", 50)
 
-draw_holder = make("Frame", {Size = UDim2.new(1, 0, 1, 0), Position = UDim2.new(0, 0, 0, 0), BackgroundTransparency = 1, Active = false, ClipsDescendants = false}, gui)
-fovCircle = make("Frame", {Size = UDim2.new(0, state.aimbot_fov * 2, 0, state.aimbot_fov * 2), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0.5, 0), BackgroundTransparency = 1, BorderSizePixel = 0, Visible = false, ZIndex = 5}, draw_holder)
+draw_holder = make("Frame", {Size = UDim2.new(1, 0, 1, 0), Position = UDim2.new(0, 0, 0, 0), BackgroundTransparency = 1, Active = false, ClipsDescendants = false, ZIndex = 1}, gui)
+fovCircle = make("Frame", {Size = UDim2.new(0, state.aimbot_fov * 2, 0, state.aimbot_fov * 2), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0.5, 0), BackgroundTransparency = 1, BorderSizePixel = 0, Visible = false, ZIndex = 2}, draw_holder)
 make("UICorner", {CornerRadius = UDim.new(1, 0)}, fovCircle) 
 make("UIStroke", {Color = COL_ACCENT, Thickness = 1.5, Transparency = 0.35}, fovCircle)
 function update_fov_circle()
@@ -872,7 +872,7 @@ hitMarkerTime = 0
 
 esp_objects = {}
 function make_esp_for(p)
-    local frame = make("Frame", {BackgroundTransparency = 1, Visible = false}, draw_holder)
+    local frame = make("Frame", {BackgroundTransparency = 1, Visible = false, ZIndex = 2}, draw_holder)
     local box = make("Frame", {BackgroundTransparency = 1, Visible = false, AnchorPoint = Vector2.new(0.5, 0.5)}, frame)
     local box_stroke = make("UIStroke", {Color = state.esp_color, Thickness = 1}, box)
     local nameLbl = make("TextLabel", {BackgroundTransparency = 1, TextColor3 = state.esp_color, Font = Enum.Font.Code, TextSize = 12, TextStrokeTransparency = 0.4, AnchorPoint = Vector2.new(0.5, 0.5)}, frame)
@@ -1188,36 +1188,38 @@ toggle(aimLeft, "Enable aimbot", false, function(on)
     state.aimbot_enabled = on
     update_fov_circle()
 end, 2, "aimbot_enabled")
-slider(aimLeft, "FOV (px)", 20, 500, 150, function(v) state.aimbot_fov = v; update_fov_circle() end, 3, "aimbot_fov")
-slider(aimLeft, "Max range", 50, 2000, 500, function(v) state.aimbot_range = v end, 4, "aimbot_range")
-slider(aimLeft, "Smoothness", 0, 1, 0.35, function(v) state.aimbot_smooth = v end, 5, "aimbot_smooth")
-slider(aimLeft, "Prediction", 0, 0.3, 0.05, function(v) state.aimbot_prediction = v end, 6, "aimbot_prediction")
-toggle(aimLeft, "Team check", true, function(on) state.aimbot_teamcheck = on end, 7, "aimbot_teamcheck")
-toggle(aimLeft, "Triggerbot", false, function(on) state.triggerbot = on end, 8, "triggerbot")
-toggle(aimLeft, "Instant Snap (Lock-on)", false, function(on) state.aimbot_snap = on end, 9, "aimbot_snap")
-toggle(aimLeft, "Silent Aim", false, function(on) state.aimbot_silent = on end, 10, "aimbot_silent")
+toggle(aimLeft, "Always Aim (Ignore Key)", false, function(on) state.aimbot_always = on end, 3, "aimbot_always")
+toggle(aimLeft, "God check (skip FF)", true, function(on) state.aimbot_god_check = on end, 4, "aimbot_god_check")
 
-section(aimLeft, "Legit / Combat", 11)
-slider(aimLeft, "Hit Chance (%)", 10, 100, 100, function(v) state.aimbot_hit_chance = v end, 12, "aimbot_hit_chance")
-toggle(aimLeft, "Pause after kill", false, function(on) state.aimbot_pause_kill = on end, 13, "aimbot_pause_kill")
-toggle(aimLeft, "Random body part", false, function(on) state.aimbot_random_part = on end, 14, "aimbot_random_part")
-toggle(aimLeft, "God check (skip FF)", true, function(on) state.aimbot_god_check = on end, 15, "aimbot_god_check")
-toggle(aimLeft, "Weapon-aware prediction", true, function(on) state.aimbot_weapon_pred = on end, 16, "aimbot_weapon_pred")
+slider(aimLeft, "FOV (px)", 20, 500, 150, function(v) state.aimbot_fov = v; update_fov_circle() end, 5, "aimbot_fov")
+slider(aimLeft, "Max range", 50, 2000, 500, function(v) state.aimbot_range = v end, 6, "aimbot_range")
+slider(aimLeft, "Smoothness", 0, 1, 0.35, function(v) state.aimbot_smooth = v end, 7, "aimbot_smooth")
+slider(aimLeft, "Prediction", 0, 0.3, 0.05, function(v) state.aimbot_prediction = v end, 8, "aimbot_prediction")
+toggle(aimLeft, "Team check", true, function(on) state.aimbot_teamcheck = on end, 9, "aimbot_teamcheck")
+toggle(aimLeft, "Triggerbot", false, function(on) state.triggerbot = on end, 10, "triggerbot")
+toggle(aimLeft, "Instant Snap (Lock-on)", false, function(on) state.aimbot_snap = on end, 11, "aimbot_snap")
+toggle(aimLeft, "Silent Aim", false, function(on) state.aimbot_silent = on end, 12, "aimbot_silent")
+
+section(aimLeft, "Legit / Combat", 13)
+slider(aimLeft, "Hit Chance (%)", 10, 100, 100, function(v) state.aimbot_hit_chance = v end, 14, "aimbot_hit_chance")
+toggle(aimLeft, "Pause after kill", false, function(on) state.aimbot_pause_kill = on end, 15, "aimbot_pause_kill")
+toggle(aimLeft, "Random body part", false, function(on) state.aimbot_random_part = on end, 16, "aimbot_random_part")
+toggle(aimLeft, "Weapon-aware prediction", true, function(on) state.aimbot_weapon_pred = on end, 17, "aimbot_weapon_pred")
 
 toggle(aimLeft, "Wallbang (Auto-Clip)", false, function(on)
     state.wallbang = on
     update_wallbang()
-end, 17, "wallbang")
+end, 18, "wallbang")
 
-section(aimLeft, "Target part", 18)
-toggle(aimLeft, "Head", true, function(on) state.aimbot_part = "Head" end, 19)
-toggle(aimLeft, "HumanoidRootPart", false, function(on) state.aimbot_part = "HumanoidRootPart" end, 20)
+section(aimLeft, "Target part", 19)
+toggle(aimLeft, "Head", true, function(on) state.aimbot_part = "Head" end, 20)
+toggle(aimLeft, "HumanoidRootPart", false, function(on) state.aimbot_part = "HumanoidRootPart" end, 21)
 
-section(aimLeft, "Exploits", 21)
-toggle(aimLeft, "Rapid Fire (Cooldown Hook)", false, function(on) state.rapid_fire = on end, 22, "rapid_fire")
-slider(aimLeft, "Rapid Fire Cooldown (s)", 0, 0.5, 0.01, function(v) state.rapid_fire_delay = v end, 23, "rapid_fire_delay")
-toggle(aimLeft, "Infinite Ammo", false, function(on) state.inf_ammo = on end, 24, "inf_ammo")
-slider(aimLeft, "Ammo Value", 10, 9999, 9999, function(v) state.inf_ammo_value = math.floor(v) end, 25, "inf_ammo_value")
+section(aimLeft, "Exploits", 22)
+toggle(aimLeft, "Rapid Fire (Cooldown Hook)", false, function(on) state.rapid_fire = on end, 23, "rapid_fire")
+slider(aimLeft, "Rapid Fire Cooldown (s)", 0, 0.5, 0.01, function(v) state.rapid_fire_delay = v end, 24, "rapid_fire_delay")
+toggle(aimLeft, "Infinite Ammo", false, function(on) state.inf_ammo = on end, 25, "inf_ammo")
+slider(aimLeft, "Ammo Value", 10, 9999, 9999, function(v) state.inf_ammo_value = math.floor(v) end, 26, "inf_ammo_value")
 
 section(aimRight, "Keybinds", 1)
 keybindButtons = {}
@@ -1227,7 +1229,7 @@ function bind_label(b)
     if bind.input == Enum.UserInputType.Keyboard then return bind.key.Name else return bind.input.Name end
 end
 function keybind_button(parent, label, slot, order)
-    local b = make("TextButton", {Size = UDim2.new(1, 0, 0, 26), BackgroundColor3 = COL_BG, BorderSizePixel = 1, BorderColor3 = COL_STROKE, Text = label .. ":  " .. bind_label(slot), TextColor3 = COL_TEXT, Font = Enum.Font.Code, TextSize = 12, LayoutOrder = order or 0, AutoButtonColor = false}, parent)
+    local b = make("TextButton", {Size = UDim2.new(1, 0, 0, 26), BackgroundColor3 = COL_BG, BorderSizePixel = 1, BorderColor3 = COL_STROKE, Text = label .. ":  " .. bind_label(slot), TextColor3 = COL_TEXT, Font = Enum.Font.Code, TextSize = 12, TextScaled = true, LayoutOrder = order or 0, AutoButtonColor = false}, parent)
     keybindButtons[slot] = b
     b.MouseEnter:Connect(function() tween(b, {BackgroundColor3 = COL_PANEL_HOVER}, 0.12) end)
     b.MouseLeave:Connect(function() tween(b, {BackgroundColor3 = COL_BG}, 0.12) end)
@@ -2486,7 +2488,7 @@ RunService:BindToRenderStep("BSSToolkitAim", Enum.RenderPriority.Camera.Value + 
     else
         cam.FieldOfView = orig_fov
     end
-    if not key_state.aimbot then
+    if not key_state.aimbot and not state.aimbot_always then
         locked_target = nil
         return
     end
