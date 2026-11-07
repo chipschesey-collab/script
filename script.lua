@@ -866,7 +866,7 @@ lock_text = make("TextLabel", {Size = UDim2.new(0, 200, 0, 20), Position = UDim2
 function update_fov_circle()
     local d = state.aimbot_fov * 2
     fovCircle.Size = UDim2.new(0, d, 0, d)
-    fovCircle.Visible = state.aimbot_enabled or state.object_aimbot_enabled
+    fovCircle.Visible = state.aimbot_enabled or state.object_aimbot_enabled or key_state.aimbot
 end
 update_fov_circle()
 
@@ -2401,6 +2401,7 @@ track(UserInputService.InputBegan:Connect(function(io, gp)
     local aim_bind = keybinds.aimbot; local fling_bind = keybinds.fling; local fly_bind = keybinds.fly; local hide_bind = keybinds.hide; local step_bind = keybinds.shadow_step; local orbit_bind = keybinds.orbit_rage
     if aim_bind.key and io.UserInputType == aim_bind.input and io.KeyCode == aim_bind.key then
         key_state.aimbot = true
+        update_fov_circle()
     elseif fling_bind.key and io.UserInputType == fling_bind.input and io.KeyCode == fling_bind.key then
         key_state.fling = true
         local tgt = nearest_target()
@@ -2426,7 +2427,10 @@ end))
 
 track(UserInputService.InputEnded:Connect(function(io)
     local aim_bind = keybinds.aimbot; local fling_bind = keybinds.fling; local step_bind = keybinds.shadow_step
-    if aim_bind.key and io.UserInputType == aim_bind.input and io.KeyCode == aim_bind.key then key_state.aimbot = false end
+    if aim_bind.key and io.UserInputType == aim_bind.input and io.KeyCode == aim_bind.key then 
+        key_state.aimbot = false 
+        update_fov_circle()
+    end
     if fling_bind.key and io.UserInputType == fling_bind.input and io.KeyCode == fling_bind.key then key_state.fling = false end
     if step_bind.key and io.UserInputType == step_bind.input and io.KeyCode == step_bind.key then
         key_state.shadow_step = false
@@ -2440,6 +2444,7 @@ track(UserInputService.WindowFocusReleased:Connect(function()
     key_state.fly = false
     key_state.shadow_step = false
     update_shadow_step()
+    update_fov_circle()
 end))
 
 main_render_conn = RunService.Heartbeat:Connect(function(dt)
@@ -2480,6 +2485,9 @@ end)
 RunService:BindToRenderStep("BSSToolkitAim", Enum.RenderPriority.Camera.Value + 50, function(dt)
     local cam = Workspace.CurrentCamera or camera
     if not gui.Parent then return end
+    
+    fovCircle.Visible = state.aimbot_enabled or state.object_aimbot_enabled or key_state.aimbot
+
     if state.fov_enabled then
         if state.fov_rmb then
             if UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) then
@@ -2508,8 +2516,12 @@ RunService:BindToRenderStep("BSSToolkitAim", Enum.RenderPriority.Camera.Value + 
         end
     end
     if not locked_target then
-        if state.aimbot_enabled then locked_target = nearest_target() end
-        if not locked_target and state.object_aimbot_enabled then locked_target = nearest_object() end
+        if state.aimbot_enabled or key_state.aimbot then 
+            locked_target = nearest_target() 
+        end
+        if not locked_target and (state.object_aimbot_enabled or key_state.aimbot) then 
+            locked_target = nearest_object() 
+        end
     end
     if not locked_target then 
         lock_text.Visible = false
@@ -2529,8 +2541,6 @@ RunService:BindToRenderStep("BSSToolkitAim", Enum.RenderPriority.Camera.Value + 
             aim_pos = aim_pos + hrp.AssemblyLinearVelocity * pred_val
         end
     end
-    
-    -- Fixed: Removed the off-screen check that was preventing the camera from turning.
     if state.aimbot_silent then
         cam.CFrame = CFrame.lookAt(cam.CFrame.Position, aim_pos)
     elseif state.aimbot_snap then
