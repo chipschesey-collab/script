@@ -130,7 +130,7 @@ end
 state = {
     esp_enabled = false, esp_box = true, esp_name = true, esp_distance = true, esp_tracers = false, esp_skeleton = false, esp_color = Color3.fromRGB(255, 80, 80), esp_team_color = false, esp_range = 500,
     esp_health = true, radar_enabled = false, offscreen_arrows = false, bullet_tracers = false,
-    fov_enabled = false, fov_value = 70, fov_rmb = false, saved_spots = {}, aimbot_enabled = false, aimbot_fov = 150, aimbot_smooth = 0.35, aimbot_part = "Head", aimbot_teamcheck = true, aimbot_range = 500, aimbot_prediction = 0.05, aimbot_snap = false, aimbot_always = false, wallbang = false,
+    fov_enabled = false, fov_value = 70, fov_rmb = false, saved_spots = {}, aimbot_enabled = false, aimbot_fov = 150, aimbot_smooth = 0.35, aimbot_part = "Head", aimbot_teamcheck = false, aimbot_range = 500, aimbot_prediction = 0.05, aimbot_snap = false, aimbot_always = false, wallbang = false,
     aimbot_hit_chance = 100, aimbot_pause_kill = false, aimbot_random_part = false, aimbot_god_check = true, aimbot_silent = false, aimbot_weapon_pred = true, hit_marker = true, hit_sound_pack = "dink",
     triggerbot = false, hit_sound = false, fling_return = true, use_walkfling = false, hitbox_enabled = false, hitbox_part = "HumanoidRootPart", hitbox_look = "Box", hitbox_size = 6, hitbox_transparency = 0.5,
     object_name = "", object_esp_enabled = false, object_aimbot_enabled = false, object_box = true, object_name_lbl = true, object_range = 500, fly_enabled = false, fly_speed = 60, fly_mode = "Velocity",
@@ -147,8 +147,9 @@ ui_refs = { toggles = {}, sliders = {}, textboxes = {} }
 
 locked_target = nil
 aim_pause_until = 0
+-- CHANGED: Default keybind for aimbot is now Right Mouse Button (MouseButton2)
 keybinds = {
-    aimbot = {input = Enum.UserInputType.Keyboard, key = Enum.KeyCode.E},
+    aimbot = {input = Enum.UserInputType.MouseButton2, key = Enum.KeyCode.Unknown},
     fling = {input = Enum.UserInputType.Keyboard, key = Enum.KeyCode.F},
     hide = {input = Enum.UserInputType.Keyboard, key = Enum.KeyCode.RightShift},
     fly = {input = Enum.UserInputType.Keyboard, key = Enum.KeyCode.G},
@@ -1198,7 +1199,7 @@ slider(aimLeft, "FOV (px)", 20, 500, 150, function(v) state.aimbot_fov = v; upda
 slider(aimLeft, "Max range", 50, 2000, 500, function(v) state.aimbot_range = v end, 6, "aimbot_range")
 slider(aimLeft, "Smoothness", 0, 1, 0.35, function(v) state.aimbot_smooth = v end, 7, "aimbot_smooth")
 slider(aimLeft, "Prediction", 0, 0.3, 0.05, function(v) state.aimbot_prediction = v end, 8, "aimbot_prediction")
-toggle(aimLeft, "Team check", true, function(on) state.aimbot_teamcheck = on end, 9, "aimbot_teamcheck")
+toggle(aimLeft, "Team check", false, function(on) state.aimbot_teamcheck = on end, 9, "aimbot_teamcheck")
 toggle(aimLeft, "Triggerbot", false, function(on) state.triggerbot = on end, 10, "triggerbot")
 toggle(aimLeft, "Instant Snap (Lock-on)", false, function(on) state.aimbot_snap = on end, 11, "aimbot_snap")
 toggle(aimLeft, "Silent Aim", false, function(on) state.aimbot_silent = on end, 12, "aimbot_silent")
@@ -2501,12 +2502,16 @@ RunService:BindToRenderStep("BSSToolkitAim", Enum.RenderPriority.Camera.Value + 
     else
         cam.FieldOfView = orig_fov
     end
-    if not key_state.aimbot and not state.aimbot_always then
+    
+    -- FIXED: Master switch logic. If neither player nor object aimbot is enabled, do nothing.
+    if not state.aimbot_enabled and not state.object_aimbot_enabled then
         locked_target = nil
         lock_text.Visible = false
         return
     end
+    
     if tick() < aim_pause_until then return end
+    
     if locked_target then
         local char = locked_target.Parent
         local hum = char and char:FindFirstChildOfClass("Humanoid")
@@ -2515,18 +2520,22 @@ RunService:BindToRenderStep("BSSToolkitAim", Enum.RenderPriority.Camera.Value + 
             if state.aimbot_pause_kill then aim_pause_until = tick() + 0.5 end
         end
     end
+    
+    -- FIXED: Only aim at players if 'Enable Aimbot' is on AND (the hold key is pressed OR Always Aim is on)
     if not locked_target then
-        if state.aimbot_enabled or key_state.aimbot then 
-            locked_target = nearest_target() 
+        if state.aimbot_enabled and (key_state.aimbot or state.aimbot_always) then
+            locked_target = nearest_target()
         end
-        if not locked_target and (state.object_aimbot_enabled or key_state.aimbot) then 
-            locked_target = nearest_object() 
+        if not locked_target and state.object_aimbot_enabled then
+            locked_target = nearest_object()
         end
     end
+    
     if not locked_target then 
         lock_text.Visible = false
         return 
     end
+    
     lock_text.Visible = true
     local aim_pos = locked_target.Position
     if locked_target.Parent and locked_target.Parent:IsA("Model") then
