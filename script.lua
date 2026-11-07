@@ -678,9 +678,25 @@ shadow = make("Frame", {Size = UDim2.new(0, 660, 0, 560), AnchorPoint = Vector2.
 main = make("Frame", {Size = UDim2.new(0, 660, 0, 560), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0.5, 0), BackgroundColor3 = COL_BG, BorderSizePixel = 1, BorderColor3 = COL_ACCENT, Active = false, ClipsDescendants = true, Visible = false, ZIndex = 10}, gui)
 main_scale = make("UIScale", {Scale = 0.85}, main)
 
+-- Show/Hide Floating Button
+showBtn = make("TextButton", {Size = UDim2.new(0, 30, 0, 30), Position = UDim2.new(0, 10, 0, 10), BackgroundColor3 = COL_ACCENT, BorderSizePixel = 0, Text = "+", TextColor3 = Color3.fromRGB(255, 255, 255), Font = Enum.Font.GothamBold, TextSize = 18, Visible = false, Parent = gui})
+showBtn.MouseButton1Click:Connect(function()
+    main.Visible = true
+    shadow.Visible = true
+    showBtn.Visible = false
+end)
+
 titleBar = make("Frame", {Size = UDim2.new(1, 0, 0, 26), BackgroundColor3 = COL_ACCENT, BorderSizePixel = 0}, main)
 titleText = make("TextLabel", {Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1, Text = "BSSToolkit", TextColor3 = Color3.fromRGB(255, 255, 255), TextXAlignment = Enum.TextXAlignment.Center, Font = Enum.Font.Code, TextSize = 14}, titleBar)
 keybindLabel = make("TextLabel", {Size = UDim2.new(0, 200, 1, 0), Position = UDim2.new(1, -210, 0, 0), BackgroundTransparency = 1, Text = "", TextColor3 = Color3.fromRGB(200, 200, 200), TextXAlignment = Enum.TextXAlignment.Right, Font = Enum.Font.Code, TextSize = 11}, titleBar)
+
+-- Hide button on title bar
+hideBtn = make("TextButton", {Size = UDim2.new(0, 26, 1, 0), Position = UDim2.new(1, -52, 0, 0), BackgroundColor3 = COL_PANEL_ALT, BorderSizePixel = 0, Text = "-", TextColor3 = Color3.fromRGB(255, 255, 255), Font = Enum.Font.Code, TextSize = 13}, titleBar)
+hideBtn.MouseButton1Click:Connect(function()
+    main.Visible = false
+    shadow.Visible = false
+    showBtn.Visible = true
+end)
 
 closeBtn = make("TextButton", {Size = UDim2.new(0, 26, 1, 0), Position = UDim2.new(1, -26, 0, 0), BackgroundColor3 = COL_DANGER, BorderSizePixel = 0, Text = "X", TextColor3 = Color3.fromRGB(255, 255, 255), Font = Enum.Font.Code, TextSize = 13}, titleBar)
 closeBtn.MouseEnter:Connect(function() tween(closeBtn, {BackgroundColor3 = COL_DANGER_HOVER}, 0.12) end)
@@ -1250,7 +1266,6 @@ function keybind_button(parent, label, slot, order)
             end
             if gp then return end
             
-            -- FIX: Ignore RightShift & RightControl so it can never be bound
             if io.KeyCode == Enum.KeyCode.RightShift or io.KeyCode == Enum.KeyCode.RightControl then return end
             
             if io.KeyCode == Enum.KeyCode.Backspace or io.KeyCode == Enum.KeyCode.Delete then
@@ -2000,12 +2015,19 @@ function start_jb_fly()
 end
 
 uScroll = scroll_col(tabPages["Utility"])
-section(uScroll, "Movement", 1)
+section(uScroll, "Menu", 1)
+button(uScroll, "Hide Menu (RightShift)", COL_PANEL_ALT, function()
+    main.Visible = false
+    shadow.Visible = false
+    showBtn.Visible = true
+end, 2)
+
+section(uScroll, "Movement", 10)
 slider(uScroll, "WalkSpeed", 16, 200, 16, function(v)
     local char = player.Character
     local hum = char and char:FindFirstChildOfClass("Humanoid")
     if hum then hum.WalkSpeed = v end
-end, 2)
+end, 11)
 toggle(uScroll, "Infinite Jump", false, function(on)
     state.inf_jump = on
     if on then
@@ -2019,7 +2041,7 @@ toggle(uScroll, "Infinite Jump", false, function(on)
     else
         if _G._bss_inf_jump then _G._bss_inf_jump:Disconnect(); _G._bss_inf_jump = nil end
     end
-end, 3, "inf_jump")
+end, 12, "inf_jump")
 toggle(uScroll, "Spinbot", false, function(on)
     state.spinbot = on
     if on then
@@ -2040,11 +2062,11 @@ toggle(uScroll, "Spinbot", false, function(on)
         local hum = char and char:FindFirstChildOfClass("Humanoid")
         if hum then hum.AutoRotate = true end
     end
-end, 4, "spinbot")
+end, 13, "spinbot")
 slider(uScroll, "Spinbot Speed", 10, 500, 50, function(v)
     state.spinbot_speed = v
     if spin_vel then spin_vel.AngularVelocity = Vector3.new(0, state.spinbot_speed, 0) end
-end, 5, "spinbot_speed")
+end, 14, "spinbot_speed")
 toggle(uScroll, "Noclip", false, function(on)
     state.noclip = on
     if on then
@@ -2065,7 +2087,7 @@ toggle(uScroll, "Noclip", false, function(on)
     else
         if noclip_conn then noclip_conn:Disconnect(); noclip_conn = nil end
     end
-end, 6, "noclip")
+end, 15, "noclip")
 toggle(uScroll, "CFrame Speed", false, function(on)
     state.cf_speed = on
     if on then
@@ -2086,8 +2108,8 @@ toggle(uScroll, "CFrame Speed", false, function(on)
     else
         if cf_speed_conn then cf_speed_conn:Disconnect(); cf_speed_conn = nil end
     end
-end, 7, "cf_speed")
-slider(uScroll, "CFrame Speed Value", 10, 300, 50, function(v) state.cf_speed_val = v end, 8, "cf_speed_val")
+end, 16, "cf_speed")
+slider(uScroll, "CFrame Speed Value", 10, 300, 50, function(v) state.cf_speed_val = v end, 17, "cf_speed_val")
 toggle(uScroll, "Float (Q/E to move)", false, function(on)
     state.float = on
     local char = player.Character
@@ -2118,7 +2140,7 @@ toggle(uScroll, "Float (Q/E to move)", false, function(on)
             if bv then bv:Destroy() end
         end
     end
-end, 9, "float")
+end, 18, "float")
 toggle(uScroll, "Swim in Air", false, function(on)
     state.swim = on
     local char = player.Character
@@ -2144,14 +2166,14 @@ toggle(uScroll, "Swim in Air", false, function(on)
         if swim_conn then swim_conn:Disconnect(); swim_conn = nil end
         if hum then hum.PlatformStand = false end
     end
-end, 10, "swim")
-section(uScroll, "Fly", 20)
+end, 19, "swim")
+section(uScroll, "Fly", 30)
 toggle(uScroll, "Enable fly", false, function(on)
     state.fly_enabled = on
     if on then start_fly(false) else stop_fly() end
-end, 21, "fly_enabled")
-slider(uScroll, "Fly speed", 10, 300, 60, function(v) state.fly_speed = v end, 22, "fly_speed")
-modeRow = make("Frame", {Size = UDim2.new(1, 0, 0, 30), BackgroundTransparency = 1, LayoutOrder = 23}, uScroll)
+end, 31, "fly_enabled")
+slider(uScroll, "Fly speed", 10, 300, 60, function(v) state.fly_speed = v end, 32, "fly_speed")
+modeRow = make("Frame", {Size = UDim2.new(1, 0, 0, 30), BackgroundTransparency = 1, LayoutOrder = 33}, uScroll)
 make("TextLabel", {Size = UDim2.new(1, -150, 1, 0), Position = UDim2.new(0, 4, 0, 0), BackgroundTransparency = 1, Text = "Fly Mode", TextColor3 = COL_TEXT, Font = Enum.Font.Code, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left}, modeRow)
 velBtn = make("TextButton", {Size = UDim2.new(0, 60, 0, 22), Position = UDim2.new(1, -130, 0.5, -11), BackgroundColor3 = state.fly_mode == "Velocity" and COL_ACCENT or COL_BG, BorderSizePixel = 1, BorderColor3 = COL_STROKE, Text = "Velocity", TextColor3 = COL_TEXT, Font = Enum.Font.Code, TextSize = 11, AutoButtonColor = false}, modeRow)
 cfBtn = make("TextButton", {Size = UDim2.new(0, 60, 0, 22), Position = UDim2.new(1, -66, 0.5, -11), BackgroundColor3 = state.fly_mode == "CFrame" and COL_ACCENT or COL_BG, BorderSizePixel = 1, BorderColor3 = COL_STROKE, Text = "CFrame", TextColor3 = COL_TEXT, Font = Enum.Font.Code, TextSize = 11, AutoButtonColor = false}, modeRow)
@@ -2168,11 +2190,11 @@ end)
 toggle(uScroll, "Enable vehicle fly", false, function(on)
     state.vehiclefly_enabled = on
     if on then start_fly(true) else stop_fly() end
-end, 24, "vehiclefly_enabled")
+end, 34, "vehiclefly_enabled")
 toggle(uScroll, "Jailbreak fly (unsits)", false, function(on)
     state.jb_fly_enabled = on
     if on then start_jb_fly() else stop_fly() end
-end, 25, "jb_fly_enabled")
+end, 35, "jb_fly_enabled")
 toggle(uScroll, "Vehicle Noclip", false, function(on)
     state.vehicle_noclip = on
     if on then
@@ -2206,8 +2228,8 @@ toggle(uScroll, "Vehicle Noclip", false, function(on)
             end
         end
     end
-end, 26, "vehicle_noclip")
-section(uScroll, "Camera & View", 27)
+end, 36, "vehicle_noclip")
+section(uScroll, "Camera & View", 40)
 toggle(uScroll, "Third Person", false, function(on)
     state.third_person = on
     if on then
@@ -2217,8 +2239,8 @@ toggle(uScroll, "Third Person", false, function(on)
         player.CameraMaxZoomDistance = 128
         player.CameraMinZoomDistance = 0.5
     end
-end, 28, "third_person")
-section(uScroll, "Farm & Bypass", 30)
+end, 41, "third_person")
+section(uScroll, "Farm & Bypass", 50)
 toggle(uScroll, "Under Map (Immortal)", false, function(on)
     state.under_map = on
     if on then
@@ -2236,12 +2258,12 @@ toggle(uScroll, "Under Map (Immortal)", false, function(on)
     else
         if under_map_conn then under_map_conn:Disconnect(); under_map_conn = nil end
     end
-end, 31, "under_map")
-toggle(uScroll, "Safe Fly (Anti-Kick)", false, function(on) state.safe_fly = on end, 32, "safe_fly")
-section(uScroll, "Misc", 40)
-toggle(uScroll, "Hit Sounds", false, function(on) state.hit_sound = on end, 41, "hit_sound")
-toggle(uScroll, "Hit Marker", true, function(on) state.hit_marker = on end, 42, "hit_marker")
-toggle(uScroll, "Auto Reload", false, function(on) state.auto_reload = on end, 43, "auto_reload")
+end, 51, "under_map")
+toggle(uScroll, "Safe Fly (Anti-Kick)", false, function(on) state.safe_fly = on end, 52, "safe_fly")
+section(uScroll, "Misc", 60)
+toggle(uScroll, "Hit Sounds", false, function(on) state.hit_sound = on end, 61, "hit_sound")
+toggle(uScroll, "Hit Marker", true, function(on) state.hit_marker = on end, 62, "hit_marker")
+toggle(uScroll, "Auto Reload", false, function(on) state.auto_reload = on end, 63, "auto_reload")
 toggle(uScroll, "Night Mode", false, function(on)
     state.night_mode = on
     if on then
@@ -2253,7 +2275,7 @@ toggle(uScroll, "Night Mode", false, function(on)
         Lighting.Brightness = orig_lighting.Brightness
         Lighting.OutdoorAmbient = Color3.fromRGB(128, 128, 128)
     end
-end, 44, "night_mode")
+end, 64, "night_mode")
 toggle(uScroll, "Anti-AFK", false, function(on)
     state.anti_afk = on
     if on then
@@ -2265,7 +2287,7 @@ toggle(uScroll, "Anti-AFK", false, function(on)
     else
         if anti_afk_conn then anti_afk_conn:Disconnect(); anti_afk_conn = nil end
     end
-end, 45, "anti_afk")
+end, 65, "anti_afk")
 toggle(uScroll, "Fullbright", false, function(on)
     state.fullbright = on
     if on then
@@ -2273,8 +2295,8 @@ toggle(uScroll, "Fullbright", false, function(on)
     else
         Lighting.Brightness = orig_lighting.Brightness; Lighting.ClockTime = orig_lighting.ClockTime; Lighting.GlobalShadows = orig_lighting.GlobalShadows; Lighting.FogEnd = orig_lighting.FogEnd
     end
-end, 46, "fullbright")
-toggle(uScroll, "Click Teleport (L-Alt + Click)", false, function(on) state.click_tp = on end, 47, "click_tp")
+end, 66, "fullbright")
+toggle(uScroll, "Click Teleport (L-Alt + Click)", false, function(on) state.click_tp = on end, 67, "click_tp")
 toggle(uScroll, "Anti-Fling", false, function(on)
     state.anti_fling = on
     if on then
@@ -2297,19 +2319,19 @@ toggle(uScroll, "Anti-Fling", false, function(on)
     else
         if anti_fling_conn then anti_fling_conn:Disconnect(); anti_fling_conn = nil end
     end
-end, 48, "anti_fling")
+end, 68, "anti_fling")
 
-section(uScroll, "Config", 50)
-configStatus = make("TextLabel", {Size = UDim2.new(1, 0, 0, 20), BackgroundTransparency = 1, Text = "", TextColor3 = COL_OK, TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.Code, TextSize = 12, LayoutOrder = 51}, uScroll)
+section(uScroll, "Config", 70)
+configStatus = make("TextLabel", {Size = UDim2.new(1, 0, 0, 20), BackgroundTransparency = 1, Text = "", TextColor3 = COL_OK, TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.Code, TextSize = 12, LayoutOrder = 71}, uScroll)
 function set_config_status(msg, is_success)
     configStatus.Text = msg
     configStatus.TextColor3 = is_success and COL_OK or COL_BAD
     task.delay(3, function() if configStatus.Text == msg then configStatus.Text = "" end end)
 end
 
-configNameBox = textbox(uScroll, "filename... (e.g. myconfig.json)", 52, "BSSToolkit_Config.json", "config_filename")
+configNameBox = textbox(uScroll, "filename... (e.g. myconfig.json)", 72, "BSSToolkit_Config.json", "config_filename")
 
-slider(uScroll, "UI Scale", 0.5, 1.5, 1, function(v) main_scale.Scale = v end, 52.5, "ui_scale")
+slider(uScroll, "UI Scale", 0.5, 1.5, 1, function(v) main_scale.Scale = v end, 73, "ui_scale")
 
 button(uScroll, "Save Config", COL_ACCENT, function()
     local code = export_config()
@@ -2330,7 +2352,7 @@ button(uScroll, "Save Config", COL_ACCENT, function()
     else
         set_config_status("Executor doesn't support saving", false)
     end
-end, 53)
+end, 74)
 
 button(uScroll, "Load Config", COL_PANEL_ALT, function()
     local fname = configNameBox.Text
@@ -2355,28 +2377,28 @@ button(uScroll, "Load Config", COL_PANEL_ALT, function()
     else
         set_config_status("Executor doesn't support loading", false)
     end
-end, 54)
+end, 75)
 
-section(uScroll, "Character", 60)
+section(uScroll, "Character", 80)
 button(uScroll, "Reset character", COL_PANEL_ALT, function()
     local char = player.Character
     local hum = char and char:FindFirstChildOfClass("Humanoid")
     if hum then hum.Health = 0 end
-end, 61)
+end, 81)
 button(uScroll, "Rejoin server", COL_DANGER, function()
     game:GetService("TeleportService"):Teleport(game.PlaceId, player)
-end, 62)
-section(uScroll, "External Tools", 70)
+end, 82)
+section(uScroll, "External Tools", 90)
 button(uScroll, "Launch Infinite Yield", COL_ACCENT, function()
     pcall(function()
         loadstring(game:HttpGet('https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source'))()
     end)
-end, 71)
+end, 91)
 button(uScroll, "Launch Dex", COL_ACCENT, function()
     pcall(function()
         loadstring(game:HttpGet("https://raw.githubusercontent.com/Balakeuse/Dex/main/Dex.lua"))()
     end)
-end, 72)
+end, 92)
 
 -- ==========================================
 -- FINAL INITIALIZATION
@@ -2385,14 +2407,13 @@ update_loading("Starting services", 98)
 
 track(UserInputService.InputBegan:Connect(function(io, gp)
     -- Hardcoded toggle for RightShift and RightControl
-    if not UserInputService:GetFocusedTextBox() and (io.KeyCode == Enum.KeyCode.RightShift or io.KeyCode == Enum.KeyCode.RightControl or io.KeyCode == Enum.KeyCode.P) then
+    if not UserInputService:GetFocusedTextBox() and (io.KeyCode == Enum.KeyCode.RightShift or io.KeyCode == Enum.KeyCode.RightControl) then
         main.Visible = not main.Visible
         shadow.Visible = main.Visible
+        showBtn.Visible = not main.Visible
         if active_keybind_conn then
-            -- If they were rebinding a key, cancel it so it doesn't get stuck
             active_keybind_conn:Disconnect()
             active_keybind_conn = nil
-            -- Reset text of all keybind buttons just in case
             for slot, b in pairs(keybindButtons) do
                 if slot == "aimbot" then b.Text = "Aimbot hold:  " .. bind_label(slot)
                 elseif slot == "fling" then b.Text = "Fling hold:  " .. bind_label(slot)
