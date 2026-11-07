@@ -2477,7 +2477,7 @@ main_render_conn = RunService.Heartbeat:Connect(function(dt)
     end)
 end)
 
-RunService:BindToRenderStep("BSSToolkitAim", Enum.RenderPriority.Camera.Value + 1, function(dt)
+RunService:BindToRenderStep("BSSToolkitAim", Enum.RenderPriority.Camera.Value + 50, function(dt)
     local cam = Workspace.CurrentCamera or camera
     if not gui.Parent then return end
     if state.fov_enabled then
@@ -2529,8 +2529,8 @@ RunService:BindToRenderStep("BSSToolkitAim", Enum.RenderPriority.Camera.Value + 
             aim_pos = aim_pos + hrp.AssemblyLinearVelocity * pred_val
         end
     end
-    local sp, onscreen = cam:WorldToViewportPoint(aim_pos)
-    if not onscreen or sp.Z <= 0 then return end
+    
+    -- Fixed: Removed the off-screen check that was preventing the camera from turning.
     if state.aimbot_silent then
         cam.CFrame = CFrame.lookAt(cam.CFrame.Position, aim_pos)
     elseif state.aimbot_snap then
@@ -2551,12 +2551,6 @@ RunService:BindToRenderStep("BSSToolkitAim", Enum.RenderPriority.Camera.Value + 
                 local alpha = 1 - (0.001 ^ (dt * 60))
                 cam.CFrame = cam.CFrame:Lerp(target_cf, alpha * (1 - state.aimbot_smooth * 0.7))
             end
-        end
-        local char = player.Character
-        local hrp = char and char:FindFirstChild("HumanoidRootPart")
-        if hrp then
-            local look = Vector3.new(aim_pos.X, hrp.Position.Y, aim_pos.Z)
-            hrp.CFrame = CFrame.lookAt(hrp.Position, look)
         end
     end
 end)
