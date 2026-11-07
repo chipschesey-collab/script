@@ -114,7 +114,7 @@ update_loading("Initializing variables", 5)
 
 top_conns = {}
 hit_sound_conns = {}
-active_keybind_conn = nil -- FIX: Track active keybind to cancel it if UI is hidden
+active_keybind_conn = nil
 
 function track(c)
     table.insert(top_conns, c)
@@ -1250,8 +1250,8 @@ function keybind_button(parent, label, slot, order)
             end
             if gp then return end
             
-            -- FIX: Ignore RightShift so it can never be bound to a cheat
-            if io.KeyCode == Enum.KeyCode.RightShift then return end
+            -- FIX: Ignore RightShift & RightControl so it can never be bound
+            if io.KeyCode == Enum.KeyCode.RightShift or io.KeyCode == Enum.KeyCode.RightControl then return end
             
             if io.KeyCode == Enum.KeyCode.Backspace or io.KeyCode == Enum.KeyCode.Delete then
                 keybinds[slot] = {input = Enum.UserInputType.Keyboard, key = nil}
@@ -2384,15 +2384,22 @@ end, 72)
 update_loading("Starting services", 98)
 
 track(UserInputService.InputBegan:Connect(function(io, gp)
-    -- Hardcoded toggle for RightShift
-    if not UserInputService:GetFocusedTextBox() and io.KeyCode == Enum.KeyCode.RightShift then
-        gui.Enabled = not gui.Enabled
+    -- Hardcoded toggle for RightShift and RightControl
+    if not UserInputService:GetFocusedTextBox() and (io.KeyCode == Enum.KeyCode.RightShift or io.KeyCode == Enum.KeyCode.RightControl or io.KeyCode == Enum.KeyCode.P) then
+        main.Visible = not main.Visible
+        shadow.Visible = main.Visible
         if active_keybind_conn then
             -- If they were rebinding a key, cancel it so it doesn't get stuck
             active_keybind_conn:Disconnect()
             active_keybind_conn = nil
+            -- Reset text of all keybind buttons just in case
             for slot, b in pairs(keybindButtons) do
-                b.Text = slot .. " hold:  " .. bind_label(slot)
+                if slot == "aimbot" then b.Text = "Aimbot hold:  " .. bind_label(slot)
+                elseif slot == "fling" then b.Text = "Fling hold:  " .. bind_label(slot)
+                elseif slot == "fly" then b.Text = "Fly toggle:  " .. bind_label(slot)
+                elseif slot == "shadow_step" then b.Text = "Shadow Step (Backstab):  " .. bind_label(slot)
+                elseif slot == "orbit_rage" then b.Text = "Orbit Rage (10s):  " .. bind_label(slot)
+                end
             end
         end
         return
