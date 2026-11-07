@@ -147,7 +147,6 @@ ui_refs = { toggles = {}, sliders = {}, textboxes = {} }
 
 locked_target = nil
 aim_pause_until = 0
--- CHANGED: Default keybind for aimbot is now Right Mouse Button (MouseButton2)
 keybinds = {
     aimbot = {input = Enum.UserInputType.MouseButton2, key = Enum.KeyCode.Unknown},
     fling = {input = Enum.UserInputType.Keyboard, key = Enum.KeyCode.F},
@@ -2378,11 +2377,9 @@ end, 72)
 update_loading("Starting services", 98)
 
 track(UserInputService.InputBegan:Connect(function(io, gp)
-    -- BYPASS: Check for the Hide UI key before checking gameProcessed.
-    -- This fixes RightShift being eaten by the game's Shift-Lock.
-    if not UserInputService:GetFocusedTextBox() and io.UserInputType == keybinds.hide.input and io.KeyCode == keybinds.hide.key then
-        main.Visible = not main.Visible
-        shadow.Visible = main.Visible
+    -- HARDCODED FIX: Toggle the ScreenGui directly with RightShift
+    if not UserInputService:GetFocusedTextBox() and io.KeyCode == Enum.KeyCode.RightShift then
+        gui.Enabled = not gui.Enabled
         return
     end
 
