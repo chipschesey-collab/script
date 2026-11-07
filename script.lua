@@ -114,6 +114,7 @@ update_loading("Initializing variables", 5)
 
 top_conns = {}
 hit_sound_conns = {}
+active_keybind_conn = nil -- FIX: Track active keybind to cancel it if UI is hidden
 
 function track(c)
     table.insert(top_conns, c)
@@ -385,6 +386,7 @@ function full_cleanup()
     key_state.fly = false
     key_state.shadow_step = false
     fling_active = false
+    if active_keybind_conn then active_keybind_conn:Disconnect() end
 end
 
 function export_config()
@@ -1237,29 +1239,34 @@ function keybind_button(parent, label, slot, order)
     b.MouseEnter:Connect(function() tween(b, {BackgroundColor3 = COL_PANEL_HOVER}, 0.12) end)
     b.MouseLeave:Connect(function() tween(b, {BackgroundColor3 = COL_BG}, 0.12) end)
     b.MouseButton1Click:Connect(function()
+        if active_keybind_conn then active_keybind_conn:Disconnect() end
         b.Text = label .. ":  ..."
-        local conn
-        conn = UserInputService.InputBegan:Connect(function(io, gp)
+        active_keybind_conn = UserInputService.InputBegan:Connect(function(io, gp)
             if io.KeyCode == Enum.KeyCode.Escape then
                 b.Text = label .. ":  " .. bind_label(slot)
-                conn:Disconnect()
+                active_keybind_conn:Disconnect()
+                active_keybind_conn = nil
                 return
             end
             if gp then return end
+            
+            -- FIX: Ignore RightShift so it can never be bound to a cheat
+            if io.KeyCode == Enum.KeyCode.RightShift then return end
+            
             if io.KeyCode == Enum.KeyCode.Backspace or io.KeyCode == Enum.KeyCode.Delete then
                 keybinds[slot] = {input = Enum.UserInputType.Keyboard, key = nil}
                 b.Text = label .. ":  none"
-                conn:Disconnect(); update_keybind_label()
+                active_keybind_conn:Disconnect(); active_keybind_conn = nil; update_keybind_label()
                 return
             end
             if io.UserInputType == Enum.UserInputType.Keyboard then
                 keybinds[slot] = {input = Enum.UserInputType.Keyboard, key = io.KeyCode}
                 b.Text = label .. ":  " .. io.KeyCode.Name
-                conn:Disconnect(); update_keybind_label()
+                active_keybind_conn:Disconnect(); active_keybind_conn = nil; update_keybind_label()
             elseif io.UserInputType.Name:find("MouseButton") then
                 keybinds[slot] = {input = io.UserInputType, key = io.KeyCode}
                 b.Text = label .. ":  " .. io.UserInputType.Name
-                conn:Disconnect(); update_keybind_label()
+                active_keybind_conn:Disconnect(); active_keybind_conn = nil; update_keybind_label()
             end
         end)
     end)
@@ -2377,9 +2384,17 @@ end, 72)
 update_loading("Starting services", 98)
 
 track(UserInputService.InputBegan:Connect(function(io, gp)
-    -- HARDCODED FIX: Toggle the ScreenGui directly with RightShift
+    -- Hardcoded toggle for RightShift
     if not UserInputService:GetFocusedTextBox() and io.KeyCode == Enum.KeyCode.RightShift then
         gui.Enabled = not gui.Enabled
+        if active_keybind_conn then
+            -- If they were rebinding a key, cancel it so it doesn't get stuck
+            active_keybind_conn:Disconnect()
+            active_keybind_conn = nil
+            for slot, b in pairs(keybindButtons) do
+                b.Text = slot .. " hold:  " .. bind_label(slot)
+            end
+        end
         return
     end
 
