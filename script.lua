@@ -2378,8 +2378,17 @@ end, 72)
 update_loading("Starting services", 98)
 
 track(UserInputService.InputBegan:Connect(function(io, gp)
+    -- BYPASS: Check for the Hide UI key before checking gameProcessed.
+    -- This fixes RightShift being eaten by the game's Shift-Lock.
+    if not UserInputService:GetFocusedTextBox() and io.UserInputType == keybinds.hide.input and io.KeyCode == keybinds.hide.key then
+        main.Visible = not main.Visible
+        shadow.Visible = main.Visible
+        return
+    end
+
     if gp then return end
     if UserInputService:GetFocusedTextBox() then return end
+    
     if state.click_tp and io.KeyCode == Enum.KeyCode.LeftAlt and io.UserInputType == Enum.UserInputType.Keyboard then
         local mouse = player:GetMouse()
         if mouse.Target then
@@ -2399,7 +2408,7 @@ track(UserInputService.InputBegan:Connect(function(io, gp)
             end)
         end
     end
-    local aim_bind = keybinds.aimbot; local fling_bind = keybinds.fling; local fly_bind = keybinds.fly; local hide_bind = keybinds.hide; local step_bind = keybinds.shadow_step; local orbit_bind = keybinds.orbit_rage
+    local aim_bind = keybinds.aimbot; local fling_bind = keybinds.fling; local fly_bind = keybinds.fly; local step_bind = keybinds.shadow_step; local orbit_bind = keybinds.orbit_rage
     if aim_bind.key and io.UserInputType == aim_bind.input and io.KeyCode == aim_bind.key then
         key_state.aimbot = true
         update_fov_circle()
@@ -2420,9 +2429,6 @@ track(UserInputService.InputBegan:Connect(function(io, gp)
         update_shadow_step()
     elseif orbit_bind.key and io.UserInputType == orbit_bind.input and io.KeyCode == orbit_bind.key then
         start_orbit_rage()
-    elseif hide_bind.key and io.UserInputType == hide_bind.input and io.KeyCode == hide_bind.key then
-        main.Visible = not main.Visible
-        shadow.Visible = main.Visible
     end
 end))
 
@@ -2503,7 +2509,6 @@ RunService:BindToRenderStep("BSSToolkitAim", Enum.RenderPriority.Camera.Value + 
         cam.FieldOfView = orig_fov
     end
     
-    -- FIXED: Master switch logic. If neither player nor object aimbot is enabled, do nothing.
     if not state.aimbot_enabled and not state.object_aimbot_enabled then
         locked_target = nil
         lock_text.Visible = false
@@ -2521,7 +2526,6 @@ RunService:BindToRenderStep("BSSToolkitAim", Enum.RenderPriority.Camera.Value + 
         end
     end
     
-    -- FIXED: Only aim at players if 'Enable Aimbot' is on AND (the hold key is pressed OR Always Aim is on)
     if not locked_target then
         if state.aimbot_enabled and (key_state.aimbot or state.aimbot_always) then
             locked_target = nearest_target()
