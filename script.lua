@@ -139,8 +139,7 @@ state = {
     anti_afk = false, fullbright = false, click_tp = false, anti_fling = false, float = false, swim = false, under_map = false, auto_farm = false, safe_fly = false, mm2_auto_shoot = false, mm2_auto_grab = false, grabbing_gun = false,
     rapid_fire = false, rapid_fire_delay = 0.01, inf_ammo = false, inf_ammo_value = 9999, auto_reload = false, third_person = false, night_mode = false,
     xray_enabled = false, chams_enabled = false, rainbow_enabled = false, forcefield_enabled = false,
-    jb_auto_rob = false, jb_auto_arrest = false, inf_jump = false, config_filename = "BSSToolkit_Config.json",
-    melee_aura = false, melee_aura_range = 15,
+    inf_jump = false, config_filename = "BSSToolkit_Config.json",
     orbit_aura = false, orbit_radius = 4, orbit_height = 3, orbit_duration = 10, ui_scale = 1,
 }
 
@@ -184,7 +183,6 @@ xray_originals = {}
 chams_highlights = {}
 rainbow_task = nil
 rainbow_originals = {}
-melee_aura_conn = nil
 orbit_aura_conn = nil
 shadow_step_conn = nil
 orbit_timer = nil
@@ -338,7 +336,6 @@ function full_cleanup()
     if loop_tp_conn then loop_tp_conn:Disconnect(); loop_tp_conn = nil end
     if rainbow_task then pcall(function() task.cancel(rainbow_task) end); rainbow_task = nil end
     if wallbang_conn then wallbang_conn:Disconnect(); wallbang_conn = nil end
-    if melee_aura_conn then melee_aura_conn:Disconnect(); melee_aura_conn = nil end
     if orbit_aura_conn then orbit_aura_conn:Disconnect(); orbit_aura_conn = nil end
     if shadow_step_conn then shadow_step_conn:Disconnect(); shadow_step_conn = nil end
     if orbit_timer then pcall(function() task.cancel(orbit_timer) end); orbit_timer = nil end
@@ -356,6 +353,7 @@ function full_cleanup()
     if _G._bss_fling_weld then pcall(function() _G._bss_fling_weld:Destroy() end); _G._bss_fling_weld = nil end
     if _G._bss_inf_jump then _G._bss_inf_jump:Disconnect(); _G._bss_inf_jump = nil end
     camera.FieldOfView = orig_fov
+    camera.CameraType = Enum.CameraType.Custom
     Lighting.Brightness = orig_lighting.Brightness
     Lighting.ClockTime = orig_lighting.ClockTime
     Lighting.GlobalShadows = orig_lighting.GlobalShadows
@@ -429,7 +427,7 @@ function update_wallbang()
 end
 
 -- ==========================================
--- MELEE & ORBIT AURAS
+-- ORBIT AURA
 -- ==========================================
 function get_closest_player(max_dist)
     local my_hrp = get_root()
@@ -448,45 +446,6 @@ function get_closest_player(max_dist)
     return closest
 end
 
-function auto_swing(char)
-    local tool = char:FindFirstChildOfClass("Tool")
-    if not tool then
-        local backpack = player:FindFirstChild("Backpack")
-        if backpack then
-            for _, item in ipairs(backpack:GetChildren()) do
-                if item:IsA("Tool") then task.spawn(function() item.Parent = char end); break end
-            end
-        end
-    end
-    if tool then
-        task.spawn(function() pcall(function() tool:Activate() end) end)
-    else
-        local vim = game:GetService("VirtualInputManager")
-        vim:SendMouseButtonEvent(camera.ViewportSize.X/2, camera.ViewportSize.Y/2, 0, true, game, 0)
-        vim:SendMouseButtonEvent(camera.ViewportSize.X/2, camera.ViewportSize.Y/2, 0, false, game, 0)
-    end
-end
-
-function update_melee_aura()
-    if melee_aura_conn then melee_aura_conn:Disconnect(); melee_aura_conn = nil end
-    if state.melee_aura then
-        melee_aura_conn = RunService.Heartbeat:Connect(function()
-            local char = player.Character
-            local hrp = get_root()
-            if not char or not hrp then return end
-            for _, p in ipairs(Players:GetPlayers()) do
-                if p ~= player and player_in_game(p) then
-                    local t_hrp = get_root(p)
-                    if t_hrp and (t_hrp.Position - hrp.Position).Magnitude <= state.melee_aura_range then
-                        auto_swing(char)
-                        task.wait(0.05)
-                    end
-                end
-            end
-        end)
-    end
-end
-
 function update_orbit_aura()
     if orbit_aura_conn then orbit_aura_conn:Disconnect(); orbit_aura_conn = nil end
     if state.orbit_aura then
@@ -502,7 +461,6 @@ function update_orbit_aura()
                 local x_offset = math.cos(angle) * state.orbit_radius
                 local z_offset = math.sin(angle) * state.orbit_radius
                 hrp.CFrame = t_hrp.CFrame * CFrame.new(x_offset, y_offset, z_offset)
-                auto_swing(char)
             end
         end)
     end
@@ -678,7 +636,6 @@ shadow = make("Frame", {Size = UDim2.new(0, 660, 0, 560), AnchorPoint = Vector2.
 main = make("Frame", {Size = UDim2.new(0, 660, 0, 560), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0.5, 0), BackgroundColor3 = COL_BG, BorderSizePixel = 1, BorderColor3 = COL_ACCENT, Active = false, ClipsDescendants = true, Visible = false, ZIndex = 10}, gui)
 main_scale = make("UIScale", {Scale = 0.85}, main)
 
--- Show/Hide Floating Button
 showBtn = make("TextButton", {Size = UDim2.new(0, 30, 0, 30), Position = UDim2.new(0, 10, 0, 10), BackgroundColor3 = COL_ACCENT, BorderSizePixel = 0, Text = "+", TextColor3 = Color3.fromRGB(255, 255, 255), Font = Enum.Font.GothamBold, TextSize = 18, Visible = false, Parent = gui})
 showBtn.MouseButton1Click:Connect(function()
     main.Visible = true
@@ -690,7 +647,6 @@ titleBar = make("Frame", {Size = UDim2.new(1, 0, 0, 26), BackgroundColor3 = COL_
 titleText = make("TextLabel", {Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1, Text = "BSSToolkit", TextColor3 = Color3.fromRGB(255, 255, 255), TextXAlignment = Enum.TextXAlignment.Center, Font = Enum.Font.Code, TextSize = 14}, titleBar)
 keybindLabel = make("TextLabel", {Size = UDim2.new(0, 200, 1, 0), Position = UDim2.new(1, -210, 0, 0), BackgroundTransparency = 1, Text = "", TextColor3 = Color3.fromRGB(200, 200, 200), TextXAlignment = Enum.TextXAlignment.Right, Font = Enum.Font.Code, TextSize = 11}, titleBar)
 
--- Hide button on title bar
 hideBtn = make("TextButton", {Size = UDim2.new(0, 26, 1, 0), Position = UDim2.new(1, -52, 0, 0), BackgroundColor3 = COL_PANEL_ALT, BorderSizePixel = 0, Text = "-", TextColor3 = Color3.fromRGB(255, 255, 255), Font = Enum.Font.Code, TextSize = 13}, titleBar)
 hideBtn.MouseButton1Click:Connect(function()
     main.Visible = false
@@ -739,7 +695,7 @@ end))
 -- ==========================================
 update_loading("Building tabs", 35)
 
-tabs = {"ESP", "Teleport", "Aimbot", "Fling", "Hitbox", "Exploits", "Fun", "Utility"}
+tabs = {"ESP", "Teleport", "Aimbot", "Fling", "Hitbox", "Fun", "Utility"}
 if is_mm2 then table.insert(tabs, "MM2") end
 tabBar = make("Frame", {Size = UDim2.new(1, -12, 0, 26), Position = UDim2.new(0, 6, 0, 32), BackgroundColor3 = COL_BG, BorderSizePixel = 0}, main)
 make("UIListLayout", {FillDirection = Enum.FillDirection.Horizontal, SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 4)}, tabBar)
@@ -1511,321 +1467,9 @@ end
 track(Players.PlayerRemoving:Connect(function(p) remove_hitbox(p) end))
 
 -- ==========================================
--- TAB BUILDER: EXPLOITS & FUN
+-- TAB BUILDER: FUN
 -- ==========================================
-update_loading("Building Exploits", 90)
-
-exLeft, exRight = split_two(tabPages["Exploits"])
-section(exLeft, "Targeted Exploits", 1)
-exTargetBox = textbox(exLeft, "target player name...", 2, "")
-
-function fly_to_position(target_pos, speed)
-    local hrp = get_root()
-    if not hrp then return end
-    local bv = Instance.new("BodyVelocity")
-    bv.Name = "BSS_AutoMove"
-    bv.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
-    bv.Parent = hrp
-    local timeout = tick() + 10
-    while (hrp.Position - target_pos).Magnitude > 8 and tick() < timeout do
-        if not hrp or not hrp.Parent then bv:Destroy(); return end
-        local dir = (target_pos - hrp.Position).Unit
-        bv.Velocity = dir * speed
-        task.wait(0.05)
-    end
-    if bv then bv.Velocity = Vector3.zero; task.wait(0.1); bv:Destroy() end
-end
-
-DIAMOND_CFRAME = CFrame.new(111.998154, 17.5156422, 1294.89917, 0.173624337, -0, -0.984811902, 0, 1, -0, 0.984811902, 0, 0.173624337)
-DROPOFF_CFRAME = CFrame.new(-300.185577, 20.6801224, 1594.45862, -0.29079634, 6.13783641e-06, -0.956784964, 0.00014125774, 1, -3.65175038e-05, 0.956784964, -0.000145772443, -0.29079634)
-
-toggle(exLeft, "Auto Rob Jewelry (Speed 300)", false, function(on)
-    state.jb_auto_rob = on
-    if on then
-        task.spawn(function()
-            while state.jb_auto_rob do
-                local hrp = get_root()
-                if not hrp then break end
-                fly_to_position(DIAMOND_CFRAME.Position, 300)
-                local vim = game:GetService("VirtualInputManager")
-                for i = 1, 20 do
-                    if not state.jb_auto_rob then break end
-                    vim:SendMouseButtonEvent(camera.ViewportSize.X/2, camera.ViewportSize.Y/2, 0, true, game, 0)
-                    vim:SendMouseButtonEvent(camera.ViewportSize.X/2, camera.ViewportSize.Y/2, 0, false, game, 0)
-                    task.wait(0.05)
-                end
-                fly_to_position(DROPOFF_CFRAME.Position, 300)
-                task.wait(2)
-            end
-        end)
-    end
-end, 3, "jb_auto_rob")
-
-toggle(exLeft, "Auto Arrest (Speed 300)", false, function(on)
-    state.jb_auto_arrest = on
-    if on then
-        task.spawn(function()
-            while state.jb_auto_arrest do
-                local hrp = get_root()
-                local char = player.Character
-                if not hrp or not char then break end
-                local target = nil
-                for _, p in ipairs(Players:GetPlayers()) do
-                    if p ~= player and p.Character then
-                        local wanted = p:FindFirstChild("Wanted")
-                        if wanted and wanted.Value > 0 then target = p; break end
-                    end
-                end
-                if target and target.Character then
-                    local t_hrp = target.Character:FindFirstChild("HumanoidRootPart")
-                    if t_hrp then
-                        fly_to_position(t_hrp.Position, 300)
-                        local backpack = player:FindFirstChild("Backpack")
-                        local cuffs = backpack and (backpack:FindFirstChild("Handcuffs") or backpack:FindFirstChild("Arrest"))
-                        if cuffs then
-                            cuffs.Parent = char
-                            task.wait(0.1)
-                            local vim = game:GetService("VirtualInputManager")
-                            vim:SendMouseButtonEvent(camera.ViewportSize.X/2, camera.ViewportSize.Y/2, 0, true, game, 0)
-                            vim:SendMouseButtonEvent(camera.ViewportSize.X/2, camera.ViewportSize.Y/2, 0, false, game, 0)
-                        end
-                    end
-                end
-                task.wait(0.5)
-            end
-        end)
-    end
-end, 5, "jb_auto_arrest")
-
-loop_tp_target = nil
-toggle(exLeft, "Loop Teleport to Target", false, function(on)
-    if on then
-        local targetName = exTargetBox.Text
-        if targetName == "" then return end
-        local target = nil
-        for _, p in ipairs(Players:GetPlayers()) do
-            if p.Name:lower():find(targetName:lower()) then target = p break end
-        end
-        if target then
-            loop_tp_target = target
-            if loop_tp_conn then loop_tp_conn:Disconnect() end
-            loop_tp_conn = RunService.Heartbeat:Connect(function()
-                local hrp = get_root()
-                local t_hrp = get_root(loop_tp_target)
-                if hrp and t_hrp then hrp.CFrame = t_hrp.CFrame * CFrame.new(0, 0, 2) end
-            end)
-        end
-    else
-        if loop_tp_conn then loop_tp_conn:Disconnect(); loop_tp_conn = nil end
-        loop_tp_target = nil
-    end
-end, 4)
-
-button(exLeft, "Invalid Avatar Rig Break", COL_DANGER, function()
-    local targetName = exTargetBox.Text
-    if targetName == "" then return end
-    local target = nil
-    for _, p in ipairs(Players:GetPlayers()) do
-        if p.Name:lower():find(targetName:lower()) then target = p break end
-    end
-    if target and target ~= player then
-        local t_char = target.Character
-        local t_hrp = t_char and t_char:FindFirstChild("HumanoidRootPart")
-        local hrp = get_root()
-        if t_hrp and hrp then
-            hrp.CFrame = t_hrp.CFrame
-            local breaker = Instance.new("Part")
-            breaker.Size = Vector3.new(10, 10, 10)
-            breaker.Position = t_hrp.Position
-            breaker.CanCollide = true
-            breaker.Transparency = 1
-            breaker.Massless = false
-            breaker.Parent = Workspace
-            local weld = Instance.new("WeldConstraint")
-            weld.Part0 = breaker
-            weld.Part1 = t_hrp
-            weld.Parent = breaker
-            local bav = Instance.new("BodyAngularVelocity")
-            bav.AngularVelocity = Vector3.new(999999, 999999, 999999)
-            bav.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
-            bav.Parent = breaker
-            task.delay(1.5, function() if breaker then breaker:Destroy() end end)
-        end
-    end
-end, 6)
-
-section(exLeft, "Melee Rage", 20)
-toggle(exLeft, "Kill Aura (Fists)", false, function(on)
-    state.melee_aura = on
-    update_melee_aura()
-end, 21, "melee_aura")
-slider(exLeft, "Kill Aura Range", 5, 50, 15, function(v) state.melee_aura_range = v end, 22, "melee_aura_range")
-slider(exLeft, "Orbit Radius", 2, 30, 4, function(v) state.orbit_radius = v end, 23, "orbit_radius")
-slider(exLeft, "Orbit Height", 1, 20, 3, function(v) state.orbit_height = v end, 24, "orbit_height")
-slider(exLeft, "Orbit Duration (s)", 3, 60, 10, function(v) state.orbit_duration = v end, 25, "orbit_duration")
-make("TextLabel", {Size = UDim2.new(1, 0, 0, 20), BackgroundTransparency = 1, Text = "Orbit Rage is bound to a keybind", TextColor3 = COL_TEXT_DIM, Font = Enum.Font.Code, TextSize = 11, LayoutOrder = 26}, exLeft)
-
-section(exLeft, "Rage Visuals", 10)
-toggle(exLeft, "Wall Transparency (X-Ray)", false, function(on)
-    state.xray_enabled = on
-    if on then
-        local char_parts = {}
-        for _, p in ipairs(Players:GetPlayers()) do
-            if p.Character then
-                for _, desc in ipairs(p.Character:GetDescendants()) do
-                    if desc:IsA("BasePart") then char_parts[desc] = true end
-                end
-            end
-        end
-        for _, obj in ipairs(Workspace:GetDescendants()) do
-            if obj:IsA("BasePart") and not char_parts[obj] then
-                if not xray_originals[obj] then xray_originals[obj] = obj.Transparency end
-                obj.Transparency = 0.85
-            end
-        end
-    else
-        for obj, orig in pairs(xray_originals) do
-            if obj and obj.Parent then obj.Transparency = orig end
-        end
-        xray_originals = {}
-    end
-end, 11, "xray_enabled")
-
-function apply_chams(p)
-    if p == player then return end
-    local char = p.Character
-    if not char then return end
-    if chams_highlights[p] and chams_highlights[p].Parent then return end
-    local hl = Instance.new("Highlight")
-    hl.Name = "BSS_Chams"
-    hl.Adornee = char
-    hl.FillColor = Color3.fromRGB(255, 40, 90)
-    hl.FillTransparency = 0.35
-    hl.OutlineColor = Color3.fromRGB(255, 120, 150)
-    hl.OutlineTransparency = 0
-    hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-    hl.Parent = char
-    chams_highlights[p] = hl
-end
-
-toggle(exLeft, "Enemy Chams (Through Walls)", false, function(on)
-    state.chams_enabled = on
-    if on then
-        for _, p in ipairs(Players:GetPlayers()) do if p ~= player then apply_chams(p) end end
-    else
-        for p, hl in pairs(chams_highlights) do if hl and hl.Parent then pcall(function() hl:Destroy() end) end end
-        chams_highlights = {}
-    end
-end, 12, "chams_enabled")
-
-toggle(exLeft, "Rainbow Character", false, function(on)
-    state.rainbow_enabled = on
-    if on then
-        local char = player.Character
-        if char then
-            rainbow_originals = {}
-            for _, part in ipairs(char:GetDescendants()) do
-                if part:IsA("BasePart") then rainbow_originals[part] = part.Color end
-            end
-        end
-        if not rainbow_task then
-            rainbow_task = task.spawn(function()
-                local t = 0
-                while state.rainbow_enabled do
-                    t = t + 0.02
-                    local c = Color3.fromHSV((t * 0.3) % 1, 1, 1)
-                    local char = player.Character
-                    if char then
-                        for _, part in ipairs(char:GetDescendants()) do
-                            if part:IsA("BasePart") then part.Color = c end
-                        end
-                    end
-                    task.wait(0.05)
-                end
-                rainbow_task = nil
-            end)
-        end
-    else
-        if rainbow_task then task.cancel(rainbow_task); rainbow_task = nil end
-        for part, orig in pairs(rainbow_originals) do
-            if part and part.Parent then part.Color = orig end
-        end
-        rainbow_originals = {}
-    end
-end, 13, "rainbow_enabled")
-
-toggle(exLeft, "Forcefield Aura (Enemies)", false, function(on)
-    state.forcefield_enabled = on
-    if on then
-        for _, p in ipairs(Players:GetPlayers()) do
-            if p ~= player and p.Character then
-                local hrp = p.Character:FindFirstChild("HumanoidRootPart")
-                if hrp and not hrp:FindFirstChild("BSS_FF") then
-                    local ff = Instance.new("ForceField")
-                    ff.Name = "BSS_FF"
-                    ff.Visible = true
-                    ff.Parent = hrp
-                end
-            end
-        end
-    else
-        for _, p in ipairs(Players:GetPlayers()) do
-            if p.Character then
-                for _, desc in ipairs(p.Character:GetDescendants()) do
-                    if desc.Name == "BSS_FF" then desc:Destroy() end
-                end
-            end
-        end
-    end
-end, 14, "forcefield_enabled")
-
-section(exRight, "Server Exploits", 1)
-button(exRight, "Global Server Fling (Mass Parts)", COL_DANGER, function()
-    local hrp = get_root()
-    if not hrp then return end
-    for _, p in ipairs(Players:GetPlayers()) do
-        if p ~= player then
-            local t_hrp = get_root(p)
-            if t_hrp then
-                for i = 1, 15 do
-                    local mass = Instance.new("Part")
-                    mass.Size = Vector3.new(5, 5, 5)
-                    mass.Position = t_hrp.Position
-                    mass.CanCollide = true
-                    mass.Transparency = 1
-                    mass.Massless = false
-                    mass.Parent = Workspace
-                    local weld = Instance.new("WeldConstraint")
-                    weld.Part0 = mass
-                    weld.Part1 = t_hrp
-                    weld.Parent = mass
-                    local bv = Instance.new("BodyVelocity")
-                    bv.Velocity = Vector3.new(math.random(-9999, 9999), 9999, math.random(-9999, 9999))
-                    bv.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
-                    bv.Parent = mass
-                    task.delay(1, function() if mass then mass:Destroy() end end)
-                end
-            end
-        end
-    end
-end, 2)
-
-button(exRight, "Spawn Lag Parts (Crash Server)", COL_DANGER, function()
-    local hrp = get_root()
-    if hrp then
-        for i = 1, 300 do
-            local part = Instance.new("Part")
-            part.Size = Vector3.new(50, 50, 50)
-            part.Position = hrp.Position + Vector3.new(math.random(-50, 50), math.random(10, 50), math.random(-50, 50))
-            part.Anchored = false
-            part.CanCollide = true
-            part.Transparency = 0.5
-            part.Color = Color3.fromRGB(255, 0, 0)
-            part.Parent = Workspace
-            task.delay(3, function() part:Destroy() end)
-        end
-    end
-end, 3)
+update_loading("Building Exploits & Fun", 90)
 
 funLeft, funRight = split_two(tabPages["Fun"])
 section(funLeft, "Troll", 1)
@@ -2406,7 +2050,6 @@ end, 92)
 update_loading("Starting services", 98)
 
 track(UserInputService.InputBegan:Connect(function(io, gp)
-    -- Hardcoded toggle for RightShift and RightControl
     if not UserInputService:GetFocusedTextBox() and (io.KeyCode == Enum.KeyCode.RightShift or io.KeyCode == Enum.KeyCode.RightControl) then
         main.Visible = not main.Visible
         shadow.Visible = main.Visible
@@ -2535,6 +2178,7 @@ RunService:BindToRenderStep("BSSToolkitAim", Enum.RenderPriority.Camera.Value + 
     
     fovCircle.Visible = state.aimbot_enabled or state.object_aimbot_enabled or key_state.aimbot
 
+    -- Force FOV
     if state.fov_enabled then
         if state.fov_rmb then
             if UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) then
@@ -2552,6 +2196,9 @@ RunService:BindToRenderStep("BSSToolkitAim", Enum.RenderPriority.Camera.Value + 
     if not state.aimbot_enabled and not state.object_aimbot_enabled then
         locked_target = nil
         lock_text.Visible = false
+        if cam.CameraType == Enum.CameraType.Scriptable then
+            cam.CameraType = Enum.CameraType.Custom
+        end
         return
     end
     
@@ -2577,6 +2224,9 @@ RunService:BindToRenderStep("BSSToolkitAim", Enum.RenderPriority.Camera.Value + 
     
     if not locked_target then 
         lock_text.Visible = false
+        if cam.CameraType == Enum.CameraType.Scriptable then
+            cam.CameraType = Enum.CameraType.Custom
+        end
         return 
     end
     
@@ -2594,6 +2244,12 @@ RunService:BindToRenderStep("BSSToolkitAim", Enum.RenderPriority.Camera.Value + 
             aim_pos = aim_pos + hrp.AssemblyLinearVelocity * pred_val
         end
     end
+    
+    -- FORCE CAMERA TO SCRIPTABLE TO BYPASS GAME OVERRIDES
+    if cam.CameraType ~= Enum.CameraType.Scriptable then
+        cam.CameraType = Enum.CameraType.Scriptable
+    end
+    
     if state.aimbot_silent then
         cam.CFrame = CFrame.lookAt(cam.CFrame.Position, aim_pos)
     elseif state.aimbot_snap then
