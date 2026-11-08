@@ -314,6 +314,7 @@ end
 
 function full_cleanup()
     pcall(function() RunService:UnbindFromRenderStep("BSSToolkitAim") end)
+    pcall(function() RunService:UnbindFromRenderStep("BSS_FOV") end)
     if main_render_conn then main_render_conn:Disconnect(); main_render_conn = nil end
     if fling_conn then fling_conn:Disconnect(); fling_conn = nil end
     if fly_conn then fly_conn:Disconnect(); fly_conn = nil end
@@ -2172,28 +2173,26 @@ main_render_conn = RunService.Heartbeat:Connect(function(dt)
     end)
 end)
 
+RunService:BindToRenderStep("BSS_FOV", Enum.RenderPriority.Camera.Value + 1, function()
+    if state.fov_enabled then
+        local target_fov = state.fov_value
+        if state.fov_rmb and not UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) then
+            target_fov = orig_fov
+        end
+        camera.FieldOfView = target_fov
+    else
+        camera.FieldOfView = orig_fov
+    end
+end)
+
 RunService:BindToRenderStep("BSSToolkitAim", Enum.RenderPriority.Camera.Value + 50, function(dt)
     local cam = Workspace.CurrentCamera or camera
     if not gui.Parent then return end
     
     fovCircle.Visible = state.aimbot_enabled or state.object_aimbot_enabled or key_state.aimbot
 
-    -- Force FOV
-    if state.fov_enabled then
-        if state.fov_rmb then
-            if UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) then
-                cam.FieldOfView = state.fov_value
-            else
-                cam.FieldOfView = orig_fov
-            end
-        else
-            cam.FieldOfView = state.fov_value
-        end
-    else
-        cam.FieldOfView = orig_fov
-    end
-    
-    if not state.aimbot_enabled and not state.object_aimbot_enabled then
+    local active = state.aimbot_enabled and (key_state.aimbot or state.aimbot_always)
+    if not active and not state.object_aimbot_enabled then
         locked_target = nil
         lock_text.Visible = false
         if cam.CameraType == Enum.CameraType.Scriptable then
@@ -2214,12 +2213,8 @@ RunService:BindToRenderStep("BSSToolkitAim", Enum.RenderPriority.Camera.Value + 
     end
     
     if not locked_target then
-        if state.aimbot_enabled and (key_state.aimbot or state.aimbot_always) then
-            locked_target = nearest_target()
-        end
-        if not locked_target and state.object_aimbot_enabled then
-            locked_target = nearest_object()
-        end
+        if active then locked_target = nearest_target() end
+        if not locked_target and state.object_aimbot_enabled then locked_target = nearest_object() end
     end
     
     if not locked_target then 
@@ -2245,28 +2240,24 @@ RunService:BindToRenderStep("BSSToolkitAim", Enum.RenderPriority.Camera.Value + 
         end
     end
     
-    -- FORCE CAMERA TO SCRIPTABLE TO BYPASS GAME OVERRIDES
-    if cam.CameraType ~= Enum.CameraType.Scriptable then
-        cam.CameraType = Enum.CameraType.Scriptable
-    end
+    local sp, onscreen = cam:WorldToViewportPoint(aim_pos)
+    if not onscreen or sp.Z <= 0 then return end
     
-    if state.aimbot_silent then
+    -- Use mousemoverel for FPS games like BSS
+    local vp = cam.ViewportSize
+    local center = Vector2.new(vp.X/2, vp.Y/2)
+    local dx = sp.X - center.X
+    local dy = sp.Y - center.Y
+    
+    if state.aimbot_silent or state.aimbot_snap then
         cam.CFrame = CFrame.lookAt(cam.CFrame.Position, aim_pos)
-    elseif state.aimbot_snap then
-        cam.CFrame = CFrame.lookAt(cam.CFrame.Position, aim_pos)
-        local char = player.Character
-        local hrp = char and char:FindFirstChild("HumanoidRootPart")
-        if hrp then
-            local look = Vector3.new(aim_pos.X, hrp.Position.Y, aim_pos.Z)
-            hrp.CFrame = CFrame.lookAt(hrp.Position, look)
-        end
     else
-        local cam_pos = cam.CFrame.Position
-        local target_cf = CFrame.lookAt(cam_pos, aim_pos)
         if math.random(1, 100) <= state.aimbot_hit_chance then
-            if state.aimbot_smooth <= 0.01 then
-                cam.CFrame = target_cf
+            if type(mousemoverel) == "function" then
+                local smooth = 1 - state.aimbot_smooth * 0.9
+                mousemoverel(dx * smooth, dy * smooth)
             else
+                local target_cf = CFrame.lookAt(cam.CFrame.Position, aim_pos)
                 local alpha = 1 - (0.001 ^ (dt * 60))
                 cam.CFrame = cam.CFrame:Lerp(target_cf, alpha * (1 - state.aimbot_smooth * 0.7))
             end
