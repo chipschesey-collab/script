@@ -2038,7 +2038,7 @@ button(uScroll, "Launch Infinite Yield", COL_ACCENT, function()
 end, 91)
 button(uScroll, "Launch Dex", COL_ACCENT, function()
     pcall(function()
-        loadstring(game:HttpGet("https://raw.githubusercontent.com/Balakeuse/Dex/main/Dex.lua"))()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/Balakeus/Dex/main/Dex.lua"))()
     end)
 end, 92)
 
@@ -2180,7 +2180,7 @@ RunService:BindToRenderStep("MidnightAim", Enum.RenderPriority.Camera.Value + 1,
         cam.FieldOfView = orig_fov
     end
     
-    if not key_state.aimbot then
+    if not key_state.aimbot and not state.aimbot_always then
         locked_target = nil
         return
     end
