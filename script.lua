@@ -54,14 +54,14 @@ COL_OK = Color3.fromRGB(120, 220, 160)
 COL_BAD = Color3.fromRGB(255, 120, 130)
 COL_DANGER = Color3.fromRGB(220, 70, 90)
 COL_DANGER_HOVER = Color3.fromRGB(255, 90, 110)
-config_file = "BSSToolkit_Config.json"
-downloads_config = "Downloads/BSSToolkit_Config.json"
+config_file = "Midnight_Config.json"
+downloads_config = "Downloads/Midnight_Config.json"
 
 -- ==========================================
 -- LOADING SCREEN
 -- ==========================================
 loadingGui = Instance.new("ScreenGui")
-loadingGui.Name = "BSS_Loading"
+loadingGui.Name = "Midnight_Loading"
 loadingGui.ResetOnSpawn = false
 loadingGui.IgnoreGuiInset = true
 loadingGui.DisplayOrder = 999999
@@ -76,7 +76,7 @@ title = Instance.new("TextLabel", bg)
 title.Size = UDim2.new(1, 0, 0, 30)
 title.Position = UDim2.new(0, 0, 0.4, 0)
 title.BackgroundTransparency = 1
-title.Text = "BSSToolkit"
+title.Text = "Midnight"
 title.TextColor3 = COL_ACCENT
 title.Font = Enum.Font.Code
 title.TextSize = 28
@@ -139,7 +139,7 @@ state = {
     anti_afk = false, fullbright = false, click_tp = false, anti_fling = false, float = false, swim = false, under_map = false, auto_farm = false, safe_fly = false, mm2_auto_shoot = false, mm2_auto_grab = false, grabbing_gun = false,
     rapid_fire = false, rapid_fire_delay = 0.01, inf_ammo = false, inf_ammo_value = 9999, auto_reload = false, third_person = false, night_mode = false,
     xray_enabled = false, chams_enabled = false, rainbow_enabled = false, forcefield_enabled = false,
-    inf_jump = false, config_filename = "BSSToolkit_Config.json",
+    inf_jump = false, config_filename = "Midnight_Config.json",
     orbit_aura = false, orbit_radius = 4, orbit_height = 3, orbit_duration = 10, ui_scale = 1,
 }
 
@@ -313,8 +313,8 @@ for _, p in ipairs(Players:GetPlayers()) do
 end
 
 function full_cleanup()
-    pcall(function() RunService:UnbindFromRenderStep("BSSToolkitAim") end)
-    pcall(function() RunService:UnbindFromRenderStep("BSS_FOV") end)
+    pcall(function() RunService:UnbindFromRenderStep("MidnightAim") end)
+    pcall(function() RunService:UnbindFromRenderStep("Midnight_FOV") end)
     if main_render_conn then main_render_conn:Disconnect(); main_render_conn = nil end
     if fling_conn then fling_conn:Disconnect(); fling_conn = nil end
     if fly_conn then fly_conn:Disconnect(); fly_conn = nil end
@@ -329,10 +329,10 @@ function full_cleanup()
     if under_map_conn then under_map_conn:Disconnect(); under_map_conn = nil end
     if auto_farm_conn then pcall(function() task.cancel(auto_farm_conn) end); auto_farm_conn = nil end
     if rapid_fire_task then pcall(function() task.cancel(rapid_fire_task) end); rapid_fire_task = nil end
-    _G._bss_toolkit_alive = false
-    if _G._bss_weapon_hooks then
-        if _G._bss_weapon_hooks.uninstall then pcall(_G._bss_weapon_hooks.uninstall) end
-        if _G._bss_weapon_hooks.cancel_fallback then pcall(_G._bss_weapon_hooks.cancel_fallback) end
+    _G._midnight_alive = false
+    if _G._midnight_hooks then
+        if _G._midnight_hooks.uninstall then pcall(_G._midnight_hooks.uninstall) end
+        if _G._midnight_hooks.cancel_fallback then pcall(_G._midnight_hooks.cancel_fallback) end
     end
     if loop_tp_conn then loop_tp_conn:Disconnect(); loop_tp_conn = nil end
     if rainbow_task then pcall(function() task.cancel(rainbow_task) end); rainbow_task = nil end
@@ -351,8 +351,8 @@ function full_cleanup()
     if spin_vel then spin_vel:Destroy(); spin_vel = nil end
     if fly_velocity then fly_velocity:Destroy(); fly_velocity = nil end
     if fly_gyro then fly_gyro:Destroy(); fly_gyro = nil end
-    if _G._bss_fling_weld then pcall(function() _G._bss_fling_weld:Destroy() end); _G._bss_fling_weld = nil end
-    if _G._bss_inf_jump then _G._bss_inf_jump:Disconnect(); _G._bss_inf_jump = nil end
+    if _G._midnight_fling_weld then pcall(function() _G._midnight_fling_weld:Destroy() end); _G._midnight_fling_weld = nil end
+    if _G._midnight_inf_jump then _G._midnight_inf_jump:Disconnect(); _G._midnight_inf_jump = nil end
     camera.FieldOfView = orig_fov
     camera.CameraType = Enum.CameraType.Custom
     Lighting.Brightness = orig_lighting.Brightness
@@ -500,13 +500,13 @@ end
 -- ==========================================
 -- WEAPON HOOKS
 -- ==========================================
-_bss_client_item = nil
-_bss_input_orig = nil
-_bss_reload_orig = nil
-_bss_gc_task = nil
+_midnight_client_item = nil
+_midnight_input_orig = nil
+_midnight_reload_orig = nil
+_midnight_gc_task = nil
 
-function _bss_find_client_item()
-    if _bss_client_item then return _bss_client_item end
+function _midnight_find_client_item()
+    if _midnight_client_item then return _midnight_client_item end
     local search_roots = {}
     table.insert(search_roots, player:FindFirstChild("PlayerScripts"))
     table.insert(search_roots, game:GetService("ReplicatedStorage"))
@@ -515,14 +515,14 @@ function _bss_find_client_item()
             local ok, inst = pcall(function() return root:FindFirstChild("ClientItem", true) end)
             if ok and inst and inst:IsA("ModuleScript") then
                 local req_ok, mod = pcall(require, inst)
-                if req_ok and type(mod) == "table" then _bss_client_item = mod; return mod end
+                if req_ok and type(mod) == "table" then _midnight_client_item = mod; return mod end
             end
         end
     end
     return nil
 end
 
-function _bss_apply_mods(item)
+function _midnight_apply_mods(item)
     if type(item) ~= "table" or not item.Info then return end
     if state.rapid_fire then
         pcall(function()
@@ -540,49 +540,49 @@ function _bss_apply_mods(item)
     end
 end
 
-function _bss_install_hooks()
+function _midnight_install_hooks()
     if type(hookfunction) ~= "function" then return false end
-    if _bss_input_orig then return true end
-    local ClientItem = _bss_find_client_item()
+    if _midnight_input_orig then return true end
+    local ClientItem = _midnight_find_client_item()
     if not ClientItem or type(ClientItem.Input) ~= "function" then return false end
     local ok = pcall(function()
-        _bss_input_orig = hookfunction(ClientItem.Input, function(...)
+        _midnight_input_orig = hookfunction(ClientItem.Input, function(...)
             local args = table.pack(...)
-            for i = 1, args.n do _bss_apply_mods(args[i]) end
-            return _bss_input_orig(table.unpack(args, 1, args.n))
+            for i = 1, args.n do _midnight_apply_mods(args[i]) end
+            return _midnight_input_orig(table.unpack(args, 1, args.n))
         end)
     end)
-    if not ok or not _bss_input_orig then _bss_input_orig = nil; return false end
+    if not ok or not _midnight_input_orig then _midnight_input_orig = nil; return false end
     if type(ClientItem.Reload) == "function" then
         pcall(function()
-            _bss_reload_orig = hookfunction(ClientItem.Reload, function(...)
+            _midnight_reload_orig = hookfunction(ClientItem.Reload, function(...)
                 local args = table.pack(...)
-                for i = 1, args.n do _bss_apply_mods(args[i]) end
-                return _bss_reload_orig(table.unpack(args, 1, args.n))
+                for i = 1, args.n do _midnight_apply_mods(args[i]) end
+                return _midnight_reload_orig(table.unpack(args, 1, args.n))
             end)
         end)
     end
     return true
 end
 
-function _bss_uninstall_hooks()
-    local ClientItem = _bss_client_item
-    if ClientItem and _bss_input_orig and type(hookfunction) == "function" then
-        pcall(function() hookfunction(ClientItem.Input, _bss_input_orig) end)
+function _midnight_uninstall_hooks()
+    local ClientItem = _midnight_client_item
+    if ClientItem and _midnight_input_orig and type(hookfunction) == "function" then
+        pcall(function() hookfunction(ClientItem.Input, _midnight_input_orig) end)
     end
-    if ClientItem and _bss_reload_orig and type(ClientItem.Reload) == "function" and type(hookfunction) == "function" then
-        pcall(function() hookfunction(ClientItem.Reload, _bss_reload_orig) end)
+    if ClientItem and _midnight_reload_orig and type(ClientItem.Reload) == "function" and type(hookfunction) == "function" then
+        pcall(function() hookfunction(ClientItem.Reload, _midnight_reload_orig) end)
     end
-    _bss_input_orig = nil
-    _bss_reload_orig = nil
+    _midnight_input_orig = nil
+    _midnight_reload_orig = nil
 end
 
-function _bss_install_gc_fallback()
-    if _bss_gc_task then return end
+function _midnight_install_gc_fallback()
+    if _midnight_gc_task then return end
     if type(getgc) ~= "function" then return end
-    _G._bss_toolkit_alive = true
-    _bss_gc_task = task.spawn(function()
-        while _G._bss_toolkit_alive do
+    _G._midnight_alive = true
+    _midnight_gc_task = task.spawn(function()
+        while _G._midnight_alive do
             task.wait(1)
             if state.rapid_fire or state.inf_ammo then
                 local ok, gc = pcall(getgc, true)
@@ -606,25 +606,25 @@ function _bss_install_gc_fallback()
                 end
             end
         end
-        _bss_gc_task = nil
+        _midnight_gc_task = nil
     end)
 end
 
-function _bss_cancel_fallback()
-    _G._bss_toolkit_alive = false
-    if _bss_gc_task then pcall(function() task.cancel(_bss_gc_task) end); _bss_gc_task = nil end
+function _midnight_cancel_fallback()
+    _G._midnight_alive = false
+    if _midnight_gc_task then pcall(function() task.cancel(_midnight_gc_task) end); _midnight_gc_task = nil end
 end
 
-_G._bss_weapon_hooks = {
-    install = _bss_install_hooks,
-    uninstall = _bss_uninstall_hooks,
-    cancel_fallback = _bss_cancel_fallback,
+_G._midnight_hooks = {
+    install = _midnight_install_hooks,
+    uninstall = _midnight_uninstall_hooks,
+    cancel_fallback = _midnight_cancel_fallback,
 }
 
 task.spawn(function()
     local ok = false
-    pcall(function() ok = _bss_install_hooks() end)
-    if not ok then pcall(_bss_install_gc_fallback) end
+    pcall(function() ok = _midnight_install_hooks() end)
+    if not ok then pcall(_midnight_install_gc_fallback) end
 end)
 
 -- ==========================================
@@ -632,7 +632,7 @@ end)
 -- ==========================================
 update_loading("Building main window", 25)
 
-gui = make("ScreenGui", {Name = "BSSToolkit", DisplayOrder = 99999, ResetOnSpawn = false, ZIndexBehavior = Enum.ZIndexBehavior.Sibling, IgnoreGuiInset = true}, gui_parent)
+gui = make("ScreenGui", {Name = "Midnight", DisplayOrder = 99999, ResetOnSpawn = false, ZIndexBehavior = Enum.ZIndexBehavior.Sibling, IgnoreGuiInset = true}, gui_parent)
 shadow = make("Frame", {Size = UDim2.new(0, 660, 0, 560), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 3, 0.5, 5), BackgroundColor3 = Color3.fromRGB(0, 0, 0), BackgroundTransparency = 0.55, BorderSizePixel = 0}, gui)
 main = make("Frame", {Size = UDim2.new(0, 660, 0, 560), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0.5, 0), BackgroundColor3 = COL_BG, BorderSizePixel = 1, BorderColor3 = COL_ACCENT, Active = false, ClipsDescendants = true, Visible = false, ZIndex = 10}, gui)
 main_scale = make("UIScale", {Scale = 0.85}, main)
@@ -645,7 +645,7 @@ showBtn.MouseButton1Click:Connect(function()
 end)
 
 titleBar = make("Frame", {Size = UDim2.new(1, 0, 0, 26), BackgroundColor3 = COL_ACCENT, BorderSizePixel = 0}, main)
-titleText = make("TextLabel", {Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1, Text = "BSSToolkit", TextColor3 = Color3.fromRGB(255, 255, 255), TextXAlignment = Enum.TextXAlignment.Center, Font = Enum.Font.Code, TextSize = 14}, titleBar)
+titleText = make("TextLabel", {Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1, Text = "Midnight", TextColor3 = Color3.fromRGB(255, 255, 255), TextXAlignment = Enum.TextXAlignment.Center, Font = Enum.Font.Code, TextSize = 14}, titleBar)
 keybindLabel = make("TextLabel", {Size = UDim2.new(0, 200, 1, 0), Position = UDim2.new(1, -210, 0, 0), BackgroundTransparency = 1, Text = "", TextColor3 = Color3.fromRGB(200, 200, 200), TextXAlignment = Enum.TextXAlignment.Right, Font = Enum.Font.Code, TextSize = 11}, titleBar)
 
 hideBtn = make("TextButton", {Size = UDim2.new(0, 26, 1, 0), Position = UDim2.new(1, -52, 0, 0), BackgroundColor3 = COL_PANEL_ALT, BorderSizePixel = 0, Text = "-", TextColor3 = Color3.fromRGB(255, 255, 255), Font = Enum.Font.Code, TextSize = 13}, titleBar)
@@ -1329,7 +1329,7 @@ flingListFrame = make("Frame", {Size = UDim2.new(1, 0, 0, 0), BackgroundTranspar
 make("UIListLayout", {Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder}, flingListFrame)
 function stop_fling()
     if fling_conn then fling_conn:Disconnect(); fling_conn = nil end
-    if _G._bss_fling_weld then pcall(function() _G._bss_fling_weld:Destroy() end); _G._bss_fling_weld = nil end
+    if _G._midnight_fling_weld then pcall(function() _G._midnight_fling_weld:Destroy() end); _G._midnight_fling_weld = nil end
     fling_active = false
     local root = get_root()
     local char = player.Character
@@ -1358,7 +1358,7 @@ function start_fling(target_player)
     if state.use_walkfling then hum.PlatformStand = true end
     local weld = Instance.new("WeldConstraint")
     weld.Part0 = target_root; weld.Part1 = root; weld.Parent = target_root
-    _G._bss_fling_weld = weld
+    _G._midnight_fling_weld = weld
     local t = 0
     fling_conn = RunService.Heartbeat:Connect(function(dt)
         t = t + dt
@@ -1434,7 +1434,7 @@ function apply_hitbox_to(p)
     end
     if not hitbox_expanded[p] then
         local hitbox = Instance.new("Part")
-        hitbox.Name = "BSS_Hitbox"
+        hitbox.Name = "Midnight_Hitbox"
         hitbox.Size = Vector3.new(state.hitbox_size, state.hitbox_size, state.hitbox_size)
         hitbox.CanCollide = false; hitbox.Massless = true; hitbox.Anchored = true
         hitbox.Color = Color3.fromRGB(0, 255, 255); hitbox.Material = Enum.Material.ForceField
@@ -1682,9 +1682,9 @@ toggle(uScroll, "Infinite Jump", false, function(on)
             local hum = char and char:FindFirstChildOfClass("Humanoid")
             if hum then hum:ChangeState(Enum.HumanoidStateType.Jumping) end
         end)
-        _G._bss_inf_jump = conn
+        _G._midnight_inf_jump = conn
     else
-        if _G._bss_inf_jump then _G._bss_inf_jump:Disconnect(); _G._bss_inf_jump = nil end
+        if _G._midnight_inf_jump then _G._midnight_inf_jump:Disconnect(); _G._midnight_inf_jump = nil end
     end
 end, 12, "inf_jump")
 toggle(uScroll, "Spinbot", false, function(on)
@@ -1974,14 +1974,14 @@ function set_config_status(msg, is_success)
     task.delay(3, function() if configStatus.Text == msg then configStatus.Text = "" end end)
 end
 
-configNameBox = textbox(uScroll, "filename... (e.g. myconfig.json)", 72, "BSSToolkit_Config.json", "config_filename")
+configNameBox = textbox(uScroll, "filename... (e.g. myconfig.json)", 72, "Midnight_Config.json", "config_filename")
 
 slider(uScroll, "UI Scale", 0.5, 1.5, 1, function(v) main_scale.Scale = v end, 73, "ui_scale")
 
 button(uScroll, "Save Config", COL_ACCENT, function()
     local code = export_config()
     local fname = configNameBox.Text
-    if fname == "" then fname = "BSSToolkit_Config.json" end
+    if fname == "" then fname = "Midnight_Config.json" end
     if writefile then
         local success = pcall(function() writefile("Downloads/" .. fname, code) end)
         if success then
@@ -2001,7 +2001,7 @@ end, 74)
 
 button(uScroll, "Load Config", COL_PANEL_ALT, function()
     local fname = configNameBox.Text
-    if fname == "" then fname = "BSSToolkit_Config.json" end
+    if fname == "" then fname = "Midnight_Config.json" end
     if isfile and readfile then
         local code
         if isfile("Downloads/" .. fname) then
@@ -2151,9 +2151,9 @@ main_render_conn = RunService.Heartbeat:Connect(function(dt)
             for _, p in ipairs(Players:GetPlayers()) do
                 if p ~= player and p.Character then
                     local hrp = p.Character:FindFirstChild("HumanoidRootPart")
-                    if hrp and not hrp:FindFirstChild("BSS_FF") then
+                    if hrp and not hrp:FindFirstChild("Midnight_FF") then
                         local ff = Instance.new("ForceField")
-                        ff.Name = "BSS_FF"
+                        ff.Name = "Midnight_FF"
                         ff.Visible = true
                         ff.Parent = hrp
                     end
@@ -2173,7 +2173,7 @@ main_render_conn = RunService.Heartbeat:Connect(function(dt)
     end)
 end)
 
-RunService:BindToRenderStep("BSS_FOV", Enum.RenderPriority.Camera.Value + 1, function()
+RunService:BindToRenderStep("Midnight_FOV", Enum.RenderPriority.Last.Value, function()
     if state.fov_enabled then
         local target_fov = state.fov_value
         if state.fov_rmb and not UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) then
@@ -2185,7 +2185,7 @@ RunService:BindToRenderStep("BSS_FOV", Enum.RenderPriority.Camera.Value + 1, fun
     end
 end)
 
-RunService:BindToRenderStep("BSSToolkitAim", Enum.RenderPriority.Camera.Value + 50, function(dt)
+RunService:BindToRenderStep("MidnightAim", Enum.RenderPriority.Last.Value, function(dt)
     local cam = Workspace.CurrentCamera or camera
     if not gui.Parent then return end
     
@@ -2243,20 +2243,28 @@ RunService:BindToRenderStep("BSSToolkitAim", Enum.RenderPriority.Camera.Value + 
     local sp, onscreen = cam:WorldToViewportPoint(aim_pos)
     if not onscreen or sp.Z <= 0 then return end
     
-    -- Use mousemoverel for FPS games like BSS
     local vp = cam.ViewportSize
     local center = Vector2.new(vp.X/2, vp.Y/2)
     local dx = sp.X - center.X
     local dy = sp.Y - center.Y
     
     if state.aimbot_silent or state.aimbot_snap then
+        if cam.CameraType ~= Enum.CameraType.Scriptable then
+            cam.CameraType = Enum.CameraType.Scriptable
+        end
         cam.CFrame = CFrame.lookAt(cam.CFrame.Position, aim_pos)
     else
         if math.random(1, 100) <= state.aimbot_hit_chance then
             if type(mousemoverel) == "function" then
+                if cam.CameraType == Enum.CameraType.Scriptable then
+                    cam.CameraType = Enum.CameraType.Custom
+                end
                 local smooth = 1 - state.aimbot_smooth * 0.9
                 mousemoverel(dx * smooth, dy * smooth)
             else
+                if cam.CameraType ~= Enum.CameraType.Scriptable then
+                    cam.CameraType = Enum.CameraType.Scriptable
+                end
                 local target_cf = CFrame.lookAt(cam.CFrame.Position, aim_pos)
                 local alpha = 1 - (0.001 ^ (dt * 60))
                 cam.CFrame = cam.CFrame:Lerp(target_cf, alpha * (1 - state.aimbot_smooth * 0.7))
@@ -2270,7 +2278,7 @@ RunService.Heartbeat:Connect(function()
     local mouse = player:GetMouse()
     if mouse.Target then
         local target_p = Players:GetPlayerFromCharacter(mouse.Target.Parent)
-        if not target_p and mouse.Target.Name == "BSS_Hitbox" then
+        if not target_p and mouse.Target.Name == "Midnight_Hitbox" then
             for p, hb in pairs(hitbox_expanded) do
                 if hb == mouse.Target then target_p = p; break end
             end
