@@ -132,7 +132,7 @@ state = {
     esp_enabled = false, esp_box = true, esp_name = true, esp_distance = true, esp_tracers = false, esp_skeleton = false, esp_color = Color3.fromRGB(255, 80, 80), esp_team_color = false, esp_range = 500,
     esp_health = true, radar_enabled = false, offscreen_arrows = false, bullet_tracers = false,
     fov_enabled = false, fov_value = 70, saved_spots = {}, aimbot_enabled = false, aimbot_fov = 150, aimbot_smooth = 0.35, aimbot_part = "Head", aimbot_teamcheck = false, aimbot_range = 500, aimbot_prediction = 0.05, aimbot_snap = false, aimbot_always = false, wallbang = false,
-    aimbot_hit_chance = 100, aimbot_pause_kill = false, aimbot_random_part = false, aimbot_god_check = true, aimbot_silent = false, aimbot_weapon_pred = true, hit_marker = true, hit_sound_pack = "dink",
+    aimbot_hit_chance = 100, aimbot_pause_kill = false, aimbot_random_part = false, aimbot_god_check = false, aimbot_silent = false, aimbot_weapon_pred = true, hit_marker = true, hit_sound_pack = "dink",
     triggerbot = false, hit_sound = false, fling_return = true, use_walkfling = false, hitbox_enabled = false, hitbox_part = "HumanoidRootPart", hitbox_look = "Box", hitbox_size = 6, hitbox_transparency = 0.5,
     object_name = "", object_esp_enabled = false, object_aimbot_enabled = false, object_box = true, object_name_lbl = true, object_range = 500, fly_enabled = false, fly_speed = 60, fly_mode = "Velocity",
     vehiclefly_enabled = false, vehicle_noclip = false, jb_fly_enabled = false, spinbot = false, spinbot_speed = 50, mask_enabled = false, mask_display = "", noclip = false, cf_speed = false, cf_speed_val = 50,
@@ -314,6 +314,7 @@ end
 
 function full_cleanup()
     pcall(function() RunService:UnbindFromRenderStep("MidnightAim") end)
+    pcall(function() RunService:UnbindFromRenderStep("MidnightFOV") end)
     if main_render_conn then main_render_conn:Disconnect(); main_render_conn = nil end
     if fling_conn then fling_conn:Disconnect(); fling_conn = nil end
     if fly_conn then fly_conn:Disconnect(); fly_conn = nil end
@@ -834,12 +835,13 @@ fovCircle = make("Frame", {Size = UDim2.new(0, state.aimbot_fov * 2, 0, state.ai
 make("UICorner", {CornerRadius = UDim.new(1, 0)}, fovCircle) 
 make("UIStroke", {Color = COL_ACCENT, Thickness = 1.5, Transparency = 0.35}, fovCircle)
 
-lock_text = make("TextLabel", {Size = UDim2.new(0, 200, 0, 20), Position = UDim2.new(0.5, -100, 0.5, -20), BackgroundTransparency = 1, Text = "TARGET LOCKED", TextColor3 = Color3.fromRGB(255, 50, 50), Font = Enum.Font.Code, TextSize = 14, Visible = false, ZIndex = 3}, draw_holder)
+aim_debug_lbl = make("TextLabel", {Size = UDim2.new(0, 200, 0, 20), Position = UDim2.new(0.5, -100, 0.5, 50), BackgroundTransparency = 1, Text = "TARGET FOUND", TextColor3 = Color3.fromRGB(255, 50, 50), Font = Enum.Font.Code, TextSize = 14, Visible = false, ZIndex = 100}, draw_holder)
 
 function update_fov_circle()
     local d = state.aimbot_fov * 2
     fovCircle.Size = UDim2.new(0, d, 0, d)
-    fovCircle.Visible = state.aimbot_enabled or state.object_aimbot_enabled or key_state.aimbot
+    fovCircle.Position = UDim2.new(0.5, 0, 0.5, 0) -- force center
+    fovCircle.Visible = state.aimbot_enabled or state.object_aimbot_enabled
 end
 update_fov_circle()
 
@@ -1164,7 +1166,7 @@ toggle(aimLeft, "Enable aimbot", false, function(on)
     update_fov_circle()
 end, 2, "aimbot_enabled")
 toggle(aimLeft, "Always Aim (Ignore Key)", false, function(on) state.aimbot_always = on end, 3, "aimbot_always")
-toggle(aimLeft, "God check (skip FF)", true, function(on) state.aimbot_god_check = on end, 4, "aimbot_god_check")
+toggle(aimLeft, "God check (skip FF)", false, function(on) state.aimbot_god_check = on end, 4, "aimbot_god_check")
 
 slider(aimLeft, "FOV (px)", 20, 500, 150, function(v) state.aimbot_fov = v; update_fov_circle() end, 5, "aimbot_fov")
 slider(aimLeft, "Max range", 50, 2000, 500, function(v) state.aimbot_range = v end, 6, "aimbot_range")
@@ -2170,18 +2172,28 @@ main_render_conn = RunService.Heartbeat:Connect(function(dt)
     end)
 end)
 
+RunService:BindToRenderStep("MidnightFOV", Enum.RenderPriority.Last.Value, function()
+    if state.fov_enabled then
+        Workspace.CurrentCamera.FieldOfView = state.fov_value
+    else
+        Workspace.CurrentCamera.FieldOfView = orig_fov
+    end
+end)
+
 RunService:BindToRenderStep("MidnightAim", Enum.RenderPriority.Camera.Value + 1, function(dt)
     local cam = Workspace.CurrentCamera
     if not gui.Parent then return end
     
-    if state.fov_enabled then
-        cam.FieldOfView = state.fov_value
+    local is_aiming = false
+    if keybinds.aimbot.input == Enum.UserInputType.Keyboard then
+        if keybinds.aimbot.key then is_aiming = UserInputService:IsKeyDown(keybinds.aimbot.key) end
     else
-        cam.FieldOfView = orig_fov
+        is_aiming = UserInputService:IsMouseButtonPressed(keybinds.aimbot.input)
     end
-    
-    if not key_state.aimbot and not state.aimbot_always then
+
+    if not is_aiming and not state.aimbot_always then
         locked_target = nil
+        if aim_debug_lbl then aim_debug_lbl.Visible = false end
         return
     end
 
@@ -2203,7 +2215,12 @@ RunService:BindToRenderStep("MidnightAim", Enum.RenderPriority.Camera.Value + 1,
         if not locked_target and state.object_aimbot_enabled then locked_target = nearest_object() end
     end
 
-    if not locked_target then return end
+    if not locked_target then 
+        if aim_debug_lbl then aim_debug_lbl.Visible = false end
+        return 
+    end
+
+    if aim_debug_lbl then aim_debug_lbl.Visible = true end
 
     local aim_pos = locked_target.Position
     if locked_target.Parent and locked_target.Parent:IsA("Model") then
