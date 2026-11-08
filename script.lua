@@ -131,7 +131,7 @@ end
 state = {
     esp_enabled = false, esp_box = true, esp_name = true, esp_distance = true, esp_tracers = false, esp_skeleton = false, esp_color = Color3.fromRGB(255, 80, 80), esp_team_color = false, esp_range = 500,
     esp_health = true, radar_enabled = false, offscreen_arrows = false, bullet_tracers = false,
-    fov_enabled = false, fov_value = 70, fov_rmb = false, saved_spots = {}, aimbot_enabled = false, aimbot_fov = 150, aimbot_smooth = 0.35, aimbot_part = "Head", aimbot_teamcheck = false, aimbot_range = 500, aimbot_prediction = 0.05, aimbot_snap = false, aimbot_always = false, wallbang = false,
+    fov_enabled = false, fov_value = 70, saved_spots = {}, aimbot_enabled = false, aimbot_fov = 150, aimbot_smooth = 0.35, aimbot_part = "Head", aimbot_teamcheck = false, aimbot_range = 500, aimbot_prediction = 0.05, aimbot_snap = false, aimbot_always = false, wallbang = false,
     aimbot_hit_chance = 100, aimbot_pause_kill = false, aimbot_random_part = false, aimbot_god_check = true, aimbot_silent = false, aimbot_weapon_pred = true, hit_marker = true, hit_sound_pack = "dink",
     triggerbot = false, hit_sound = false, fling_return = true, use_walkfling = false, hitbox_enabled = false, hitbox_part = "HumanoidRootPart", hitbox_look = "Box", hitbox_size = 6, hitbox_transparency = 0.5,
     object_name = "", object_esp_enabled = false, object_aimbot_enabled = false, object_box = true, object_name_lbl = true, object_range = 500, fly_enabled = false, fly_speed = 60, fly_mode = "Velocity",
@@ -314,7 +314,6 @@ end
 
 function full_cleanup()
     pcall(function() RunService:UnbindFromRenderStep("MidnightAim") end)
-    pcall(function() RunService:UnbindFromRenderStep("Midnight_FOV") end)
     if main_render_conn then main_render_conn:Disconnect(); main_render_conn = nil end
     if fling_conn then fling_conn:Disconnect(); fling_conn = nil end
     if fly_conn then fly_conn:Disconnect(); fly_conn = nil end
@@ -354,7 +353,6 @@ function full_cleanup()
     if _G._midnight_fling_weld then pcall(function() _G._midnight_fling_weld:Destroy() end); _G._midnight_fling_weld = nil end
     if _G._midnight_inf_jump then _G._midnight_inf_jump:Disconnect(); _G._midnight_inf_jump = nil end
     camera.FieldOfView = orig_fov
-    camera.CameraType = Enum.CameraType.Custom
     Lighting.Brightness = orig_lighting.Brightness
     Lighting.ClockTime = orig_lighting.ClockTime
     Lighting.GlobalShadows = orig_lighting.GlobalShadows
@@ -1059,7 +1057,6 @@ slider(espLeft, "Green", 0, 255, 80, function(v) state.esp_color = Color3.fromRG
 slider(espLeft, "Blue", 0, 255, 80, function(v) state.esp_color = Color3.fromRGB(state.esp_color.R * 255, state.esp_color.G * 255, v) end, 13)
 section(espLeft, "Camera", 20)
 toggle(espLeft, "Enable FOV override", false, function(on) state.fov_enabled = on end, 21, "fov_enabled")
-toggle(espLeft, "FOV only while RMB", false, function(on) state.fov_rmb = on end, 22, "fov_rmb")
 slider(espLeft, "FOV", 30, 120, 70, function(v) state.fov_value = v end, 23, "fov_value")
 section(espRight, "Object ESP", 1)
 toggle(espRight, "Enable object ESP", false, function(on)
@@ -2173,59 +2170,41 @@ main_render_conn = RunService.Heartbeat:Connect(function(dt)
     end)
 end)
 
-RunService:BindToRenderStep("Midnight_FOV", Enum.RenderPriority.Last.Value, function()
-    if state.fov_enabled then
-        local target_fov = state.fov_value
-        if state.fov_rmb and not UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) then
-            target_fov = orig_fov
-        end
-        camera.FieldOfView = target_fov
-    else
-        camera.FieldOfView = orig_fov
-    end
-end)
-
-RunService:BindToRenderStep("MidnightAim", Enum.RenderPriority.Last.Value, function(dt)
-    local cam = Workspace.CurrentCamera or camera
+RunService:BindToRenderStep("MidnightAim", Enum.RenderPriority.Camera.Value + 1, function(dt)
+    local cam = Workspace.CurrentCamera
     if not gui.Parent then return end
     
-    fovCircle.Visible = state.aimbot_enabled or state.object_aimbot_enabled or key_state.aimbot
-
-    local active = state.aimbot_enabled and (key_state.aimbot or state.aimbot_always)
-    if not active and not state.object_aimbot_enabled then
-        locked_target = nil
-        lock_text.Visible = false
-        if cam.CameraType == Enum.CameraType.Scriptable then
-            cam.CameraType = Enum.CameraType.Custom
-        end
-        return
+    if state.fov_enabled then
+        cam.FieldOfView = state.fov_value
+    else
+        cam.FieldOfView = orig_fov
     end
     
+    if not key_state.aimbot then
+        locked_target = nil
+        return
+    end
+
     if tick() < aim_pause_until then return end
-    
+
     if locked_target then
         local char = locked_target.Parent
         local hum = char and char:FindFirstChildOfClass("Humanoid")
         if not hum or hum.Health <= 0 then
             locked_target = nil
-            if state.aimbot_pause_kill then aim_pause_until = tick() + 0.5 end
+            if state.aimbot_pause_kill then
+                aim_pause_until = tick() + 0.5
+            end
         end
     end
-    
+
     if not locked_target then
-        if active then locked_target = nearest_target() end
+        if state.aimbot_enabled then locked_target = nearest_target() end
         if not locked_target and state.object_aimbot_enabled then locked_target = nearest_object() end
     end
-    
-    if not locked_target then 
-        lock_text.Visible = false
-        if cam.CameraType == Enum.CameraType.Scriptable then
-            cam.CameraType = Enum.CameraType.Custom
-        end
-        return 
-    end
-    
-    lock_text.Visible = true
+
+    if not locked_target then return end
+
     local aim_pos = locked_target.Position
     if locked_target.Parent and locked_target.Parent:IsA("Model") then
         local hrp = locked_target.Parent:FindFirstChild("HumanoidRootPart")
@@ -2239,35 +2218,48 @@ RunService:BindToRenderStep("MidnightAim", Enum.RenderPriority.Last.Value, funct
             aim_pos = aim_pos + hrp.AssemblyLinearVelocity * pred_val
         end
     end
-    
     local sp, onscreen = cam:WorldToViewportPoint(aim_pos)
     if not onscreen or sp.Z <= 0 then return end
     
-    local vp = cam.ViewportSize
-    local center = Vector2.new(vp.X/2, vp.Y/2)
-    local dx = sp.X - center.X
-    local dy = sp.Y - center.Y
-    
-    if state.aimbot_silent or state.aimbot_snap then
-        if cam.CameraType ~= Enum.CameraType.Scriptable then
-            cam.CameraType = Enum.CameraType.Scriptable
+    if state.aimbot_silent then
+        local cam_pos = cam.CFrame.Position
+        local target_cf = CFrame.lookAt(cam_pos, aim_pos)
+        cam.CFrame = target_cf
+    elseif state.aimbot_snap then
+        local cam_pos = cam.CFrame.Position
+        local target_cf = CFrame.lookAt(cam_pos, aim_pos)
+        cam.CFrame = target_cf
+        local char = player.Character
+        local hrp = char and char:FindFirstChild("HumanoidRootPart")
+        if hrp then
+            local look = Vector3.new(aim_pos.X, hrp.Position.Y, aim_pos.Z)
+            hrp.CFrame = CFrame.lookAt(hrp.Position, look)
         end
-        cam.CFrame = CFrame.lookAt(cam.CFrame.Position, aim_pos)
     else
-        if math.random(1, 100) <= state.aimbot_hit_chance then
-            if type(mousemoverel) == "function" then
-                if cam.CameraType == Enum.CameraType.Scriptable then
-                    cam.CameraType = Enum.CameraType.Custom
+        local vp = cam.ViewportSize
+        local dx = sp.X - vp.X * 0.5
+        local dy = sp.Y - vp.Y * 0.5
+        local strength = 1 - state.aimbot_smooth * 0.9
+        if type(mousemoverel) == "function" then
+            if math.random(1, 100) <= state.aimbot_hit_chance then
+                mousemoverel(dx * strength, dy * strength)
+            end
+        else
+            local cam_pos = cam.CFrame.Position
+            local target_cf = CFrame.lookAt(cam_pos, aim_pos)
+            if math.random(1, 100) <= state.aimbot_hit_chance then
+                if state.aimbot_smooth <= 0.01 then
+                    cam.CFrame = target_cf
+                else
+                    local alpha = 1 - (0.001 ^ (dt * 60))
+                    cam.CFrame = cam.CFrame:Lerp(target_cf, alpha * (1 - state.aimbot_smooth * 0.7))
                 end
-                local smooth = 1 - state.aimbot_smooth * 0.9
-                mousemoverel(dx * smooth, dy * smooth)
-            else
-                if cam.CameraType ~= Enum.CameraType.Scriptable then
-                    cam.CameraType = Enum.CameraType.Scriptable
-                end
-                local target_cf = CFrame.lookAt(cam.CFrame.Position, aim_pos)
-                local alpha = 1 - (0.001 ^ (dt * 60))
-                cam.CFrame = cam.CFrame:Lerp(target_cf, alpha * (1 - state.aimbot_smooth * 0.7))
+            end
+            local char = player.Character
+            local hrp = char and char:FindFirstChild("HumanoidRootPart")
+            if hrp then
+                local look = Vector3.new(aim_pos.X, hrp.Position.Y, aim_pos.Z)
+                hrp.CFrame = CFrame.lookAt(hrp.Position, look)
             end
         end
     end
