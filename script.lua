@@ -131,13 +131,12 @@ end
 state = {
     esp_enabled = false, esp_box = true, esp_name = true, esp_distance = true, esp_tracers = false, esp_skeleton = false, esp_color = Color3.fromRGB(255, 80, 80), esp_team_color = false, esp_range = 500,
     esp_health = true, radar_enabled = false, offscreen_arrows = false, bullet_tracers = false,
-    fov_enabled = false, fov_value = 70, saved_spots = {}, aimbot_enabled = false, aimbot_fov = 150, aimbot_smooth = 0.35, aimbot_part = "Head", aimbot_teamcheck = false, aimbot_range = 500, aimbot_prediction = 0.05, aimbot_snap = false, aimbot_always = false, wallbang = false,
-    aimbot_hit_chance = 100, aimbot_pause_kill = false, aimbot_random_part = false, aimbot_god_check = false, aimbot_silent = false, aimbot_weapon_pred = true, hit_marker = true, hit_sound_pack = "dink",
+    fov_enabled = false, fov_value = 70, saved_spots = {}, aimbot_enabled = false, aimbot_fov = 150, aimbot_smooth = 0.35, aimbot_part = "Head", aimbot_teamcheck = false, aimbot_range = 500, aimbot_prediction = 0.05, aimbot_snap = false, aimbot_hit_chance = 100, aimbot_silent = false, aimbot_weapon_pred = true, hit_marker = true, hit_sound_pack = "dink",
     triggerbot = false, hit_sound = false, fling_return = true, use_walkfling = false, hitbox_enabled = false, hitbox_part = "HumanoidRootPart", hitbox_look = "Box", hitbox_size = 6, hitbox_transparency = 0.5,
     object_name = "", object_esp_enabled = false, object_aimbot_enabled = false, object_box = true, object_name_lbl = true, object_range = 500, fly_enabled = false, fly_speed = 60, fly_mode = "Velocity",
-    vehiclefly_enabled = false, vehicle_noclip = false, jb_fly_enabled = false, spinbot = false, spinbot_speed = 50, mask_enabled = false, mask_display = "", noclip = false, cf_speed = false, cf_speed_val = 50,
-    anti_afk = false, fullbright = false, click_tp = false, anti_fling = false, float = false, swim = false, under_map = false, auto_farm = false, safe_fly = false, mm2_auto_shoot = false, mm2_auto_grab = false, grabbing_gun = false,
-    rapid_fire = false, rapid_fire_delay = 0.01, inf_ammo = false, inf_ammo_value = 9999, auto_reload = false, third_person = false, night_mode = false,
+    vehiclefly_enabled = false, spinbot = false, spinbot_speed = 50, mask_enabled = false, mask_display = "", noclip = false, cf_speed = false, cf_speed_val = 50,
+    anti_afk = false, fullbright = false, click_tp = false, anti_fling = false, float = false, swim = false, auto_farm = false, mm2_auto_shoot = false, mm2_auto_grab = false, grabbing_gun = false,
+    auto_reload = false, third_person = false, night_mode = false,
     xray_enabled = false, chams_enabled = false, rainbow_enabled = false, forcefield_enabled = false,
     inf_jump = false, config_filename = "Midnight_Config.json",
     orbit_aura = false, orbit_radius = 4, orbit_height = 3, orbit_duration = 10, ui_scale = 1,
@@ -146,7 +145,6 @@ state = {
 ui_refs = { toggles = {}, sliders = {}, textboxes = {} }
 
 locked_target = nil
-aim_pause_until = 0
 keybinds = {
     aimbot = {input = Enum.UserInputType.MouseButton2, key = Enum.KeyCode.Unknown},
     fling = {input = Enum.UserInputType.Keyboard, key = Enum.KeyCode.F},
@@ -165,7 +163,6 @@ fly_velocity = nil
 fly_gyro = nil
 hitbox_expanded = {}
 obj_esp_objs = {}
-troll_conn = nil
 spin_vel = nil
 noclip_conn = nil
 cf_speed_conn = nil
@@ -173,11 +170,9 @@ anti_afk_conn = nil
 anti_fling_conn = nil
 float_conn = nil
 swim_conn = nil
-vehicle_noclip_conn = nil
-under_map_conn = nil
 auto_farm_conn = nil
-rapid_fire_task = nil
 main_render_conn = nil
+triggerbot_conn = nil
 loop_tp_conn = nil
 xray_originals = {}
 chams_highlights = {}
@@ -189,8 +184,6 @@ orbit_timer = nil
 orig_lighting = {
     Brightness = Lighting.Brightness, ClockTime = Lighting.ClockTime, GlobalShadows = Lighting.GlobalShadows, FogEnd = Lighting.FogEnd,
 }
-is_mm2 = game.PlaceId == 142823291
-wallbang_conn = nil
 
 function import_config(code)
     local ok, data = pcall(function() return HttpService:JSONDecode(code) end)
@@ -316,27 +309,18 @@ function full_cleanup()
     pcall(function() RunService:UnbindFromRenderStep("MidnightAim") end)
     pcall(function() RunService:UnbindFromRenderStep("MidnightFOV") end)
     if main_render_conn then main_render_conn:Disconnect(); main_render_conn = nil end
+    if triggerbot_conn then triggerbot_conn:Disconnect(); triggerbot_conn = nil end
     if fling_conn then fling_conn:Disconnect(); fling_conn = nil end
     if fly_conn then fly_conn:Disconnect(); fly_conn = nil end
-    if troll_conn then troll_conn:Disconnect(); troll_conn = nil end
     if noclip_conn then noclip_conn:Disconnect(); noclip_conn = nil end
     if cf_speed_conn then cf_speed_conn:Disconnect(); cf_speed_conn = nil end
     if anti_afk_conn then anti_afk_conn:Disconnect(); anti_afk_conn = nil end
     if anti_fling_conn then anti_fling_conn:Disconnect(); anti_fling_conn = nil end
     if float_conn then float_conn:Disconnect(); float_conn = nil end
     if swim_conn then swim_conn:Disconnect(); swim_conn = nil end
-    if vehicle_noclip_conn then vehicle_noclip_conn:Disconnect(); vehicle_noclip_conn = nil end
-    if under_map_conn then under_map_conn:Disconnect(); under_map_conn = nil end
     if auto_farm_conn then pcall(function() task.cancel(auto_farm_conn) end); auto_farm_conn = nil end
-    if rapid_fire_task then pcall(function() task.cancel(rapid_fire_task) end); rapid_fire_task = nil end
-    _G._midnight_alive = false
-    if _G._midnight_hooks then
-        if _G._midnight_hooks.uninstall then pcall(_G._midnight_hooks.uninstall) end
-        if _G._midnight_hooks.cancel_fallback then pcall(_G._midnight_hooks.cancel_fallback) end
-    end
     if loop_tp_conn then loop_tp_conn:Disconnect(); loop_tp_conn = nil end
     if rainbow_task then pcall(function() task.cancel(rainbow_task) end); rainbow_task = nil end
-    if wallbang_conn then wallbang_conn:Disconnect(); wallbang_conn = nil end
     if orbit_aura_conn then orbit_aura_conn:Disconnect(); orbit_aura_conn = nil end
     if shadow_step_conn then shadow_step_conn:Disconnect(); shadow_step_conn = nil end
     if orbit_timer then pcall(function() task.cancel(orbit_timer) end); orbit_timer = nil end
@@ -402,28 +386,6 @@ function export_config()
         data[k] = {keyName = v.key and v.key.Name or "None", inputName = v.input.Name, __keybind = true}
     end
     return HttpService:JSONEncode(data)
-end
-
--- ==========================================
--- WALLBANG AUTO-CLIP
--- ==========================================
-function update_wallbang()
-    if wallbang_conn then wallbang_conn:Disconnect(); wallbang_conn = nil end
-    if state.wallbang then
-        wallbang_conn = UserInputService.InputBegan:Connect(function(io, gp)
-            if io.UserInputType == Enum.UserInputType.MouseButton1 and not gp then
-                local char = player.Character
-                local hrp = char and char:FindFirstChild("HumanoidRootPart")
-                if hrp then
-                    local old_cf = hrp.CFrame
-                    hrp.CFrame = hrp.CFrame * CFrame.new(0, 0, -5)
-                    task.delay(0.1, function()
-                        if hrp and hrp.Parent then hrp.CFrame = old_cf end
-                    end)
-                end
-            end
-        end)
-    end
 end
 
 -- ==========================================
@@ -497,136 +459,6 @@ function update_shadow_step()
 end
 
 -- ==========================================
--- WEAPON HOOKS
--- ==========================================
-_midnight_client_item = nil
-_midnight_input_orig = nil
-_midnight_reload_orig = nil
-_midnight_gc_task = nil
-
-function _midnight_find_client_item()
-    if _midnight_client_item then return _midnight_client_item end
-    local search_roots = {}
-    table.insert(search_roots, player:FindFirstChild("PlayerScripts"))
-    table.insert(search_roots, game:GetService("ReplicatedStorage"))
-    for _, root in ipairs(search_roots) do
-        if root then
-            local ok, inst = pcall(function() return root:FindFirstChild("ClientItem", true) end)
-            if ok and inst and inst:IsA("ModuleScript") then
-                local req_ok, mod = pcall(require, inst)
-                if req_ok and type(mod) == "table" then _midnight_client_item = mod; return mod end
-            end
-        end
-    end
-    return nil
-end
-
-function _midnight_apply_mods(item)
-    if type(item) ~= "table" or not item.Info then return end
-    if state.rapid_fire then
-        pcall(function()
-            if rawget(item.Info, "ShootCooldown") ~= nil then rawset(item.Info, "ShootCooldown", state.rapid_fire_delay) end
-            if rawget(item.Info, "QuickShotCooldown") ~= nil then rawset(item.Info, "QuickShotCooldown", state.rapid_fire_delay) end
-        end)
-    end
-    if state.inf_ammo then
-        pcall(function()
-            local keys = {"Ammo", "CurrentAmmo", "MagAmmo", "AmmoReserve"}
-            for i = 1, #keys do
-                if rawget(item.Info, keys[i]) ~= nil then rawset(item.Info, keys[i], state.inf_ammo_value) end
-            end
-        end)
-    end
-end
-
-function _midnight_install_hooks()
-    if type(hookfunction) ~= "function" then return false end
-    if _midnight_input_orig then return true end
-    local ClientItem = _midnight_find_client_item()
-    if not ClientItem or type(ClientItem.Input) ~= "function" then return false end
-    local ok = pcall(function()
-        _midnight_input_orig = hookfunction(ClientItem.Input, function(...)
-            local args = table.pack(...)
-            for i = 1, args.n do _midnight_apply_mods(args[i]) end
-            return _midnight_input_orig(table.unpack(args, 1, args.n))
-        end)
-    end)
-    if not ok or not _midnight_input_orig then _midnight_input_orig = nil; return false end
-    if type(ClientItem.Reload) == "function" then
-        pcall(function()
-            _midnight_reload_orig = hookfunction(ClientItem.Reload, function(...)
-                local args = table.pack(...)
-                for i = 1, args.n do _midnight_apply_mods(args[i]) end
-                return _midnight_reload_orig(table.unpack(args, 1, args.n))
-            end)
-        end)
-    end
-    return true
-end
-
-function _midnight_uninstall_hooks()
-    local ClientItem = _midnight_client_item
-    if ClientItem and _midnight_input_orig and type(hookfunction) == "function" then
-        pcall(function() hookfunction(ClientItem.Input, _midnight_input_orig) end)
-    end
-    if ClientItem and _midnight_reload_orig and type(ClientItem.Reload) == "function" and type(hookfunction) == "function" then
-        pcall(function() hookfunction(ClientItem.Reload, _midnight_reload_orig) end)
-    end
-    _midnight_input_orig = nil
-    _midnight_reload_orig = nil
-end
-
-function _midnight_install_gc_fallback()
-    if _midnight_gc_task then return end
-    if type(getgc) ~= "function" then return end
-    _G._midnight_alive = true
-    _midnight_gc_task = task.spawn(function()
-        while _G._midnight_alive do
-            task.wait(1)
-            if state.rapid_fire or state.inf_ammo then
-                local ok, gc = pcall(getgc, true)
-                if ok and type(gc) == "table" then
-                    for _, v in pairs(gc) do
-                        if type(v) == "table" then
-                            pcall(function()
-                                if state.rapid_fire then
-                                    if rawget(v, "ShootCooldown") ~= nil then rawset(v, "ShootCooldown", state.rapid_fire_delay) end
-                                    if rawget(v, "QuickShotCooldown") ~= nil then rawset(v, "QuickShotCooldown", state.rapid_fire_delay) end
-                                end
-                                if state.inf_ammo then
-                                    local keys = {"Ammo", "CurrentAmmo", "MagAmmo", "AmmoReserve"}
-                                    for i = 1, #keys do
-                                        if rawget(v, keys[i]) ~= nil then rawset(v, keys[i], state.inf_ammo_value) end
-                                    end
-                                end
-                            end)
-                        end
-                    end
-                end
-            end
-        end
-        _midnight_gc_task = nil
-    end)
-end
-
-function _midnight_cancel_fallback()
-    _G._midnight_alive = false
-    if _midnight_gc_task then pcall(function() task.cancel(_midnight_gc_task) end); _midnight_gc_task = nil end
-end
-
-_G._midnight_hooks = {
-    install = _midnight_install_hooks,
-    uninstall = _midnight_uninstall_hooks,
-    cancel_fallback = _midnight_cancel_fallback,
-}
-
-task.spawn(function()
-    local ok = false
-    pcall(function() ok = _midnight_install_hooks() end)
-    if not ok then pcall(_midnight_install_gc_fallback) end
-end)
-
--- ==========================================
 -- UI CREATION
 -- ==========================================
 update_loading("Building main window", 25)
@@ -696,7 +528,6 @@ end))
 update_loading("Building tabs", 35)
 
 tabs = {"ESP", "Teleport", "Aimbot", "Fling", "Hitbox", "Fun", "Utility"}
-if is_mm2 then table.insert(tabs, "MM2") end
 tabBar = make("Frame", {Size = UDim2.new(1, -12, 0, 26), Position = UDim2.new(0, 6, 0, 32), BackgroundColor3 = COL_BG, BorderSizePixel = 0}, main)
 make("UIListLayout", {FillDirection = Enum.FillDirection.Horizontal, SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 4)}, tabBar)
 tabButtons = {}
@@ -1165,8 +996,6 @@ toggle(aimLeft, "Enable aimbot", false, function(on)
     state.aimbot_enabled = on
     update_fov_circle()
 end, 2, "aimbot_enabled")
-toggle(aimLeft, "Always Aim (Ignore Key)", false, function(on) state.aimbot_always = on end, 3, "aimbot_always")
-toggle(aimLeft, "God check (skip FF)", false, function(on) state.aimbot_god_check = on end, 4, "aimbot_god_check")
 
 slider(aimLeft, "FOV (px)", 20, 500, 150, function(v) state.aimbot_fov = v; update_fov_circle() end, 5, "aimbot_fov")
 slider(aimLeft, "Max range", 50, 2000, 500, function(v) state.aimbot_range = v end, 6, "aimbot_range")
@@ -1179,24 +1008,13 @@ toggle(aimLeft, "Silent Aim", false, function(on) state.aimbot_silent = on end, 
 
 section(aimLeft, "Legit / Combat", 13)
 slider(aimLeft, "Hit Chance (%)", 10, 100, 100, function(v) state.aimbot_hit_chance = v end, 14, "aimbot_hit_chance")
-toggle(aimLeft, "Pause after kill", false, function(on) state.aimbot_pause_kill = on end, 15, "aimbot_pause_kill")
-toggle(aimLeft, "Random body part", false, function(on) state.aimbot_random_part = on end, 16, "aimbot_random_part")
 toggle(aimLeft, "Weapon-aware prediction", true, function(on) state.aimbot_weapon_pred = on end, 17, "aimbot_weapon_pred")
 
-toggle(aimLeft, "Wallbang (Auto-Clip)", false, function(on)
-    state.wallbang = on
-    update_wallbang()
-end, 18, "wallbang")
 
 section(aimLeft, "Target part", 19)
 toggle(aimLeft, "Head", true, function(on) state.aimbot_part = "Head" end, 20)
 toggle(aimLeft, "HumanoidRootPart", false, function(on) state.aimbot_part = "HumanoidRootPart" end, 21)
 
-section(aimLeft, "Exploits", 22)
-toggle(aimLeft, "Rapid Fire (Cooldown Hook)", false, function(on) state.rapid_fire = on end, 23, "rapid_fire")
-slider(aimLeft, "Rapid Fire Cooldown (s)", 0, 0.5, 0.01, function(v) state.rapid_fire_delay = v end, 24, "rapid_fire_delay")
-toggle(aimLeft, "Infinite Ammo", false, function(on) state.inf_ammo = on end, 25, "inf_ammo")
-slider(aimLeft, "Ammo Value", 10, 9999, 9999, function(v) state.inf_ammo_value = math.floor(v) end, 26, "inf_ammo_value")
 
 section(aimRight, "Keybinds", 1)
 keybindButtons = {}
@@ -1266,13 +1084,8 @@ function nearest_target()
             local char = p.Character
             if char then
                 local skip = false
-                if state.aimbot_god_check and char:FindFirstChildOfClass("ForceField") then skip = true end
                 if not skip then
                     local target_part_name = state.aimbot_part
-                    if state.aimbot_random_part then
-                        local parts = {"Head", "HumanoidRootPart", "UpperTorso", "LowerTorso"}
-                        target_part_name = parts[math.random(#parts)]
-                    end
                     local part = char:FindFirstChild(target_part_name) or char:FindFirstChild("HumanoidRootPart")
                     if part then
                         local world_dist = (part.Position - my_pos).Magnitude
@@ -1467,64 +1280,6 @@ end
 track(Players.PlayerRemoving:Connect(function(p) remove_hitbox(p) end))
 
 -- ==========================================
--- TAB BUILDER: FUN
--- ==========================================
-update_loading("Building Exploits & Fun", 90)
-
-funLeft, funRight = split_two(tabPages["Fun"])
-section(funLeft, "Troll", 1)
-bangTarget = textbox(funLeft, "target player name...", 2, "")
-button(funLeft, "Bang Target (Back n Forth)", COL_PANEL_ALT, function()
-    local targetName = bangTarget.Text
-    if targetName == "" then return end
-    local target = nil
-    for _, p in ipairs(Players:GetPlayers()) do
-        if p.Name:lower():find(targetName:lower()) then target = p break end
-    end
-    if target then
-        local char = player.Character
-        local t_char = target.Character
-        local root = char and char:FindFirstChild("HumanoidRootPart")
-        local t_root = t_char and t_char:FindFirstChild("HumanoidRootPart")
-        if root and t_root then
-            if troll_conn then troll_conn:Disconnect() end
-            local start_cf = root.CFrame
-            troll_conn = RunService.RenderStepped:Connect(function()
-                local r = get_root()
-                local tr = get_root(target)
-                if not r or not tr then
-                    if troll_conn then troll_conn:Disconnect(); troll_conn = nil end
-                    if get_root() then get_root().CFrame = start_cf end
-                    return
-                end
-                local t = tick()
-                local bang = math.sin(t * 20) * 3
-                r.CFrame = tr.CFrame * CFrame.new(0, 0, 2) * CFrame.new(0, 0, bang)
-            end)
-            task.delay(3, function()
-                if troll_conn then troll_conn:Disconnect(); troll_conn = nil end
-                local r = get_root()
-                if r then r.CFrame = start_cf end
-            end)
-        end
-    end
-end, 3)
-section(funRight, "Dance", 1)
-button(funRight, "Force Dance", COL_ACCENT, function()
-    local char = player.Character
-    local hum = char and char:FindFirstChildOfClass("Humanoid")
-    if hum then
-        local animator = hum:FindFirstChildOfClass("Animator")
-        if animator then
-            local anim = Instance.new("Animation")
-            anim.AnimationId = "rbxassetid://507770818"
-            local track_anim = animator:LoadAnimation(anim)
-            track_anim:Play()
-            task.delay(5, function() track_anim:Stop() end)
-        end
-    end
-end, 2)
-
 update_loading("Building Utility", 95)
 
 function stop_fly()
@@ -1579,7 +1334,6 @@ function start_fly(on_vehicle)
             if UserInputService:IsKeyDown(Enum.KeyCode.Space) then move = move + Vector3.new(0, 1, 0) end
             if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then move = move - Vector3.new(0, 1, 0) end
             local speed = state.fly_speed
-            if state.safe_fly then speed = math.min(speed, 50) end
             if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then speed = speed * 2.5 end
             if move.Magnitude > 0 then r.CFrame = r.CFrame + (move.Unit * speed * dt) end
         end)
@@ -1616,48 +1370,11 @@ function start_fly(on_vehicle)
             if UserInputService:IsKeyDown(Enum.KeyCode.Space) then move = move + Vector3.new(0, 1, 0) end
             if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then move = move - Vector3.new(0, 1, 0) end
             local speed = state.fly_speed
-            if state.safe_fly then speed = math.min(speed, 50) end
             if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then speed = speed * 2.5 end
             fly_velocity.Velocity = move.Magnitude > 0 and move.Unit * speed or Vector3.zero
         end)
     end
 end
-function start_jb_fly()
-    stop_fly()
-    local char = player.Character
-    local hum = char and char:FindFirstChildOfClass("Humanoid")
-    if hum then hum.Sit = false end
-    task.wait(0.1)
-    local root = get_root()
-    if not root then return end
-    fly_velocity = Instance.new("BodyVelocity")
-    fly_velocity.MaxForce = Vector3.new(1e9, 1e9, 1e9)
-    fly_velocity.Velocity = Vector3.zero
-    fly_velocity.Parent = root
-    fly_gyro = Instance.new("BodyGyro")
-    fly_gyro.MaxTorque = Vector3.new(1e9, 1e9, 1e9)
-    fly_gyro.P = 1000
-    fly_gyro.D = 50
-    fly_gyro.Parent = root
-    fly_conn = RunService.RenderStepped:Connect(function()
-        local r = get_root()
-        if not r then stop_fly(); return end
-        fly_gyro.CFrame = camera.CFrame
-        local move = Vector3.zero
-        local cam = camera.CFrame
-        if UserInputService:IsKeyDown(Enum.KeyCode.W) then move = move + cam.LookVector end
-        if UserInputService:IsKeyDown(Enum.KeyCode.S) then move = move - cam.LookVector end
-        if UserInputService:IsKeyDown(Enum.KeyCode.A) then move = move - cam.RightVector end
-        if UserInputService:IsKeyDown(Enum.KeyCode.D) then move = move + cam.RightVector end
-        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then move = move + Vector3.new(0, 1, 0) end
-        if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then move = move - Vector3.new(0, 1, 0) end
-        local speed = state.fly_speed
-        if state.safe_fly then speed = math.min(speed, 50) end
-        if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then speed = speed * 2.5 end
-        fly_velocity.Velocity = move.Magnitude > 0 and move.Unit * speed or Vector3.zero
-    end)
-end
-
 uScroll = scroll_col(tabPages["Utility"])
 section(uScroll, "Menu", 1)
 button(uScroll, "Hide Menu (RightShift)", COL_PANEL_ALT, function()
@@ -1835,44 +1552,6 @@ toggle(uScroll, "Enable vehicle fly", false, function(on)
     state.vehiclefly_enabled = on
     if on then start_fly(true) else stop_fly() end
 end, 34, "vehiclefly_enabled")
-toggle(uScroll, "Jailbreak fly (unsits)", false, function(on)
-    state.jb_fly_enabled = on
-    if on then start_jb_fly() else stop_fly() end
-end, 35, "jb_fly_enabled")
-toggle(uScroll, "Vehicle Noclip", false, function(on)
-    state.vehicle_noclip = on
-    if on then
-        if vehicle_noclip_conn then vehicle_noclip_conn:Disconnect() end
-        vehicle_noclip_conn = RunService.Heartbeat:Connect(function()
-            local char = player.Character
-            local hum = char and char:FindFirstChildOfClass("Humanoid")
-            local seat = hum and hum.SeatPart
-            if seat then
-                local vehicle = seat.Parent
-                if vehicle then
-                    local primary = vehicle.PrimaryPart or vehicle:FindFirstChildWhichIsA("BasePart")
-                    if primary then pcall(function() primary:SetNetworkOwner(player) end) end
-                    for _, part in ipairs(vehicle:GetDescendants()) do
-                        if part:IsA("BasePart") then
-                            part.CanCollide = false
-                            part.CanQuery = false
-                        end
-                    end
-                end
-            end
-        end)
-    else
-        if vehicle_noclip_conn then vehicle_noclip_conn:Disconnect(); vehicle_noclip_conn = nil end
-        local char = player.Character
-        local hum = char and char:FindFirstChildOfClass("Humanoid")
-        local seat = hum and hum.SeatPart
-        if seat and seat.Parent then
-            for _, part in ipairs(seat.Parent:GetDescendants()) do
-                if part:IsA("BasePart") then part.CanCollide = true; part.CanQuery = true end
-            end
-        end
-    end
-end, 36, "vehicle_noclip")
 section(uScroll, "Camera & View", 40)
 toggle(uScroll, "Third Person", false, function(on)
     state.third_person = on
@@ -1884,26 +1563,6 @@ toggle(uScroll, "Third Person", false, function(on)
         player.CameraMinZoomDistance = 0.5
     end
 end, 41, "third_person")
-section(uScroll, "Farm & Bypass", 50)
-toggle(uScroll, "Under Map (Immortal)", false, function(on)
-    state.under_map = on
-    if on then
-        if under_map_conn then under_map_conn:Disconnect() end
-        under_map_conn = RunService.RenderStepped:Connect(function()
-            local char = player.Character
-            local hrp = char and char:FindFirstChild("HumanoidRootPart")
-            if hrp then
-                if hrp.Position.Y > -50 then
-                    hrp.CFrame = CFrame.new(hrp.Position.X, -50, hrp.Position.Z)
-                    hrp.AssemblyLinearVelocity = Vector3.zero
-                end
-            end
-        end)
-    else
-        if under_map_conn then under_map_conn:Disconnect(); under_map_conn = nil end
-    end
-end, 51, "under_map")
-toggle(uScroll, "Safe Fly (Anti-Kick)", false, function(on) state.safe_fly = on end, 52, "safe_fly")
 section(uScroll, "Misc", 60)
 toggle(uScroll, "Hit Sounds", false, function(on) state.hit_sound = on end, 61, "hit_sound")
 toggle(uScroll, "Hit Marker", true, function(on) state.hit_marker = on end, 62, "hit_marker")
@@ -2191,22 +1850,18 @@ RunService:BindToRenderStep("MidnightAim", Enum.RenderPriority.Camera.Value + 1,
         is_aiming = UserInputService:IsMouseButtonPressed(keybinds.aimbot.input)
     end
 
-    if not is_aiming and not state.aimbot_always then
+    if not is_aiming then
         locked_target = nil
         if aim_debug_lbl then aim_debug_lbl.Visible = false end
         return
     end
 
-    if tick() < aim_pause_until then return end
 
     if locked_target then
         local char = locked_target.Parent
         local hum = char and char:FindFirstChildOfClass("Humanoid")
         if not hum or hum.Health <= 0 then
             locked_target = nil
-            if state.aimbot_pause_kill then
-                aim_pause_until = tick() + 0.5
-            end
         end
     end
 
@@ -2282,7 +1937,7 @@ RunService:BindToRenderStep("MidnightAim", Enum.RenderPriority.Camera.Value + 1,
     end
 end)
 
-RunService.Heartbeat:Connect(function()
+triggerbot_conn = RunService.Heartbeat:Connect(function()
     if not state.triggerbot then return end
     local mouse = player:GetMouse()
     if mouse.Target then
